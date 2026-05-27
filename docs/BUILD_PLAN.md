@@ -4,7 +4,7 @@ Each milestone has a clear definition of done. Work them in order. Mark the curr
 
 ---
 
-## Milestone 0 — Scaffold `[CURRENT]`
+## Milestone 0 — Scaffold `[DONE]`
 
 Set up the monorepo, tooling, and empty packages. No business logic.
 
@@ -29,7 +29,7 @@ Set up the monorepo, tooling, and empty packages. No business logic.
 
 ---
 
-## Milestone 1 — Database
+## Milestone 1 — Database `[CURRENT]`
 
 Bring up Supabase locally, apply the schema from `docs/schema.sql`, generate TS types.
 
