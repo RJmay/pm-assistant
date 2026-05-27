@@ -1,0 +1,101 @@
+# ENV.md
+
+All environment variables, where they live, and what they unlock. Keep this file current — if you add a new variable, document it here in the same PR.
+
+## Worker (`apps/worker`)
+
+Set via `wrangler secret put <NAME>` in production, `.dev.vars` in local dev (gitignored).
+
+| Variable | Source | Purpose |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic console | Calls Claude API for drafting |
+| `SUPABASE_URL` | Supabase project settings | Postgres + Auth endpoint |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project settings | Bypass RLS for Worker writes |
+| `SUPABASE_VAULT_DECRYPTION_KEY` | Set during Supabase Vault init | Decrypt Gmail tokens |
+| `GOOGLE_PUBSUB_AUDIENCE` | Google Cloud project | Verify Pub/Sub push JWTs |
+| `GOOGLE_PUBSUB_SERVICE_ACCOUNT` | Google Cloud project | Expected `email` claim in JWT |
+| `GMAIL_OAUTH_CLIENT_ID` | Google Cloud OAuth credentials | Refresh per-agency tokens |
+| `GMAIL_OAUTH_CLIENT_SECRET` | Google Cloud OAuth credentials | Same |
+| `TWILIO_ACCOUNT_SID` | Twilio console | Send SMS for owner alerts |
+| `TWILIO_AUTH_TOKEN` | Twilio console | Same |
+| `TWILIO_FROM_NUMBER` | Twilio console | The sending number |
+| `RESEND_API_KEY` | Resend dashboard | Send notification emails |
+| `RESEND_FROM_DOMAIN` | Resend dashboard | Verified sender domain |
+| `LOG_LEVEL` | Manual | `debug` \| `info` \| `warn` \| `error` (default `info`) |
+| `ENVIRONMENT` | Manual | `development` \| `staging` \| `production` |
+
+## Web (`apps/web`)
+
+Set in Cloudflare Pages/Workers dashboard for production. `.env.local` for dev.
+
+| Variable | Source | Purpose |
+|---|---|---|
+| `PUBLIC_SUPABASE_URL` | Supabase project | Client-side Supabase URL |
+| `PUBLIC_SUPABASE_ANON_KEY` | Supabase project | Client-side anon key (safe to expose) |
+| `PUBLIC_WORKER_URL` | Manual | Base URL of the Worker (e.g., `https://worker.pmassist.app`) |
+| `PUBLIC_ENVIRONMENT` | Manual | Drives dev banners and feature flags |
+
+## Supabase
+
+Set via Supabase dashboard or `supabase secrets set` for Edge Functions (not used in v1 but reserved).
+
+| Variable | Purpose |
+|---|---|
+| `SITE_URL` | Auth redirect base |
+| `JWT_SECRET` | Auto |
+| `SMTP_*` | Optional — only if not using Resend for auth emails |
+
+Also set in Supabase Auth → Providers:
+- Google OAuth (for PM dashboard sign-in via Google)
+- Email/password (enabled by default)
+
+## GitHub Actions
+
+Repository secrets needed for CI/CD:
+
+| Secret | Purpose |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Deploy Worker and Pages via Wrangler |
+| `CLOUDFLARE_ACCOUNT_ID` | Same |
+| `ANTHROPIC_API_KEY` | Run `RUN_LLM_TESTS=1` weekly job |
+| `SUPABASE_ACCESS_TOKEN` | Apply migrations to staging/prod |
+| `SUPABASE_PROJECT_REF_STAGING` | Identify staging project |
+| `SUPABASE_PROJECT_REF_PROD` | Identify prod project |
+
+## Per-agency runtime data (stored in DB / Vault, not env)
+
+These are not env vars but are required for an agency to function. Surfaced here so onboarding doesn't forget them.
+
+| Item | Stored where | Set by |
+|---|---|---|
+| Gmail refresh token | Supabase Vault, keyed by `agency_id` | OAuth flow during onboarding |
+| Pub/Sub topic + subscription | `agency_email_state.pubsub_subscription` | Onboarding script |
+| Gmail watch expiry | `agency_email_state.watch_expires_at` | Worker, refreshed daily |
+| Mailbox address being monitored | `agency_email_state.mailbox_address` | Onboarding flow |
+| Voice samples | `agency_config.voice_samples` | Dashboard settings page |
+| Approved tradies | `agency_config.approved_tradies` | Dashboard settings page |
+| Nominated repairer (Form 18a) | `agency_config.nominated_repairer` | Dashboard settings page |
+| Spending authority thresholds | `agency_config.routine_approval_threshold_cents` etc. | Dashboard settings page |
+| Owner notification preferences | `owner_notification_preferences` | Dashboard owner page |
+
+## Setup checklist for a new environment
+
+In order:
+
+1. Create Supabase project (region: Sydney for prod, any for dev)
+2. Apply migrations: `supabase db push`
+3. Enable required auth providers
+4. Set up Supabase Vault for Gmail tokens
+5. Create Cloudflare Worker, deploy with placeholder env
+6. Set Wrangler secrets per the table above
+7. Set up Cloudflare Pages for the web app
+8. Set Pages env vars per the table above
+9. Create Google Cloud project for Gmail + Pub/Sub
+10. Enable Gmail API and Pub/Sub API
+11. Create OAuth credentials (web application) for Gmail user-consent flow
+12. Create service account for Pub/Sub → Worker push authentication
+13. Create Pub/Sub topic `pm-assistant-gmail`
+14. Create Twilio account, buy a sending number
+15. Create Resend account, verify sending domain
+16. Wire up GitHub Actions secrets
+17. Smoke test: send a test email to a configured agency mailbox, verify draft appears

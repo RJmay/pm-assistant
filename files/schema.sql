@@ -1,0 +1,630 @@
+-- ============================================================================
+-- PM Assistant — Initial Schema (v1.0)
+-- ============================================================================
+--
+-- Multi-tenant by agency_id. RLS enforced everywhere.
+-- Worker uses service-role key (bypasses RLS) and must filter agency_id
+-- explicitly in every query. Dashboard uses authed JWT and relies on RLS.
+--
+-- Conventions:
+-- - snake_case
+-- - All tables have id (uuid), agency_id (uuid), created_at (timestamptz)
+-- - Soft delete via `archived_at` where appropriate, hard delete via cascade otherwise
+--
+-- ERD (text):
+--   agencies 1—1 agency_config
+--   agencies 1—* agency_users
+--   agencies 1—* owners 1—* properties 1—* tenancies 1—* tenants
+--   agencies 1—* owner_notification_preferences (owner or property scoped)
+--   agencies 1—* email_threads 1—* email_messages
+--   email_messages 1—1 ai_drafts (inbound only)
+--   ai_drafts 1—* draft_edits
+--   ai_drafts 1—* notification_log
+--   agencies 1—* prompt_versions
+--   agencies 1—* audit_log
+-- ============================================================================
+
+-- ============================================================================
+-- EXTENSIONS
+-- ============================================================================
+create extension if not exists "uuid-ossp";
+create extension if not exists pgcrypto;
+
+-- ============================================================================
+-- HELPER: current agency from JWT
+-- ============================================================================
+create schema if not exists auth_helpers;
+
+create or replace function auth_helpers.current_agency_id()
+returns uuid
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select nullif(
+    coalesce(
+      (current_setting('request.jwt.claims', true)::jsonb->'app_metadata'->>'agency_id'),
+      (current_setting('request.jwt.claim.app_metadata', true)::jsonb->>'agency_id')
+    ),
+    ''
+  )::uuid;
+$$;
+
+-- ============================================================================
+-- ENUMS
+-- ============================================================================
+create type agency_status as enum ('active', 'suspended', 'archived');
+create type agency_user_role as enum ('pm', 'principal', 'admin');
+create type tenancy_status as enum ('draft', 'active', 'ending', 'ended');
+create type rent_frequency as enum ('weekly', 'fortnightly', 'monthly');
+create type agreement_type as enum ('fixed', 'periodic');
+
+create type owner_notification_profile as enum (
+  'immediate',
+  'business_hours',
+  'safety_critical_only',
+  'email_only',
+  'pm_proxy'
+);
+
+create type email_direction as enum ('inbound', 'outbound');
+
+create type draft_category as enum (
+  'MAINTENANCE','RENT','LEASE','COMPLAINT','ADMIN','OTHER'
+);
+create type draft_priority as enum (
+  'STANDARD','PRIORITY','EMERGENCY_ALERT'
+);
+create type escalation_flag as enum (
+  'NONE','WELFARE','LEGAL','REPUTATIONAL','INCIDENT'
+);
+create type confidence_level as enum ('HIGH','MEDIUM','LOW');
+create type draft_status as enum (
+  'pending','edited','sent','discarded','do_not_send'
+);
+create type match_confidence as enum ('high','medium','low','none');
+
+create type notification_channel as enum ('sms','email','call','digest');
+create type notification_status as enum (
+  'queued','sent','failed','suppressed'
+);
+
+create type audit_actor_type as enum ('user','system','ai');
+
+-- ============================================================================
+-- AGENCIES
+-- ============================================================================
+create table agencies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  suburb text,
+  business_hours text,
+  after_hours_emergency_line text,
+  principal_email text,
+  status agency_status not null default 'active',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index idx_agencies_status on agencies(status);
+
+-- ============================================================================
+-- AGENCY USERS
+-- ============================================================================
+create table agency_users (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  auth_user_id uuid unique,    -- references auth.users(id), enforced by trigger or app
+  email text not null,
+  full_name text not null,
+  role agency_user_role not null,
+  gmail_address text,
+  gmail_oauth_vault_key text,  -- pointer to Supabase Vault secret
+  signature_block text,        -- their email signature, used in drafts
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  unique (agency_id, email)
+);
+
+create index idx_agency_users_agency on agency_users(agency_id);
+create index idx_agency_users_auth on agency_users(auth_user_id);
+
+-- ============================================================================
+-- AGENCY CONFIG (gets templated into the prompt)
+-- ============================================================================
+create table agency_config (
+  agency_id uuid primary key references agencies(id) on delete cascade,
+  voice_samples jsonb not null default '[]'::jsonb,
+  -- [{label: "Sample 1 - warm acknowledgement", body: "..."}, ...]
+
+  approved_tradies jsonb not null default '[]'::jsonb,
+  -- [{trade: "plumbing", name: "X", business_hours_contact: "...", after_hours_contact: "..."}]
+
+  nominated_repairer jsonb,
+  -- {name: "X", number: "0400..."}
+
+  routine_approval_threshold_cents integer not null default 25000,
+  written_quote_threshold_cents integer not null default 50000,
+
+  per_owner_quote_exceptions jsonb not null default '[]'::jsonb,
+  -- [{owner_id: uuid, threshold_cents: 20000, note: "..."}]
+
+  house_rules text,
+  pm_signoff_default text,
+
+  active_prompt_version_id uuid,
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================================================
+-- OWNERS
+-- ============================================================================
+create table owners (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  full_name text not null,
+  email text,
+  phone text,
+  notes text,
+  archived_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index idx_owners_agency on owners(agency_id) where archived_at is null;
+create index idx_owners_email on owners(agency_id, lower(email)) where email is not null;
+
+-- ============================================================================
+-- PROPERTIES
+-- ============================================================================
+create table properties (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  owner_id uuid references owners(id) on delete set null,
+  address_line1 text not null,
+  address_line2 text,
+  suburb text,
+  postcode text,
+  state text not null default 'QLD',
+  body_corporate_managed boolean default false,
+  body_corporate_agent text,
+  managing_pm_id uuid references agency_users(id) on delete set null,
+  notes text,
+  archived_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index idx_properties_agency on properties(agency_id) where archived_at is null;
+create index idx_properties_owner on properties(owner_id);
+create index idx_properties_address on properties using gin (
+  to_tsvector('english', address_line1 || ' ' || coalesce(suburb, ''))
+);
+
+-- ============================================================================
+-- TENANCIES
+-- ============================================================================
+create table tenancies (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  property_id uuid not null references properties(id) on delete cascade,
+  status tenancy_status not null default 'draft',
+  start_date date,
+  end_date date,
+  rent_amount_cents integer,
+  rent_frequency rent_frequency,
+  agreement_type agreement_type,
+  last_rent_increase_date date,
+  bond_amount_cents integer,
+  bond_rta_reference text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_tenancies_property on tenancies(property_id);
+create index idx_tenancies_status on tenancies(agency_id, status);
+
+-- ============================================================================
+-- TENANTS
+-- ============================================================================
+create table tenants (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  tenancy_id uuid references tenancies(id) on delete set null,
+  full_name text not null,
+  email text,
+  phone text,
+  is_primary boolean default false,
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_tenants_tenancy on tenants(tenancy_id);
+create index idx_tenants_email on tenants(agency_id, lower(email)) where email is not null;
+
+-- ============================================================================
+-- OWNER NOTIFICATION PREFERENCES
+-- ============================================================================
+create table owner_notification_preferences (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  owner_id uuid references owners(id) on delete cascade,
+  property_id uuid references properties(id) on delete cascade,
+  profile owner_notification_profile not null default 'immediate',
+  notification_channels jsonb not null default '["sms","email"]'::jsonb,
+  notes text,
+  created_at timestamptz not null default now(),
+  check (owner_id is not null or property_id is not null)
+);
+
+create unique index uq_owner_prefs_owner
+  on owner_notification_preferences(agency_id, owner_id)
+  where property_id is null and owner_id is not null;
+
+create unique index uq_owner_prefs_property
+  on owner_notification_preferences(agency_id, property_id)
+  where property_id is not null;
+
+-- ============================================================================
+-- PROMPT VERSIONS (per-agency, plus global base)
+-- ============================================================================
+create table prompt_versions (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid references agencies(id) on delete cascade,  -- null = global base
+  version text not null,                                      -- e.g., "2.1"
+  content text not null,
+  active_from timestamptz not null default now(),
+  active_to timestamptz,
+  created_by uuid references agency_users(id),
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create index idx_prompt_versions_active
+  on prompt_versions(agency_id)
+  where active_to is null;
+
+-- FK for agency_config.active_prompt_version_id (deferred — needed because
+-- prompt_versions references agency_config indirectly)
+alter table agency_config
+  add constraint fk_agency_config_prompt_version
+  foreign key (active_prompt_version_id)
+  references prompt_versions(id)
+  on delete set null;
+
+-- ============================================================================
+-- EMAIL THREADS
+-- ============================================================================
+create table email_threads (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  gmail_thread_id text not null,
+  property_id uuid references properties(id) on delete set null,
+  property_match_confidence match_confidence not null default 'none',
+  subject text,
+  participants jsonb not null default '[]'::jsonb,
+  -- [{name, email, role: 'tenant'|'owner'|'tradie'|'pm'|'other'}]
+  last_message_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (agency_id, gmail_thread_id)
+);
+
+create index idx_email_threads_agency on email_threads(agency_id);
+create index idx_email_threads_property on email_threads(property_id);
+create index idx_email_threads_last_message on email_threads(agency_id, last_message_at desc);
+
+-- ============================================================================
+-- EMAIL MESSAGES
+-- ============================================================================
+create table email_messages (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  thread_id uuid not null references email_threads(id) on delete cascade,
+  gmail_message_id text not null,
+  gmail_history_id bigint,
+  direction email_direction not null,
+  from_name text,
+  from_address text not null,
+  to_addresses jsonb not null default '[]'::jsonb,
+  cc_addresses jsonb not null default '[]'::jsonb,
+  bcc_addresses jsonb not null default '[]'::jsonb,
+  subject text,
+  body_plain text,
+  body_html text,
+  message_id_header text,           -- RFC Message-ID
+  in_reply_to text,
+  references_headers text[],
+  attachments jsonb not null default '[]'::jsonb,
+  -- [{filename, mime_type, size_bytes, gmail_attachment_id}]
+  received_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (agency_id, gmail_message_id)
+);
+
+create index idx_email_messages_thread on email_messages(thread_id);
+create index idx_email_messages_agency on email_messages(agency_id, received_at desc);
+create index idx_email_messages_from on email_messages(agency_id, lower(from_address));
+
+-- ============================================================================
+-- AGENCY EMAIL STATE (Gmail watch + history tracking)
+-- ============================================================================
+create table agency_email_state (
+  agency_id uuid primary key references agencies(id) on delete cascade,
+  mailbox_address text not null,
+  last_history_id bigint,
+  watch_expires_at timestamptz,
+  pubsub_subscription text,
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================================================
+-- AI DRAFTS
+-- ============================================================================
+create table ai_drafts (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  email_message_id uuid not null references email_messages(id) on delete cascade,
+
+  -- structured output from Claude
+  category draft_category not null,
+  category_confidence confidence_level not null,
+  priority draft_priority not null,
+  escalation_flag escalation_flag not null default 'NONE',
+  emergency_landlord_alert boolean not null default false,
+  do_not_send boolean not null default false,
+  draft_confidence confidence_level not null,
+
+  -- draft content
+  draft_subject text,
+  draft_body text,
+  pm_review_notes jsonb not null default '[]'::jsonb,    -- array of strings
+
+  -- metadata
+  model_used text not null,
+  prompt_version_id uuid references prompt_versions(id),
+  raw_response jsonb,                                     -- full Claude response for audit
+  status draft_status not null default 'pending',
+  assigned_pm_id uuid references agency_users(id),
+  sent_at timestamptz,
+  sent_gmail_message_id text,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (email_message_id)                               -- one draft per inbound
+);
+
+create index idx_ai_drafts_queue
+  on ai_drafts(agency_id, priority, created_at)
+  where status = 'pending';
+create index idx_ai_drafts_escalation
+  on ai_drafts(agency_id, escalation_flag)
+  where escalation_flag <> 'NONE';
+create index idx_ai_drafts_assigned on ai_drafts(assigned_pm_id, status);
+
+-- ============================================================================
+-- DRAFT EDITS (diff history)
+-- ============================================================================
+create table draft_edits (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  draft_id uuid not null references ai_drafts(id) on delete cascade,
+  edited_by uuid not null references agency_users(id),
+  previous_subject text,
+  new_subject text,
+  previous_body text,
+  new_body text,
+  edited_at timestamptz not null default now()
+);
+
+create index idx_draft_edits_draft on draft_edits(draft_id, edited_at desc);
+
+-- ============================================================================
+-- NOTIFICATION LOG
+-- ============================================================================
+create table notification_log (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  owner_id uuid references owners(id),
+  property_id uuid references properties(id),
+  triggered_by_draft_id uuid references ai_drafts(id),
+  channel notification_channel not null,
+  recipient text not null,
+  body text,
+  status notification_status not null,
+  suppression_reason text,
+  profile_applied owner_notification_profile,
+  provider_message_id text,                              -- Twilio SID, Resend id, etc.
+  scheduled_for timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index idx_notifications_agency on notification_log(agency_id, created_at desc);
+create index idx_notifications_owner on notification_log(owner_id, created_at desc);
+create index idx_notifications_scheduled
+  on notification_log(scheduled_for)
+  where status = 'queued';
+
+-- ============================================================================
+-- MODEL CALLS (raw Claude request/response storage for audit + drift detection)
+-- ============================================================================
+create table model_calls (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  draft_id uuid references ai_drafts(id) on delete set null,
+  model text not null,
+  prompt_version_id uuid references prompt_versions(id),
+  request jsonb not null,
+  response jsonb not null,
+  input_tokens integer,
+  output_tokens integer,
+  duration_ms integer,
+  created_at timestamptz not null default now()
+);
+
+create index idx_model_calls_agency on model_calls(agency_id, created_at desc);
+create index idx_model_calls_draft on model_calls(draft_id);
+
+-- Retention: delete after 90 days. Add a Cron Trigger or pg_cron job to enforce.
+
+-- ============================================================================
+-- AUDIT LOG
+-- ============================================================================
+create table audit_log (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  actor_type audit_actor_type not null,
+  actor_id text,                                          -- user uuid, "system", "ai"
+  action text not null,                                   -- e.g., "draft.sent"
+  entity_type text,
+  entity_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index idx_audit_log_agency on audit_log(agency_id, created_at desc);
+create index idx_audit_log_entity on audit_log(entity_type, entity_id);
+
+-- ============================================================================
+-- UPDATED_AT TRIGGERS
+-- ============================================================================
+create or replace function tg_set_updated_at() returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+create trigger trg_agencies_updated_at
+  before update on agencies
+  for each row execute function tg_set_updated_at();
+
+create trigger trg_agency_config_updated_at
+  before update on agency_config
+  for each row execute function tg_set_updated_at();
+
+create trigger trg_ai_drafts_updated_at
+  before update on ai_drafts
+  for each row execute function tg_set_updated_at();
+
+create trigger trg_agency_email_state_updated_at
+  before update on agency_email_state
+  for each row execute function tg_set_updated_at();
+
+-- ============================================================================
+-- ROW LEVEL SECURITY
+-- ============================================================================
+-- Enable RLS on every business table. Service-role bypasses; authed users
+-- are scoped to their agency via the JWT claim.
+
+alter table agencies enable row level security;
+alter table agency_users enable row level security;
+alter table agency_config enable row level security;
+alter table owners enable row level security;
+alter table properties enable row level security;
+alter table tenancies enable row level security;
+alter table tenants enable row level security;
+alter table owner_notification_preferences enable row level security;
+alter table prompt_versions enable row level security;
+alter table email_threads enable row level security;
+alter table email_messages enable row level security;
+alter table agency_email_state enable row level security;
+alter table ai_drafts enable row level security;
+alter table draft_edits enable row level security;
+alter table notification_log enable row level security;
+alter table model_calls enable row level security;
+alter table audit_log enable row level security;
+
+-- Standard policy generator (macro-ish — just write them out):
+create policy tenant_isolation_select on agencies
+  for select using (id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on agency_users
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on agency_config
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on owners
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on properties
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on tenancies
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on tenants
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on owner_notification_preferences
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on prompt_versions
+  for all
+  using (agency_id is null or agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on email_threads
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on email_messages
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on agency_email_state
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on ai_drafts
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on draft_edits
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on notification_log
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on model_calls
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on audit_log
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+-- ============================================================================
+-- REALTIME PUBLICATION (for the dashboard)
+-- ============================================================================
+-- Enable realtime on ai_drafts so the dashboard updates without polling.
+alter publication supabase_realtime add table ai_drafts;
+alter publication supabase_realtime add table notification_log;
+
+-- ============================================================================
+-- END
+-- ============================================================================
