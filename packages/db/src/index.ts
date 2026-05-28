@@ -4,10 +4,10 @@ import {
   createServerClient as ssrServerClient,
 } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./types";
+import type { Database, Json } from "./types";
 
 export type { CookieMethodsServer } from "@supabase/ssr";
-export type { Database };
+export type { Database, Json };
 export type Client = SupabaseClient<Database>;
 
 export interface ServiceEnv {

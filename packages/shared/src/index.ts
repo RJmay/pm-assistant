@@ -86,3 +86,18 @@ export class DrafterValidationError extends Error {
     this.issues = opts.issues;
   }
 }
+
+/**
+ * Thrown when a Pub/Sub push request fails JWT verification — bad signature,
+ * wrong issuer/audience/email claim, expired token, etc. The Worker maps
+ * this to an HTTP 401 response and never logs the token itself.
+ */
+export class PubSubVerificationError extends Error {
+  override readonly name = "PubSubVerificationError";
+  readonly reason: string;
+
+  constructor(reason: string, opts?: { cause?: unknown }) {
+    super(`Pub/Sub JWT verification failed: ${reason}`, { cause: opts?.cause });
+    this.reason = reason;
+  }
+}

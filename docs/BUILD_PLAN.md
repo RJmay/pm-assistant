@@ -137,7 +137,7 @@ Wire up the call to Claude with structured output.
 
 ---
 
-## Milestone 4 — Worker entry + Pub/Sub webhook `[CURRENT]`
+## Milestone 4 — Worker entry + Pub/Sub webhook `[DONE]`
 
 Wire the Cloudflare Worker to receive Gmail Pub/Sub pushes. No Gmail fetching yet.
 
@@ -160,7 +160,7 @@ Wire the Cloudflare Worker to receive Gmail Pub/Sub pushes. No Gmail fetching ye
 
 ---
 
-## Milestone 5 — Gmail integration
+## Milestone 5 — Gmail integration `[CURRENT]`
 
 Pull messages from Gmail and persist them.
 

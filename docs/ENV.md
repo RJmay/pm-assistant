@@ -24,6 +24,14 @@ Set via `wrangler secret put <NAME>` in production, `.dev.vars` in local dev (gi
 | `LOG_LEVEL` | Manual | `debug` \| `info` \| `warn` \| `error` (default `info`) |
 | `ENVIRONMENT` | Manual | `development` \| `staging` \| `production` |
 
+In addition to the env vars above, the Worker declares one **KV namespace** binding in `wrangler.toml`:
+
+| Binding | Purpose |
+|---|---|
+| `JWKS_CACHE` | Caches Google's OIDC public keys (JWKS) for Pub/Sub JWT verification. Local dev: wrangler's Miniflare simulates KV with a placeholder id. Before deploy: `wrangler kv namespace create JWKS_CACHE` + `wrangler kv namespace create JWKS_CACHE --preview`, paste both ids into `wrangler.toml`. |
+
+For production, set every Worker secret via `wrangler secret put <NAME>` rather than committing values. The KV namespace ids in `wrangler.toml` are not secrets and can be committed.
+
 ## Web (`apps/web`)
 
 Set in Cloudflare Pages/Workers dashboard for production. `.env.local` for dev.

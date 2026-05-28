@@ -1,3 +1,15 @@
 name = "pm-assistant-worker"
 main = "src/index.ts"
 compatibility_date = "2024-11-06"
+
+# KV namespace for caching Google's JWKS (Pub/Sub OIDC public keys).
+#
+# Local dev: wrangler's Miniflare simulates KV via SQLite — the placeholder
+# `id` below works for local. Before deploy, run:
+#   wrangler kv namespace create JWKS_CACHE
+#   wrangler kv namespace create JWKS_CACHE --preview
+# and replace the two ids with the values returned.
+[[kv_namespaces]]
+binding = "JWKS_CACHE"
+id = "00000000000000000000000000000000"
+preview_id = "00000000000000000000000000000001"
