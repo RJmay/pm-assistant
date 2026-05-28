@@ -11,5 +11,5 @@ compatibility_date = "2024-11-06"
 # and replace the two ids with the values returned.
 [[kv_namespaces]]
 binding = "JWKS_CACHE"
-id = "00000000000000000000000000000000"
-preview_id = "00000000000000000000000000000001"
+id = "d1b7dddd63234662ad0318024f60d266"
+preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
