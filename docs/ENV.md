@@ -49,6 +49,32 @@ Also set in Supabase Auth → Providers:
 - Google OAuth (for PM dashboard sign-in via Google)
 - Email/password (enabled by default)
 
+## Local Supabase (development)
+
+When you run `pnpm db:start`, the local stack binds to these well-known endpoints (see `pnpm exec supabase status` for live values):
+
+| Item | Value |
+|---|---|
+| API gateway | `http://127.0.0.1:54321` |
+| Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+| Studio | `http://127.0.0.1:54323` |
+| Mailpit | `http://127.0.0.1:54324` |
+| Publishable key (PUBLIC_SUPABASE_ANON_KEY) | `sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH` |
+| Secret key (SUPABASE_SERVICE_ROLE_KEY) | `sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz` |
+
+These are deterministic local-dev defaults — safe to share. Never use them in any deployed environment.
+
+The Supabase CLI runs as a project-local dev dependency. Common commands:
+
+```sh
+pnpm db:start    # boot Postgres + API + Studio (first run pulls ~1 GB images)
+pnpm db:stop     # stop and delete data volumes (--no-backup)
+pnpm db:reset    # drop + re-apply migrations + seed.sql
+pnpm db:types    # regenerate packages/db/src/types.ts from the live schema
+```
+
+Database tests (RLS smoke) are env-gated: set `RUN_DB_TESTS=1` to run them (`pnpm -r test` skips them by default; CI sets it and boots Supabase first).
+
 ## GitHub Actions
 
 Repository secrets needed for CI/CD:

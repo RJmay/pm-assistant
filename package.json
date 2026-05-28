@@ -11,9 +11,14 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.0"
+    "@biomejs/biome": "^2.4.0",
+    "supabase": "^2.101.0"
   }
 }

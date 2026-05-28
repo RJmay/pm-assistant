@@ -29,5 +29,16 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # The DB tests need a live Postgres + RLS policies. Boot the local Supabase
+      # stack via the project-local CLI; ubuntu-latest has Docker preinstalled.
+      - name: Start Supabase
+        run: pnpm exec supabase start
+
       - name: Test
+        env:
+          RUN_DB_TESTS: "1"
         run: pnpm -r test
+
+      - name: Stop Supabase
+        if: always()
+        run: pnpm exec supabase stop --no-backup

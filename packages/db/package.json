@@ -7,9 +7,17 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.10.0",
+    "@supabase/supabase-js": "^2.106.0"
   },
   "devDependencies": {
-    "typescript": "^6.0.0"
+    "@types/node": "^22.0.0",
+    "postgres": "^3.4.0",
+    "typescript": "^6.0.0",
+    "vitest": "^4.1.0"
   }
 }

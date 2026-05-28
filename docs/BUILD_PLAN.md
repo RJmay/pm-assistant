@@ -29,7 +29,7 @@ Set up the monorepo, tooling, and empty packages. No business logic.
 
 ---
 
-## Milestone 1 — Database `[CURRENT]`
+## Milestone 1 — Database `[DONE]`
 
 Bring up Supabase locally, apply the schema from `docs/schema.sql`, generate TS types.
 
@@ -66,7 +66,7 @@ Bring up Supabase locally, apply the schema from `docs/schema.sql`, generate TS 
 
 ---
 
-## Milestone 2 — Prompt assembly
+## Milestone 2 — Prompt assembly `[CURRENT]`
 
 Build the package that takes a base prompt + agency config and produces the final system prompt string.
 
