@@ -11,7 +11,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@pm/shared": "workspace:*"
+    "@anthropic-ai/sdk": "^0.99.0",
+    "@pm/shared": "workspace:*",
+    "zod": "^4.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -75,6 +75,8 @@ pnpm db:types    # regenerate packages/db/src/types.ts from the live schema
 
 Database tests (RLS smoke) are env-gated: set `RUN_DB_TESTS=1` to run them (`pnpm -r test` skips them by default; CI sets it and boots Supabase first).
 
+LLM drafter tests (`packages/prompts/test/drafter.live.test.ts`, 12 inbound-email fixtures against the Anthropic API) are env-gated by `RUN_LLM_TESTS=1` and require `ANTHROPIC_API_KEY` in the shell. They don't run on push CI (cost + model-side flakiness) — the `weekly-llm.yml` workflow runs them on Mondays 14:00 UTC, and `workflow_dispatch` lets you trigger them on-demand from the GitHub Actions tab.
+
 ## GitHub Actions
 
 Repository secrets needed for CI/CD:

@@ -101,7 +101,7 @@ Build the package that takes a base prompt + agency config and produces the fina
 
 ---
 
-## Milestone 3 — Drafter (Anthropic API integration) `[CURRENT]`
+## Milestone 3 — Drafter (Anthropic API integration) `[DONE]`
 
 Wire up the call to Claude with structured output.
 
@@ -137,7 +137,7 @@ Wire up the call to Claude with structured output.
 
 ---
 
-## Milestone 4 — Worker entry + Pub/Sub webhook
+## Milestone 4 — Worker entry + Pub/Sub webhook `[CURRENT]`
 
 Wire the Cloudflare Worker to receive Gmail Pub/Sub pushes. No Gmail fetching yet.
 

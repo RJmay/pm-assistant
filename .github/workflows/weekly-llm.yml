@@ -1,0 +1,53 @@
+name: Weekly LLM tests
+
+# Runs the live drafter tests against the real Anthropic API on a weekly
+# schedule. Kept separate from the main push CI to (a) avoid spending
+# tokens on every commit and (b) avoid flakiness from model-side issues
+# blocking the push pipeline.
+
+on:
+  schedule:
+    # Mondays 14:00 UTC ≈ midnight Tuesday AEST (DST aside).
+    - cron: "0 14 * * 1"
+  workflow_dispatch: # Allow manual triggering from the Actions tab.
+
+jobs:
+  llm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # We boot Supabase so the M1 RLS test runs alongside the LLM tests in
+      # the weekly job — a full end-to-end sweep once a week.
+      - name: Start Supabase
+        run: pnpm exec supabase start
+
+      - name: Test (DB + LLM)
+        env:
+          RUN_DB_TESTS: "1"
+          RUN_LLM_TESTS: "1"
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: pnpm -r test
+
+      - name: Stop Supabase
+        if: always()
+        run: pnpm exec supabase stop --no-backup
