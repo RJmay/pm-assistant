@@ -13,3 +13,9 @@ compatibility_date = "2024-11-06"
 binding = "JWKS_CACHE"
 id = "d1b7dddd63234662ad0318024f60d266"
 preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
+
+# Cron triggers. Gmail's users.watch subscription expires after 7 days, so we
+# refresh daily to keep the push pipeline alive with comfortable headroom.
+# 13:00 UTC = 23:00 AEST (winter) / 00:00 AEDT (summer) — quiet hour for QLD.
+[triggers]
+crons = ["0 13 * * *"]

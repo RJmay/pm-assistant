@@ -10,12 +10,14 @@ Set via `wrangler secret put <NAME>` in production, `.dev.vars` in local dev (gi
 |---|---|---|
 | `ANTHROPIC_API_KEY` | Anthropic console | Calls Claude API for drafting |
 | `SUPABASE_URL` | Supabase project settings | Postgres + Auth endpoint |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project settings | Bypass RLS for Worker writes |
-| `SUPABASE_VAULT_DECRYPTION_KEY` | Set during Supabase Vault init | Decrypt Gmail tokens |
-| `GOOGLE_PUBSUB_AUDIENCE` | Google Cloud project | Verify Pub/Sub push JWTs |
-| `GOOGLE_PUBSUB_SERVICE_ACCOUNT` | Google Cloud project | Expected `email` claim in JWT |
-| `GMAIL_OAUTH_CLIENT_ID` | Google Cloud OAuth credentials | Refresh per-agency tokens |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase project settings | Bypass RLS for Worker writes (and call the Vault helper RPCs) |
+| `GOOGLE_PUBSUB_AUDIENCE` | Google Cloud project | Verify Pub/Sub push JWTs (the configured push endpoint URL) |
+| `GOOGLE_PUBSUB_SERVICE_ACCOUNT` | Google Cloud project | Expected `email` claim in the Pub/Sub JWT |
+| `GMAIL_OAUTH_CLIENT_ID` | Google Cloud OAuth credentials | Per-agency OAuth — exchange code + refresh access tokens |
 | `GMAIL_OAUTH_CLIENT_SECRET` | Google Cloud OAuth credentials | Same |
+| `WEBHOOK_BASE_URL` | Manual | Base URL of the deployed Worker (no trailing slash). Used to build the OAuth redirect URI `${base}/oauth/gmail/callback/`. |
+| `OAUTH_STATE_SECRET` | Generated, ≥32 chars | HMAC key for the OAuth `state` JWT (signs `agency_id`, 5-min TTL). |
+| `PUBSUB_TOPIC` | Google Cloud Pub/Sub | Full topic path `projects/<gcp-project>/topics/pm-assistant-gmail`. Passed to Gmail's `users.watch` so notifications publish to this topic. |
 | `TWILIO_ACCOUNT_SID` | Twilio console | Send SMS for owner alerts |
 | `TWILIO_AUTH_TOKEN` | Twilio console | Same |
 | `TWILIO_FROM_NUMBER` | Twilio console | The sending number |
@@ -24,11 +26,14 @@ Set via `wrangler secret put <NAME>` in production, `.dev.vars` in local dev (gi
 | `LOG_LEVEL` | Manual | `debug` \| `info` \| `warn` \| `error` (default `info`) |
 | `ENVIRONMENT` | Manual | `development` \| `staging` \| `production` |
 
-In addition to the env vars above, the Worker declares one **KV namespace** binding in `wrangler.toml`:
+Note: there is **no** Worker env var for Vault decryption. Supabase Vault manages its own at-rest key server-side; the Worker just calls the SECURITY DEFINER RPC wrappers (`store_gmail_refresh_token`, `get_gmail_refresh_token`, `delete_gmail_refresh_token`) using `SUPABASE_SERVICE_ROLE_KEY`.
 
-| Binding | Purpose |
+In addition to the env vars above, the Worker declares bindings + a cron in `wrangler.toml`:
+
+| Binding / trigger | Purpose |
 |---|---|
-| `JWKS_CACHE` | Caches Google's OIDC public keys (JWKS) for Pub/Sub JWT verification. Local dev: wrangler's Miniflare simulates KV with a placeholder id. Before deploy: `wrangler kv namespace create JWKS_CACHE` + `wrangler kv namespace create JWKS_CACHE --preview`, paste both ids into `wrangler.toml`. |
+| `JWKS_CACHE` (KV namespace) | Caches Google's OIDC public keys (JWKS) for Pub/Sub JWT verification. Local dev: wrangler's Miniflare simulates KV with a placeholder id. Before deploy: `wrangler kv namespace create JWKS_CACHE` + `wrangler kv namespace create JWKS_CACHE --preview`, paste both ids into `wrangler.toml`. |
+| Cron `0 13 * * *` | 13:00 UTC daily (= 23:00 AEST / 00:00 AEDT). Calls `handleScheduled`, which iterates `agency_email_state` rows where `watch_expires_at` is null or within 48h, refreshes each mailbox's Gmail `users.watch` (subscription expires every 7 days), and writes back the new `watch_expires_at`. |
 
 For production, set every Worker secret via `wrangler secret put <NAME>` rather than committing values. The KV namespace ids in `wrangler.toml` are not secrets and can be committed.
 

@@ -628,3 +628,95 @@ alter publication supabase_realtime add table notification_log;
 -- ============================================================================
 -- END
 -- ============================================================================
+
+-- ============================================================================
+-- AGENCY GMAIL SECRETS (added in migration 0002)
+-- ============================================================================
+-- Maps agency_id → vault.secrets.id for per-agency Gmail refresh tokens.
+-- The actual token lives in vault.secrets, encrypted at rest.
+-- ============================================================================
+create table agency_gmail_secrets (
+  agency_id uuid primary key references agencies(id) on delete cascade,
+  vault_secret_id uuid not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create trigger trg_agency_gmail_secrets_updated_at
+  before update on agency_gmail_secrets
+  for each row execute function tg_set_updated_at();
+
+alter table agency_gmail_secrets enable row level security;
+
+create policy tenant_isolation on agency_gmail_secrets
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+-- ============================================================================
+-- VAULT HELPER FUNCTIONS (added in migration 0003)
+-- ============================================================================
+-- Public-schema SECURITY DEFINER wrappers around vault.* so the Worker
+-- (service-role) can call them via supabase-js .rpc(). Execute granted only
+-- to service_role.
+-- ============================================================================
+
+create extension if not exists supabase_vault;
+
+create or replace function public.store_gmail_refresh_token(
+  p_agency_id uuid,
+  p_token text
+) returns void
+language plpgsql
+security definer
+set search_path = public, vault
+as $$
+declare
+  existing_secret_id uuid;
+  new_secret_id uuid;
+  secret_name text := 'gmail_refresh_token:' || p_agency_id::text;
+  secret_description text := 'Gmail refresh token for agency ' || p_agency_id::text;
+begin
+  select vault_secret_id into existing_secret_id
+    from public.agency_gmail_secrets
+    where agency_id = p_agency_id;
+  if existing_secret_id is not null then
+    perform vault.update_secret(existing_secret_id, p_token, secret_name, secret_description);
+    update public.agency_gmail_secrets set updated_at = now() where agency_id = p_agency_id;
+  else
+    new_secret_id := vault.create_secret(p_token, secret_name, secret_description);
+    insert into public.agency_gmail_secrets (agency_id, vault_secret_id)
+      values (p_agency_id, new_secret_id);
+  end if;
+end;
+$$;
+
+create or replace function public.get_gmail_refresh_token(p_agency_id uuid) returns text
+language sql security definer set search_path = public, vault
+as $$
+  select v.decrypted_secret
+    from public.agency_gmail_secrets s
+    join vault.decrypted_secrets v on v.id = s.vault_secret_id
+    where s.agency_id = p_agency_id;
+$$;
+
+create or replace function public.delete_gmail_refresh_token(p_agency_id uuid) returns void
+language plpgsql security definer set search_path = public, vault
+as $$
+declare existing_secret_id uuid;
+begin
+  select vault_secret_id into existing_secret_id
+    from public.agency_gmail_secrets where agency_id = p_agency_id;
+  if existing_secret_id is not null then
+    delete from public.agency_gmail_secrets where agency_id = p_agency_id;
+    delete from vault.secrets where id = existing_secret_id;
+  end if;
+end;
+$$;
+
+revoke execute on function public.store_gmail_refresh_token(uuid, text) from public;
+revoke execute on function public.get_gmail_refresh_token(uuid) from public;
+revoke execute on function public.delete_gmail_refresh_token(uuid) from public;
+grant execute on function public.store_gmail_refresh_token(uuid, text) to service_role;
+grant execute on function public.get_gmail_refresh_token(uuid) to service_role;
+grant execute on function public.delete_gmail_refresh_token(uuid) to service_role;

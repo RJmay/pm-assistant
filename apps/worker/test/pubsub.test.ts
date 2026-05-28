@@ -99,8 +99,11 @@ describe("verifyPubSubJwt", () => {
     const token = await signToken();
     const parts = token.split(".");
     const sig = parts[2] ?? "";
-    const flipped = sig.slice(0, -1) + (sig.endsWith("A") ? "B" : "A");
-    const tampered = `${parts[0]}.${parts[1]}.${flipped}`;
+    // Replace the signature entirely with all-zeros (still a valid base64url
+    // string of the right length, but won't match any real ES256 signature).
+    // Flipping a single trailing character is flaky because base64url's last
+    // char encodes only a few significant bits.
+    const tampered = `${parts[0]}.${parts[1]}.${"A".repeat(sig.length)}`;
     await expect(verifyPubSubJwt(tampered, opts())).rejects.toBeInstanceOf(PubSubVerificationError);
   });
 });

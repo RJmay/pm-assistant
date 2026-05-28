@@ -101,3 +101,39 @@ export class PubSubVerificationError extends Error {
     this.reason = reason;
   }
 }
+
+/**
+ * Thrown when a Gmail REST call returns non-2xx or a malformed response.
+ * Captures the HTTP status and Google's error body for diagnosis without
+ * leaking access tokens (those live in the request, never in the error).
+ */
+export class GmailApiError extends Error {
+  override readonly name = "GmailApiError";
+  readonly statusCode: number;
+  readonly endpoint: string;
+  readonly responseBody: unknown;
+
+  constructor(
+    message: string,
+    opts: { statusCode: number; endpoint: string; responseBody?: unknown; cause?: unknown },
+  ) {
+    super(message, { cause: opts.cause });
+    this.statusCode = opts.statusCode;
+    this.endpoint = opts.endpoint;
+    this.responseBody = opts.responseBody;
+  }
+}
+
+/**
+ * Thrown when the OAuth state token a callback receives can't be verified —
+ * bad HMAC, expired, malformed, or doesn't match a known agency. Maps to 400.
+ */
+export class OAuthStateError extends Error {
+  override readonly name = "OAuthStateError";
+  readonly reason: string;
+
+  constructor(reason: string, opts?: { cause?: unknown }) {
+    super(`OAuth state verification failed: ${reason}`, { cause: opts?.cause });
+    this.reason = reason;
+  }
+}

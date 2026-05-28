@@ -156,6 +156,35 @@ export type Database = {
           },
         ];
       };
+      agency_gmail_secrets: {
+        Row: {
+          agency_id: string;
+          created_at: string;
+          updated_at: string;
+          vault_secret_id: string;
+        };
+        Insert: {
+          agency_id: string;
+          created_at?: string;
+          updated_at?: string;
+          vault_secret_id: string;
+        };
+        Update: {
+          agency_id?: string;
+          created_at?: string;
+          updated_at?: string;
+          vault_secret_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agency_gmail_secrets_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: true;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       agency_users: {
         Row: {
           active: boolean;
@@ -1036,7 +1065,18 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      delete_gmail_refresh_token: {
+        Args: { p_agency_id: string };
+        Returns: undefined;
+      };
+      get_gmail_refresh_token: {
+        Args: { p_agency_id: string };
+        Returns: string;
+      };
+      store_gmail_refresh_token: {
+        Args: { p_agency_id: string; p_token: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       agency_status: "active" | "suspended" | "archived";

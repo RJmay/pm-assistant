@@ -1,13 +1,21 @@
+import type { Json } from "@pm/db";
 import { PubSubVerificationError } from "@pm/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { WorkerBindings } from "../lib/env";
-import { createLogger } from "../lib/log";
+import { createLogger, type Logger } from "../lib/log";
+import { parseGmailMessage } from "../services/email-parser";
+import {
+  refreshAccessToken,
+  type UsersHistoryListOpts,
+  usersHistoryList,
+  usersMessagesGet,
+} from "../services/gmail";
 import { getGoogleJwks, type PubSubClaims, verifyPubSubJwt } from "../services/pubsub";
-import { createServiceClient, writeAuditLog } from "../services/supabase";
+import { type AuditLogEntry, createServiceClient, writeAuditLog } from "../services/supabase";
+import { getGmailRefreshToken } from "../services/vault";
 
-// Pub/Sub push envelope shape — see
-// https://cloud.google.com/pubsub/docs/push#receive_push
+// Pub/Sub push envelope shape.
 const pubsubEnvelopeSchema = z.object({
   message: z.object({
     data: z.string(),
@@ -24,18 +32,13 @@ const gmailPayloadSchema = z.object({
   historyId: z.union([z.string(), z.number()]).transform((v) => String(v)),
 });
 
-// Placeholder agency for M4. M5 will resolve agency_id from `emailAddress`
-// via `agency_email_state.mailbox_address`.
-const SUNSHINE_COAST_TEST_AGENCY = "11111111-1111-1111-1111-111111111111";
-
 type Vars = { requestId: string };
-
 export const gmailWebhook = new Hono<{ Bindings: WorkerBindings; Variables: Vars }>();
 
 gmailWebhook.post("/webhook/gmail", async (c) => {
   const log = createLogger({ base: { request_id: c.get("requestId") } });
 
-  // ---- 1. Extract bearer token ----
+  // ---- 1. Bearer token ----
   const authHeader = c.req.header("authorization") ?? c.req.header("Authorization");
   if (!authHeader?.toLowerCase().startsWith("bearer ")) {
     log.warn("webhook missing bearer token");
@@ -43,7 +46,7 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
   }
   const token = authHeader.slice("bearer ".length).trim();
 
-  // ---- 2. Verify the JWT (Google's JWKS + service-account + audience) ----
+  // ---- 2. Verify the JWT ----
   let claims: PubSubClaims;
   try {
     const jwks = await getGoogleJwks(c.env.JWKS_CACHE);
@@ -60,7 +63,7 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
     throw err;
   }
 
-  // ---- 3. Parse the Pub/Sub envelope ----
+  // ---- 3. Parse envelope + Gmail payload ----
   let rawBody: unknown;
   try {
     rawBody = await c.req.json();
@@ -74,54 +77,199 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
     return c.json({ error: "malformed Pub/Sub envelope" }, 400);
   }
 
-  // ---- 4. Decode + parse the Gmail payload ----
   let decoded: string;
   try {
     decoded = atob(envelope.data.message.data);
   } catch (cause) {
-    log.warn("webhook message.data is not valid base64", { error: String(cause) });
+    log.warn("message.data is not valid base64", { error: String(cause) });
     return c.json({ error: "message.data is not valid base64" }, 400);
   }
   let payloadObj: unknown;
   try {
     payloadObj = JSON.parse(decoded);
   } catch (cause) {
-    log.warn("webhook decoded data is not JSON", { error: String(cause) });
+    log.warn("decoded data is not JSON", { error: String(cause) });
     return c.json({ error: "decoded data is not JSON" }, 400);
   }
   const payload = gmailPayloadSchema.safeParse(payloadObj);
   if (!payload.success) {
-    log.warn("webhook Gmail payload failed validation", { issues: payload.error.issues });
+    log.warn("Gmail payload failed validation", { issues: payload.error.issues });
     return c.json({ error: "malformed Gmail payload" }, 400);
   }
 
-  // ---- 5. Write audit_log (M4 stub; M5 will resolve real agency_id) ----
+  const mailboxAddress = payload.data.emailAddress;
   const supabase = createServiceClient(c.env);
-  try {
-    await writeAuditLog(supabase, {
-      agency_id: SUNSHINE_COAST_TEST_AGENCY,
-      actor_type: "system",
-      action: "gmail.pubsub.received",
-      metadata: {
-        emailAddress: payload.data.emailAddress,
-        historyId: payload.data.historyId,
-        messageId: envelope.data.message.messageId,
-        publishTime: envelope.data.message.publishTime,
-        subscription: envelope.data.subscription,
-        verified_email: claims.email,
-      },
-    });
-  } catch (err) {
-    log.error("audit_log write failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
+
+  // ---- 4. Resolve agency from mailbox_address ----
+  const { data: stateRow, error: stateLookupErr } = await supabase
+    .from("agency_email_state")
+    .select("agency_id, last_history_id")
+    .eq("mailbox_address", mailboxAddress)
+    .maybeSingle();
+  if (stateLookupErr) {
+    log.error("agency_email_state lookup failed", { error: stateLookupErr.message });
     return c.json({ error: "internal" }, 500);
   }
+  if (!stateRow) {
+    // Unknown mailbox — return 200 so Pub/Sub doesn't retry forever.
+    log.warn("no agency_email_state for mailbox", { mailbox_address: mailboxAddress });
+    return c.json({ ok: false, reason: "no agency for mailbox" }, 200);
+  }
+  const agencyId = stateRow.agency_id;
+  const startHistoryId = String(stateRow.last_history_id);
 
-  log.info("gmail pubsub received", {
-    emailAddress: payload.data.emailAddress,
-    historyId: payload.data.historyId,
-    messageId: envelope.data.message.messageId,
+  // ---- 5. Refresh access token via Vault-stored refresh token ----
+  const refreshToken = await getGmailRefreshToken(supabase, agencyId);
+  if (!refreshToken) {
+    log.error("no refresh token for agency", { agency_id: agencyId });
+    return c.json({ error: "internal" }, 500);
+  }
+  const tokens = await refreshAccessToken({
+    refreshToken,
+    clientId: c.env.GMAIL_OAUTH_CLIENT_ID,
+    clientSecret: c.env.GMAIL_OAUTH_CLIENT_SECRET,
   });
-  return c.json({ ok: true }, 200);
+
+  // ---- 6. Pull all new INBOX messages since last_history_id ----
+  const newRefs: Array<{ id: string; threadId: string }> = [];
+  let finalHistoryId = startHistoryId;
+  let pageToken: string | undefined;
+  do {
+    const opts: UsersHistoryListOpts = {
+      accessToken: tokens.access_token,
+      mailbox: "me",
+      startHistoryId,
+      historyTypes: ["messageAdded"],
+    };
+    if (pageToken) opts.pageToken = pageToken;
+    const page = await usersHistoryList(opts);
+    finalHistoryId = page.historyId;
+    for (const entry of page.history ?? []) {
+      for (const added of entry.messagesAdded ?? []) {
+        if (added.message.labelIds?.includes("INBOX")) {
+          newRefs.push({ id: added.message.id, threadId: added.message.threadId });
+        }
+      }
+    }
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  // ---- 7. Fetch + persist each new message ----
+  const persisted = await persistMessages(supabase, agencyId, newRefs, tokens.access_token, log);
+
+  // ---- 8. Advance last_history_id ----
+  const finalHistoryNum = Number.parseInt(finalHistoryId, 10);
+  if (Number.isFinite(finalHistoryNum) && String(finalHistoryNum) === finalHistoryId) {
+    const { error: stateUpdErr } = await supabase
+      .from("agency_email_state")
+      .update({ last_history_id: finalHistoryNum })
+      .eq("agency_id", agencyId);
+    if (stateUpdErr) {
+      log.warn("agency_email_state update failed", { error: stateUpdErr.message });
+    }
+  }
+
+  // ---- 9. Audit log ----
+  await writeAuditLog(supabase, {
+    agency_id: agencyId,
+    actor_type: "system",
+    action: "gmail.pubsub.processed",
+    metadata: {
+      emailAddress: mailboxAddress,
+      historyId: payload.data.historyId,
+      messageId: envelope.data.message.messageId,
+      verified_email: claims.email,
+      messages_processed: persisted,
+    },
+  } satisfies AuditLogEntry);
+
+  log.info("gmail pubsub processed", {
+    agency_id: agencyId,
+    messages_processed: persisted,
+  });
+  return c.json({ ok: true, messages: persisted }, 200);
 });
+
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+
+type ServiceClient = ReturnType<typeof createServiceClient>;
+
+async function persistMessages(
+  supabase: ServiceClient,
+  agencyId: string,
+  refs: Array<{ id: string; threadId: string }>,
+  accessToken: string,
+  log: Logger,
+): Promise<number> {
+  let count = 0;
+  for (const ref of refs) {
+    try {
+      const full = await usersMessagesGet({ accessToken, mailbox: "me", messageId: ref.id });
+      const parsed = parseGmailMessage(full);
+
+      // Upsert thread → get id
+      const { data: thread, error: threadErr } = await supabase
+        .from("email_threads")
+        .upsert(
+          {
+            agency_id: agencyId,
+            gmail_thread_id: ref.threadId,
+            subject: parsed.subject,
+            last_message_at: parsed.receivedAt.toISOString(),
+          },
+          { onConflict: "agency_id,gmail_thread_id" },
+        )
+        .select("id")
+        .single();
+      if (threadErr || !thread) {
+        log.error("email_threads upsert failed", {
+          gmail_thread_id: ref.threadId,
+          error: threadErr?.message,
+        });
+        continue;
+      }
+
+      // Insert message — idempotent on duplicate gmail_message_id
+      const insertRow = {
+        agency_id: agencyId,
+        thread_id: thread.id,
+        gmail_message_id: ref.id,
+        direction: "inbound" as const,
+        from_address: parsed.from,
+        from_name: parsed.fromName ?? null,
+        to_addresses: parsed.to as unknown as Json,
+        cc_addresses: parsed.cc as unknown as Json,
+        bcc_addresses: parsed.bcc as unknown as Json,
+        subject: parsed.subject,
+        body_plain: parsed.bodyPlain,
+        body_html: parsed.bodyHtml,
+        message_id_header: parsed.messageIdHeader,
+        in_reply_to: parsed.inReplyTo,
+        references_headers: parsed.references,
+        attachments: parsed.attachments as unknown as Json,
+        received_at: parsed.receivedAt.toISOString(),
+      };
+      const { error: msgErr } = await supabase.from("email_messages").upsert(insertRow, {
+        onConflict: "agency_id,gmail_message_id",
+        ignoreDuplicates: true,
+      });
+      if (msgErr) {
+        log.error("email_messages insert failed", {
+          gmail_message_id: ref.id,
+          error: msgErr.message,
+        });
+        continue;
+      }
+      count += 1;
+    } catch (err) {
+      // Log + continue so one bad message doesn't tank the whole batch.
+      log.error("failed to fetch/persist message", {
+        gmail_message_id: ref.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return count;
+}

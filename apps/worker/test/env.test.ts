@@ -10,6 +10,9 @@ function validRaw(): Record<string, string> {
     GMAIL_OAUTH_CLIENT_SECRET: "GOCSPX-secret-value-test",
     GOOGLE_PUBSUB_AUDIENCE: "https://worker.example/webhook/gmail/",
     GOOGLE_PUBSUB_SERVICE_ACCOUNT: "pubsub-worker-pusher@example-project.iam.gserviceaccount.com",
+    WEBHOOK_BASE_URL: "https://pm-assistant.example.workers.dev",
+    OAUTH_STATE_SECRET: "test-oauth-state-secret-min-32-chars-12345",
+    PUBSUB_TOPIC: "projects/test-project/topics/pm-assistant-gmail",
   };
 }
 
@@ -42,5 +45,19 @@ describe("envSchema / parseEnv", () => {
 
   it("rejects a non-URL GOOGLE_PUBSUB_AUDIENCE", () => {
     expect(() => parseEnv({ ...validRaw(), GOOGLE_PUBSUB_AUDIENCE: "missing-scheme" })).toThrow();
+  });
+
+  it("rejects a missing WEBHOOK_BASE_URL", () => {
+    const raw = validRaw();
+    delete (raw as Partial<typeof raw>).WEBHOOK_BASE_URL;
+    expect(() => parseEnv(raw)).toThrow();
+  });
+
+  it("rejects an OAUTH_STATE_SECRET shorter than 32 chars", () => {
+    expect(() => parseEnv({ ...validRaw(), OAUTH_STATE_SECRET: "too-short" })).toThrow();
+  });
+
+  it("rejects a malformed PUBSUB_TOPIC (missing projects/.../topics/...)", () => {
+    expect(() => parseEnv({ ...validRaw(), PUBSUB_TOPIC: "pm-assistant-gmail" })).toThrow();
   });
 });

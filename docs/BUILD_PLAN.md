@@ -160,21 +160,26 @@ Wire the Cloudflare Worker to receive Gmail Pub/Sub pushes. No Gmail fetching ye
 
 ---
 
-## Milestone 5 — Gmail integration `[CURRENT]`
+## Milestone 5 — Gmail integration `[CURRENT — code complete, runtime DoD pending Phase B]`
 
 Pull messages from Gmail and persist them.
 
-**Tasks:**
-- Build `services/gmail.ts`: per-agency Gmail client using stored OAuth refresh tokens (from Supabase Vault)
-- On webhook receive: resolve `agency_id` from the Pub/Sub `subscription` name or from a config map (initial onboarding will set this up explicitly)
-- Use `users.history.list` with the `historyId` to find new messages since last seen
-- For each new inbound message: fetch full message, parse headers (From, To, Subject, Date, Message-ID, References, In-Reply-To)
-- Upsert `email_threads` by `gmail_thread_id`
-- Insert `email_messages`
-- Store `historyId` somewhere (an `agency_email_state` table — add it to schema if missing)
-- Add a Cron Trigger that runs daily to refresh Gmail `watch` subscriptions (they expire after 7 days)
+**Status:** All M5 code is written and `pnpm -r typecheck` + `pnpm -r test` pass (worker suite: 8 files, 69 tests). The runtime DoD below cannot be confirmed until Phase B (hosted Supabase project) is set up — the user explicitly chose to write M5 code with the Supabase parts stubbed (via mocked service modules in tests) and finish Phase B afterwards.
 
-**Definition of done:**
+**Tasks (done):**
+- Migration `0002_agency_gmail_secrets.sql` (vault → agency mapping) + `0003_vault_gmail_helpers.sql` (SECURITY DEFINER RPC wrappers for vault ops)
+- `services/vault.ts`: `storeGmailRefreshToken` / `getGmailRefreshToken` / `deleteGmailRefreshToken` calling the RPC wrappers
+- `services/gmail.ts`: fetch-based wrappers with zod schemas for `exchangeCode`, `refreshAccessToken`, `usersGetProfile`, `usersHistoryList` (with pagination), `usersMessagesGet`, `usersWatch`. Throws `GmailApiError` on non-2xx / schema violation
+- `services/email-parser.ts`: `parseGmailMessage` walks the MIME tree, extracts headers, plain/HTML bodies, attachments; helpers for RFC 2822 address parsing and Gmail's URL-safe base64 body decoding
+- `routes/oauth-gmail.ts`: `GET /oauth/gmail/start` (HMAC JWT state, 5-min TTL) and `GET /oauth/gmail/callback` (with + without trailing slash) — exchanges code, fetches profile, starts watch, persists refresh token in Vault, upserts `agency_email_state`, writes audit log
+- `routes/gmail-webhook.ts` upgrade (replaces the M4 stub):
+  - Verify Pub/Sub JWT → resolve agency via `agency_email_state.mailbox_address` → fetch refresh token from Vault → refresh access token → loop `users.history.list` with pagination → for each new INBOX message: `users.messages.get` + parse + upsert `email_threads` + upsert `email_messages` (idempotent on `(agency_id, gmail_message_id)`) → advance `last_history_id` → write `gmail.pubsub.processed` audit log
+  - Returns 200 with `{ok:false, reason:"no agency for mailbox"}` when state lookup misses, so Pub/Sub doesn't retry forever
+- Cron trigger `0 13 * * *` (13:00 UTC daily) + `cron/refresh-watches.ts`: scans `agency_email_state` for `watch_expires_at` null or within 48h, calls `users.watch` per row, writes back the new expiration. Per-row failures are logged and the batch continues
+- Env additions: `WEBHOOK_BASE_URL`, `OAUTH_STATE_SECRET` (≥32 chars), `PUBSUB_TOPIC` (regex-validated)
+- Unit tests for: env validation, pubsub JWT verification, webhook (auth + envelope + new persistence pipeline + pagination + INBOX filter + "no agency" path), gmail (fetch-mocked), email-parser (address/body/attachment extraction), vault (RPC delegation), oauth-gmail (start params + callback success + failure modes), cron (watch refresh loop with continue-on-error)
+
+**Definition of done:** (pending Phase B)
 - A real inbound email to the pilot agency's mailbox appears in `email_messages` within seconds
 - Threading works: replies to an existing thread attach to the same `email_threads` row
 
