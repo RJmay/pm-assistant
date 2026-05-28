@@ -4,7 +4,8 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { WorkerBindings } from "../lib/env";
 import { createLogger, type Logger } from "../lib/log";
-import { parseGmailMessage } from "../services/email-parser";
+import { runDraftPipeline } from "../services/draft-pipeline";
+import { type ParsedEmail, parseGmailMessage } from "../services/email-parser";
 import {
   refreshAccessToken,
   type UsersHistoryListOpts,
@@ -169,7 +170,36 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
     }
   }
 
-  // ---- 9. Audit log ----
+  // ---- 9. Run the draft pipeline per persisted message ----
+  // Per-message failures are surfaced in the pipeline result and logged inside
+  // runDraftPipeline; we tally counts here for the audit metadata.
+  let draftsOk = 0;
+  let draftsSkipped = 0;
+  let draftsFailed = 0;
+  for (const row of persisted) {
+    const result = await runDraftPipeline(
+      supabase,
+      {
+        agencyId,
+        emailMessageId: row.emailMessageId,
+        threadId: row.threadId,
+        gmailThreadId: row.gmailThreadId,
+        fromAddress: row.parsed.from,
+        fromName: row.parsed.fromName ?? null,
+        toAddresses: row.parsed.to,
+        subject: row.parsed.subject,
+        bodyPlain: row.parsed.bodyPlain,
+        bodyHtml: row.parsed.bodyHtml,
+        receivedAt: row.parsed.receivedAt.toISOString(),
+      },
+      { anthropicApiKey: c.env.ANTHROPIC_API_KEY, logger: log },
+    );
+    if (result.kind === "ok") draftsOk += 1;
+    else if (result.kind === "skipped") draftsSkipped += 1;
+    else draftsFailed += 1;
+  }
+
+  // ---- 10. Audit log ----
   await writeAuditLog(supabase, {
     agency_id: agencyId,
     actor_type: "system",
@@ -179,15 +209,21 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
       historyId: payload.data.historyId,
       messageId: envelope.data.message.messageId,
       verified_email: claims.email,
-      messages_processed: persisted,
+      messages_processed: persisted.length,
+      drafts_ok: draftsOk,
+      drafts_skipped: draftsSkipped,
+      drafts_failed: draftsFailed,
     },
   } satisfies AuditLogEntry);
 
   log.info("gmail pubsub processed", {
     agency_id: agencyId,
-    messages_processed: persisted,
+    messages_processed: persisted.length,
+    drafts_ok: draftsOk,
+    drafts_skipped: draftsSkipped,
+    drafts_failed: draftsFailed,
   });
-  return c.json({ ok: true, messages: persisted }, 200);
+  return c.json({ ok: true, messages: persisted.length }, 200);
 });
 
 // ----------------------------------------------------------------------------
@@ -196,14 +232,21 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
 
+export interface PersistedMessage {
+  emailMessageId: string;
+  threadId: string;
+  gmailThreadId: string;
+  parsed: ParsedEmail;
+}
+
 async function persistMessages(
   supabase: ServiceClient,
   agencyId: string,
   refs: Array<{ id: string; threadId: string }>,
   accessToken: string,
   log: Logger,
-): Promise<number> {
-  let count = 0;
+): Promise<PersistedMessage[]> {
+  const out: PersistedMessage[] = [];
   for (const ref of refs) {
     try {
       const full = await usersMessagesGet({ accessToken, mailbox: "me", messageId: ref.id });
@@ -231,7 +274,10 @@ async function persistMessages(
         continue;
       }
 
-      // Insert message — idempotent on duplicate gmail_message_id
+      // Upsert message — idempotent on (agency_id, gmail_message_id). We let
+      // ON CONFLICT DO UPDATE run rather than ignore, so a redelivered Pub/Sub
+      // push returns the existing row's id. email_messages has no updated_at
+      // trigger, so the re-write is effectively a no-op.
       const insertRow = {
         agency_id: agencyId,
         thread_id: thread.id,
@@ -251,18 +297,24 @@ async function persistMessages(
         attachments: parsed.attachments as unknown as Json,
         received_at: parsed.receivedAt.toISOString(),
       };
-      const { error: msgErr } = await supabase.from("email_messages").upsert(insertRow, {
-        onConflict: "agency_id,gmail_message_id",
-        ignoreDuplicates: true,
-      });
-      if (msgErr) {
-        log.error("email_messages insert failed", {
+      const { data: msgRow, error: msgErr } = await supabase
+        .from("email_messages")
+        .upsert(insertRow, { onConflict: "agency_id,gmail_message_id" })
+        .select("id")
+        .single();
+      if (msgErr || !msgRow) {
+        log.error("email_messages upsert failed", {
           gmail_message_id: ref.id,
-          error: msgErr.message,
+          error: msgErr?.message,
         });
         continue;
       }
-      count += 1;
+      out.push({
+        emailMessageId: msgRow.id,
+        threadId: thread.id,
+        gmailThreadId: ref.threadId,
+        parsed,
+      });
     } catch (err) {
       // Log + continue so one bad message doesn't tank the whole batch.
       log.error("failed to fetch/persist message", {
@@ -271,5 +323,5 @@ async function persistMessages(
       });
     }
   }
-  return count;
+  return out;
 }

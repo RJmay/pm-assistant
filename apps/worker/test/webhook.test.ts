@@ -50,12 +50,23 @@ function makeSupabaseMock() {
         };
       }
       if (table === "email_messages") {
-        return { upsert: async () => ({ error: null }) };
+        return {
+          upsert: () => ({
+            select: () => ({
+              single: async () => ({
+                data: { id: `email-${messageInsertCounter++}` },
+                error: null,
+              }),
+            }),
+          }),
+        };
       }
       throw new Error(`unexpected table ${table} in supabase mock`);
     },
   };
 }
+
+let messageInsertCounter = 1;
 
 vi.mock("../src/services/supabase", () => ({
   createServiceClient: () => makeSupabaseMock(),
@@ -78,9 +89,14 @@ vi.mock("../src/services/pubsub", async () => {
   return { ...actual, getGoogleJwks: vi.fn() };
 });
 
+vi.mock("../src/services/draft-pipeline", () => ({
+  runDraftPipeline: vi.fn(),
+}));
+
 import { Hono } from "hono";
 import type { WorkerBindings } from "../src/lib/env";
 import { gmailWebhook } from "../src/routes/gmail-webhook";
+import { runDraftPipeline } from "../src/services/draft-pipeline";
 import { refreshAccessToken, usersHistoryList, usersMessagesGet } from "../src/services/gmail";
 import { getGoogleJwks } from "../src/services/pubsub";
 import { writeAuditLog } from "../src/services/supabase";
@@ -92,6 +108,7 @@ const getGmailRefreshTokenMock = getGmailRefreshToken as Mock;
 const refreshAccessTokenMock = refreshAccessToken as Mock;
 const usersHistoryListMock = usersHistoryList as Mock;
 const usersMessagesGetMock = usersMessagesGet as Mock;
+const runDraftPipelineMock = runDraftPipeline as Mock;
 
 const AUDIENCE = "https://worker.example/webhook/gmail/";
 const SERVICE_ACCOUNT = "pubsub-worker-pusher@example-project.iam.gserviceaccount.com";
@@ -116,6 +133,14 @@ beforeEach(() => {
   refreshAccessTokenMock.mockReset();
   usersHistoryListMock.mockReset();
   usersMessagesGetMock.mockReset();
+  runDraftPipelineMock.mockReset();
+  runDraftPipelineMock.mockResolvedValue({
+    kind: "ok",
+    draftId: "draft-1",
+    matchConfidence: "high",
+    matchedVia: "exact_email",
+  });
+  messageInsertCounter = 1;
 
   getGoogleJwksMock.mockResolvedValue(jwks);
   getGmailRefreshTokenMock.mockResolvedValue("refresh-token-xyz");
@@ -248,11 +273,60 @@ describe("POST /webhook/gmail", () => {
         messageId: "test-message-id-1",
         verified_email: SERVICE_ACCOUNT,
         messages_processed: 1,
+        drafts_ok: 1,
+        drafts_skipped: 0,
+        drafts_failed: 0,
       },
     });
 
     // last_history_id advanced to the page's terminal historyId
     expect(lastHistoryUpdateValue).toBe(67890);
+
+    // Pipeline invoked once with the persisted email message's id + parsed payload
+    expect(runDraftPipelineMock).toHaveBeenCalledTimes(1);
+    const [, pipelineArg] = runDraftPipelineMock.mock.calls[0] ?? [];
+    expect(pipelineArg).toMatchObject({
+      agencyId: "agency-aaa-bbb",
+      emailMessageId: "email-1",
+      threadId: "thread-1",
+      gmailThreadId: "thread-gmail-1",
+      fromAddress: "alice@example.com",
+      subject: "Repair request",
+    });
+  });
+
+  it("still 200s and tallies drafts_failed when the pipeline returns an error", async () => {
+    runDraftPipelineMock.mockReset();
+    runDraftPipelineMock.mockResolvedValue({ kind: "error", error: new Error("anthropic 500") });
+    const token = await makeToken();
+    const envelope = makeEnvelope({ emailAddress: "agency@example.com", historyId: "12345" });
+    const res = await post(envelope, { Authorization: `Bearer ${token}` });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; messages: number };
+    expect(body).toEqual({ ok: true, messages: 1 });
+    const entry = writeAuditLogMock.mock.calls[0]?.[1];
+    expect(entry?.metadata).toMatchObject({
+      messages_processed: 1,
+      drafts_ok: 0,
+      drafts_skipped: 0,
+      drafts_failed: 1,
+    });
+  });
+
+  it("counts skipped drafts in audit metadata (e.g. agency_config missing)", async () => {
+    runDraftPipelineMock.mockReset();
+    runDraftPipelineMock.mockResolvedValue({ kind: "skipped", reason: "agency_config_not_found" });
+    const token = await makeToken();
+    const envelope = makeEnvelope({ emailAddress: "agency@example.com", historyId: "12345" });
+    const res = await post(envelope, { Authorization: `Bearer ${token}` });
+    expect(res.status).toBe(200);
+    const entry = writeAuditLogMock.mock.calls[0]?.[1];
+    expect(entry?.metadata).toMatchObject({
+      messages_processed: 1,
+      drafts_ok: 0,
+      drafts_skipped: 1,
+      drafts_failed: 0,
+    });
   });
 
   it("returns 200 with ok:false when no agency_email_state row matches the mailbox", async () => {

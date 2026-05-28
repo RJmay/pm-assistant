@@ -10,7 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.99.0",
     "@pm/db": "workspace:*",
+    "@pm/prompts": "workspace:*",
     "@pm/shared": "workspace:*",
     "hono": "^4.12.0",
     "jose": "^6.2.0",

@@ -16,9 +16,11 @@ export type {
 } from "./drafter";
 export { draft } from "./drafter";
 export type {
+  LeanNote,
   NominatedRepairer,
   PerOwnerException,
   Pm,
   Tradie,
   VoiceSample,
 } from "./render";
+export { activeLeanNotes, renderLeanNotes } from "./render";

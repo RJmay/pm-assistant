@@ -101,16 +101,13 @@ export async function refreshExpiringWatches(
 }
 
 /**
- * Top-level scheduled handler exported via `default` in src/index.ts. Wraps
- * `refreshExpiringWatches` with a request_id + structured logging.
- *
- * Signature matches Cloudflare's `ExportedHandlerScheduledHandler`: the first
- * argument is a `ScheduledController` (not the browser-style ScheduledEvent).
+ * Cron handler for the daily Gmail watch refresh trigger (`0 13 * * *`).
+ * The top-level scheduled dispatch in src/index.ts routes to this based on
+ * `controller.cron`.
  */
-export async function handleScheduled(
+export async function handleRefreshWatches(
   controller: ScheduledController,
   env: WorkerBindings,
-  _ctx: ExecutionContext,
 ): Promise<void> {
   const log = createLogger({
     base: { request_id: crypto.randomUUID(), cron: controller.cron },

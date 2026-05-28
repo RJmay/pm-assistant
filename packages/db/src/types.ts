@@ -70,6 +70,7 @@ export type Database = {
           agency_id: string;
           approved_tradies: Json;
           house_rules: string | null;
+          lean_notes: Json;
           nominated_repairer: Json | null;
           per_owner_quote_exceptions: Json;
           pm_signoff_default: string | null;
@@ -83,6 +84,7 @@ export type Database = {
           agency_id: string;
           approved_tradies?: Json;
           house_rules?: string | null;
+          lean_notes?: Json;
           nominated_repairer?: Json | null;
           per_owner_quote_exceptions?: Json;
           pm_signoff_default?: string | null;
@@ -96,6 +98,7 @@ export type Database = {
           agency_id?: string;
           approved_tradies?: Json;
           house_rules?: string | null;
+          lean_notes?: Json;
           nominated_repairer?: Json | null;
           per_owner_quote_exceptions?: Json;
           pm_signoff_default?: string | null;
@@ -250,6 +253,8 @@ export type Database = {
           emergency_landlord_alert: boolean;
           escalation_flag: Database["public"]["Enums"]["escalation_flag"];
           id: string;
+          match_confidence: Database["public"]["Enums"]["match_confidence"];
+          matched_via: Database["public"]["Enums"]["match_source"] | null;
           model_used: string;
           pm_review_notes: Json;
           priority: Database["public"]["Enums"]["draft_priority"];
@@ -274,6 +279,8 @@ export type Database = {
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
+          match_confidence?: Database["public"]["Enums"]["match_confidence"];
+          matched_via?: Database["public"]["Enums"]["match_source"] | null;
           model_used: string;
           pm_review_notes?: Json;
           priority: Database["public"]["Enums"]["draft_priority"];
@@ -298,6 +305,8 @@ export type Database = {
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
+          match_confidence?: Database["public"]["Enums"]["match_confidence"];
+          matched_via?: Database["public"]["Enums"]["match_source"] | null;
           model_used?: string;
           pm_review_notes?: Json;
           priority?: Database["public"]["Enums"]["draft_priority"];
@@ -1060,6 +1069,57 @@ export type Database = {
           },
         ];
       };
+      weekly_digests: {
+        Row: {
+          acted_at: string | null;
+          acted_by: string | null;
+          agency_id: string;
+          created_at: string;
+          id: string;
+          signals: Json;
+          status: Database["public"]["Enums"]["weekly_digest_status"];
+          suggested_directions: Json;
+          week_start_date: string;
+        };
+        Insert: {
+          acted_at?: string | null;
+          acted_by?: string | null;
+          agency_id: string;
+          created_at?: string;
+          id?: string;
+          signals?: Json;
+          status?: Database["public"]["Enums"]["weekly_digest_status"];
+          suggested_directions?: Json;
+          week_start_date: string;
+        };
+        Update: {
+          acted_at?: string | null;
+          acted_by?: string | null;
+          agency_id?: string;
+          created_at?: string;
+          id?: string;
+          signals?: Json;
+          status?: Database["public"]["Enums"]["weekly_digest_status"];
+          suggested_directions?: Json;
+          week_start_date?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "weekly_digests_acted_by_fkey";
+            columns: ["acted_by"];
+            isOneToOne: false;
+            referencedRelation: "agency_users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "weekly_digests_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -1090,6 +1150,12 @@ export type Database = {
       email_direction: "inbound" | "outbound";
       escalation_flag: "NONE" | "WELFARE" | "LEGAL" | "REPUTATIONAL" | "INCIDENT";
       match_confidence: "high" | "medium" | "low" | "none";
+      match_source:
+        | "exact_email"
+        | "thread_continuity"
+        | "subject_fuzzy"
+        | "body_scan"
+        | "fallback";
       notification_channel: "sms" | "email" | "call" | "digest";
       notification_status: "queued" | "sent" | "failed" | "suppressed";
       owner_notification_profile:
@@ -1100,6 +1166,7 @@ export type Database = {
         | "pm_proxy";
       rent_frequency: "weekly" | "fortnightly" | "monthly";
       tenancy_status: "draft" | "active" | "ending" | "ended";
+      weekly_digest_status: "open" | "acted" | "dismissed";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1239,6 +1306,7 @@ export const Constants = {
       email_direction: ["inbound", "outbound"],
       escalation_flag: ["NONE", "WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"],
       match_confidence: ["high", "medium", "low", "none"],
+      match_source: ["exact_email", "thread_continuity", "subject_fuzzy", "body_scan", "fallback"],
       notification_channel: ["sms", "email", "call", "digest"],
       notification_status: ["queued", "sent", "failed", "suppressed"],
       owner_notification_profile: [
@@ -1250,6 +1318,7 @@ export const Constants = {
       ],
       rent_frequency: ["weekly", "fortnightly", "monthly"],
       tenancy_status: ["draft", "active", "ending", "ended"],
+      weekly_digest_status: ["open", "acted", "dismissed"],
     },
   },
 } as const;

@@ -44,9 +44,15 @@ importers:
 
   apps/worker:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.99.0
+        version: 0.99.0(zod@4.4.3)
       '@pm/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pm/prompts':
+        specifier: workspace:*
+        version: link:../../packages/prompts
       '@pm/shared':
         specifier: workspace:*
         version: link:../../packages/shared

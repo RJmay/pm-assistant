@@ -2,10 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { type AssembleInput, assemble, MissingNominatedRepairerError } from "../src";
+import { type AssembleInput, assemble, type LeanNote, MissingNominatedRepairerError } from "../src";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.1.md"), "utf-8");
+const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.2.md"), "utf-8");
 
 // Pinned date so snapshots stay deterministic across runs.
 const NOW = new Date("2026-05-28T00:00:00Z");
@@ -59,6 +59,7 @@ function sunshineCoastInput(): AssembleInput {
       ],
       houseRules:
         "- Pet requests are processed within 7 business days\n- We do not accept rent payment by credit card",
+      leanNotes: [],
     },
     pms: [
       {
@@ -72,6 +73,19 @@ function sunshineCoastInput(): AssembleInput {
         phone: "+61 7 5555 1112",
       },
     ],
+  };
+}
+
+function makeLean(overrides: Partial<LeanNote> = {}): LeanNote {
+  return {
+    id: "lean-1",
+    topic: "Maintenance assertiveness",
+    lean: "Lean slightly more firm in maintenance acknowledgements — tenants felt drafts were too soft last week.",
+    setAt: "2026-05-25T03:00:00Z",
+    setBy: "22222222-2222-2222-2222-222222222222",
+    // 60 days after setAt — well clear of NOW (2026-05-28)
+    expiresAt: "2026-07-24T03:00:00Z",
+    ...overrides,
   };
 }
 
@@ -133,5 +147,63 @@ describe("assemble", () => {
 
     const withoutPm = assemble(sunshineCoastInput());
     expect(withoutPm).toContain("[PM_NAME]");
+  });
+
+  describe("lean notes", () => {
+    it("strips the entire 'Current tuning leans' section when no active leans", () => {
+      const out = assemble(sunshineCoastInput());
+      expect(out).not.toContain("Current tuning leans");
+      expect(out).not.toContain("[LEAN_NOTES]");
+      // The neighbouring sections still render in the right order.
+      expect(out.indexOf("House rules and quirks")).toBeLessThan(
+        out.indexOf("PM signoff defaults"),
+      );
+    });
+
+    it("renders active leans as a markdown sublist under the section heading", () => {
+      const input = sunshineCoastInput();
+      input.agencyConfig.leanNotes = [
+        makeLean({ id: "lean-a", topic: "Maintenance assertiveness", lean: "Firmer tone." }),
+        makeLean({ id: "lean-b", topic: "Quote turnaround", lean: "Promise sooner." }),
+      ];
+      const out = assemble(input);
+      expect(out).toContain("### Current tuning leans");
+      expect(out).toContain("- **Maintenance assertiveness:** Firmer tone.");
+      expect(out).toContain("- **Quote turnaround:** Promise sooner.");
+      expect(out).not.toContain("[LEAN_NOTES]");
+    });
+
+    it("filters expired leans before rendering — section strips if none active", () => {
+      const input = sunshineCoastInput();
+      input.agencyConfig.leanNotes = [
+        // Both expired before NOW (2026-05-28)
+        makeLean({ id: "old-1", expiresAt: "2026-05-01T00:00:00Z" }),
+        makeLean({ id: "old-2", expiresAt: "2026-05-27T23:59:00Z" }),
+      ];
+      const out = assemble(input);
+      expect(out).not.toContain("Current tuning leans");
+      expect(out).not.toContain("[LEAN_NOTES]");
+    });
+
+    it("renders only the active subset when a mix of expired and active leans is provided", () => {
+      const input = sunshineCoastInput();
+      input.agencyConfig.leanNotes = [
+        makeLean({
+          id: "expired",
+          topic: "Stale",
+          lean: "Do not apply.",
+          expiresAt: "2026-05-01T00:00:00Z",
+        }),
+        makeLean({
+          id: "fresh",
+          topic: "Active",
+          lean: "Apply this.",
+          expiresAt: "2026-07-01T00:00:00Z",
+        }),
+      ];
+      const out = assemble(input);
+      expect(out).toContain("- **Active:** Apply this.");
+      expect(out).not.toContain("- **Stale:** Do not apply.");
+    });
   });
 });

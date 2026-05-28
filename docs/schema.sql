@@ -720,3 +720,77 @@ revoke execute on function public.delete_gmail_refresh_token(uuid) from public;
 grant execute on function public.store_gmail_refresh_token(uuid, text) to service_role;
 grant execute on function public.get_gmail_refresh_token(uuid) to service_role;
 grant execute on function public.delete_gmail_refresh_token(uuid) to service_role;
+
+-- ============================================================================
+-- AI_DRAFTS MATCH CONFIDENCE (added in migration 0004)
+-- ============================================================================
+-- The matcher service records its cascade outcome on the draft so the
+-- dashboard can surface low-confidence matches for PM triage. match_confidence
+-- reuses the enum already defined for email_threads.property_match_confidence.
+-- ============================================================================
+
+create type match_source as enum (
+  'exact_email',
+  'thread_continuity',
+  'subject_fuzzy',
+  'body_scan',
+  'fallback'
+);
+
+alter table ai_drafts
+  add column match_confidence match_confidence not null default 'none',
+  add column matched_via match_source;
+
+create index idx_ai_drafts_low_match
+  on ai_drafts(agency_id, created_at desc)
+  where match_confidence in ('low','none');
+
+-- ============================================================================
+-- AGENCY_CONFIG.LEAN_NOTES (added in migration 0005)
+-- ============================================================================
+-- PM-authored directional notes templated into the system prompt at draft
+-- time. Populated by the weekly digest flow → M8 dashboard card → PM clicks
+-- a suggested direction. assemble() filters entries by expires_at.
+--
+-- Each entry: {id, topic, lean, set_at, set_by, expires_at}.
+-- Default expiry is 60 days; leans decay rather than silently distorting
+-- drafts months later.
+-- ============================================================================
+
+alter table agency_config
+  add column lean_notes jsonb not null default '[]'::jsonb;
+
+-- ============================================================================
+-- WEEKLY_DIGESTS (added in migration 0006)
+-- ============================================================================
+-- Output of the weekly drift script (cron: Mon 09:00 AEST). Compares this
+-- week's draft signals against a 4-week baseline; rows are only inserted
+-- when at least one metric shifts >25%. The M8 dashboard surfaces open
+-- rows as tuning cards.
+-- ============================================================================
+
+create type weekly_digest_status as enum ('open','acted','dismissed');
+
+create table weekly_digests (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  week_start_date date not null,
+  signals jsonb not null default '{}'::jsonb,
+  suggested_directions jsonb not null default '[]'::jsonb,
+  status weekly_digest_status not null default 'open',
+  acted_at timestamptz,
+  acted_by uuid references agency_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (agency_id, week_start_date)
+);
+
+create index idx_weekly_digests_open
+  on weekly_digests(agency_id, created_at desc)
+  where status = 'open';
+
+alter table weekly_digests enable row level security;
+
+create policy tenant_isolation on weekly_digests
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());

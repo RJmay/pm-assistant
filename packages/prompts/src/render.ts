@@ -34,6 +34,39 @@ export interface PerOwnerException {
   note: string;
 }
 
+export interface LeanNote {
+  id: string;
+  topic: string;
+  lean: string;
+  /** ISO-8601 timestamp. When the lean was set, for display + audit. */
+  setAt: string;
+  /** agency_users.id of the PM who set it, or null when system-applied. */
+  setBy: string | null;
+  /** ISO-8601 timestamp. Entries with expiresAt <= now are filtered out. */
+  expiresAt: string;
+}
+
+/**
+ * Filter to active (non-expired) lean notes. Exposed because assemble() needs
+ * the count to decide whether to keep or strip the prompt's "Current tuning
+ * leans" section entirely.
+ */
+export function activeLeanNotes(notes: LeanNote[], now: Date): LeanNote[] {
+  const cutoff = now.getTime();
+  return notes.filter((n) => Date.parse(n.expiresAt) > cutoff);
+}
+
+/**
+ * Render active lean notes as a markdown sublist. Caller is expected to have
+ * already filtered via `activeLeanNotes` — this just formats. Returns an empty
+ * string for an empty input so the section strip in assemble() is the single
+ * source of truth for the "no leans" branch.
+ */
+export function renderLeanNotes(notes: LeanNote[]): string {
+  if (notes.length === 0) return "";
+  return notes.map((n) => `- **${n.topic}:** ${n.lean}`).join("\n");
+}
+
 export function formatCents(cents: number): string {
   const dollars = cents / 100;
   return `$${dollars.toFixed(2)}`;

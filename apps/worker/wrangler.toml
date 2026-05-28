@@ -14,8 +14,11 @@ binding = "JWKS_CACHE"
 id = "d1b7dddd63234662ad0318024f60d266"
 preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
 
-# Cron triggers. Gmail's users.watch subscription expires after 7 days, so we
-# refresh daily to keep the push pipeline alive with comfortable headroom.
-# 13:00 UTC = 23:00 AEST (winter) / 00:00 AEDT (summer) — quiet hour for QLD.
+# Cron triggers.
+#  - "0 13 * * *"  — daily 13:00 UTC. Refreshes Gmail users.watch subscriptions
+#    (Gmail expires them every 7 days; daily is comfortable headroom).
+#  - "0 23 * * 0"  — weekly Sun 23:00 UTC = Mon 09:00 AEST. Runs the drift
+#    detector. Silent by default; writes a `weekly_digests` row only when
+#    metric shifts cross the threshold.
 [triggers]
-crons = ["0 13 * * *"]
+crons = ["0 13 * * *", "0 23 * * 0"]

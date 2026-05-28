@@ -1,9 +1,12 @@
 import { MissingNominatedRepairerError } from "@pm/shared";
 import {
+  activeLeanNotes,
   formatCents,
+  type LeanNote,
   type NominatedRepairer,
   type PerOwnerException,
   type Pm,
+  renderLeanNotes,
   renderNominatedRepairer,
   renderPerOwnerExceptions,
   renderPms,
@@ -31,6 +34,7 @@ export interface AssembleInput {
     writtenQuoteThresholdCents: number;
     perOwnerQuoteExceptions: PerOwnerException[];
     houseRules: string | null;
+    leanNotes: LeanNote[];
   };
   pms: Pm[];
   runtimeContext?: {
@@ -39,13 +43,20 @@ export interface AssembleInput {
     tenantName?: string;
   };
   /**
-   * Override for the `[DATE]` substitution. Pass a fixed Date in tests to keep
-   * snapshots deterministic; production callers omit this and get `new Date()`.
+   * Override for the `[DATE]` substitution AND the "is this lean expired"
+   * comparison. Pass a fixed Date in tests to keep snapshots deterministic;
+   * production callers omit this and get `new Date()`.
    */
   now?: Date;
 }
 
 const NOT_ON_FILE = "_Not on file._";
+
+// Strips the whole `### Current tuning leans` block (heading + intro paragraph
+// + placeholder line) when there are no active leans. Anchored on the literal
+// heading text so unrelated prompt edits don't break it. The trailing `\n\n`
+// is consumed so we don't leave a stray blank line between sections.
+const LEAN_SECTION_RE = /### Current tuning leans\n\n[^\n]+\n\n\[LEAN_NOTES\]\n\n/;
 
 /**
  * Pure assembly of the final system prompt. Throws `MissingNominatedRepairerError`
@@ -60,7 +71,9 @@ export function assemble(input: AssembleInput): string {
     throw new MissingNominatedRepairerError(input.agency.id);
   }
 
-  const date = (input.now ?? new Date()).toISOString().slice(0, 10);
+  const now = input.now ?? new Date();
+  const date = now.toISOString().slice(0, 10);
+  const activeLeans = activeLeanNotes(input.agencyConfig.leanNotes, now);
 
   const substitutions: Record<string, string> = {
     "[AGENCY_NAME]": input.agency.name,
@@ -78,6 +91,7 @@ export function assemble(input: AssembleInput): string {
       input.agencyConfig.perOwnerQuoteExceptions,
     ),
     "[HOUSE_RULES]": input.agencyConfig.houseRules ?? "_None on file._",
+    "[LEAN_NOTES]": renderLeanNotes(activeLeans),
     "[DATE]": date,
   };
 
@@ -86,6 +100,12 @@ export function assemble(input: AssembleInput): string {
   }
 
   let out = input.basePrompt;
+  // Strip the section entirely when there are no active leans, so the prompt
+  // doesn't carry a heading with an empty body. Done before placeholder
+  // substitution; if leans exist, the placeholder stays and gets filled below.
+  if (activeLeans.length === 0) {
+    out = out.replace(LEAN_SECTION_RE, "");
+  }
   for (const [placeholder, value] of Object.entries(substitutions)) {
     out = out.replaceAll(placeholder, value);
   }

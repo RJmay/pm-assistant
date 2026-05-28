@@ -1,0 +1,395 @@
+import type { Client, Json } from "@pm/db";
+import {
+  type AssembleInput,
+  assemble,
+  type DrafterModel,
+  type DraftSubmission,
+  type InboundEmail,
+  type LeanNote,
+  MissingNominatedRepairerError,
+  type Pm,
+  draft as runDrafter,
+} from "@pm/prompts";
+import type { Logger } from "../lib/log";
+import { type MatchConfidence, type MatcherInput, type MatchSource, matchEmail } from "./matcher";
+import { writeAuditLog } from "./supabase";
+
+/**
+ * Single-message orchestrator: matcher → assemble → drafter → persist.
+ *
+ * Called from the Gmail webhook for each newly-persisted inbound message.
+ * Per-message failures are surfaced via the returned discriminated union so
+ * the caller can log + continue without crashing the whole batch.
+ *
+ * Side effects (in order):
+ *   1. May update `email_threads.property_id` + `.property_match_confidence`
+ *      when the matcher's confidence is ≥ medium and the thread doesn't
+ *      already have a stronger link.
+ *   2. Inserts one `ai_drafts` row (unique on `email_message_id`).
+ *   3. Inserts one `model_calls` row capturing the Anthropic exchange.
+ *   4. Writes one `audit_log` row with action `draft.created`.
+ */
+
+export const DEFAULT_DRAFTER_MODEL: DrafterModel = "claude-sonnet-4-6";
+
+export interface DraftPipelineInput {
+  agencyId: string;
+  emailMessageId: string;
+  threadId: string;
+  gmailThreadId: string;
+  fromAddress: string;
+  fromName: string | null;
+  toAddresses: string[];
+  subject: string | null;
+  bodyPlain: string | null;
+  bodyHtml: string | null;
+  receivedAt: string;
+}
+
+export interface DraftPipelineDeps {
+  /** Anthropic API key — passed to the drafter; not stored. */
+  anthropicApiKey: string;
+  /** Override for the model — defaults to claude-sonnet-4-6 (see ARCHITECTURE). */
+  model?: DrafterModel;
+  logger: Logger;
+  /** Test seam — defaults to runDrafter from @pm/prompts. */
+  drafter?: typeof runDrafter;
+  /** Test seam — defaults to matchEmail. */
+  matcher?: typeof matchEmail;
+  /** Injectable clock for deterministic tests. */
+  now?: () => Date;
+}
+
+export type DraftPipelineResult =
+  | { kind: "ok"; draftId: string; matchConfidence: MatchConfidence; matchedVia: MatchSource }
+  | { kind: "skipped"; reason: string }
+  | { kind: "error"; error: Error };
+
+export async function runDraftPipeline(
+  client: Client,
+  input: DraftPipelineInput,
+  deps: DraftPipelineDeps,
+): Promise<DraftPipelineResult> {
+  const log = deps.logger.child({
+    agency_id: input.agencyId,
+    email_message_id: input.emailMessageId,
+  });
+  const now = deps.now ?? (() => new Date());
+  const drafterFn = deps.drafter ?? runDrafter;
+  const matcherFn = deps.matcher ?? matchEmail;
+  const model = deps.model ?? DEFAULT_DRAFTER_MODEL;
+
+  try {
+    // ---- 1. Matcher ------------------------------------------------------
+    const matcherInput: MatcherInput = {
+      agencyId: input.agencyId,
+      fromAddress: input.fromAddress,
+      subject: input.subject,
+      bodyPreview: input.bodyPlain,
+      gmailThreadId: input.gmailThreadId,
+    };
+    const match = await matcherFn(client, matcherInput);
+    log.info("matcher result", {
+      match_confidence: match.confidence,
+      matched_via: match.source,
+      property_id: match.propertyId,
+    });
+
+    // Update email_threads with the matcher's verdict when it improves on
+    // what's already there (don't laundering down a high-confidence link).
+    await maybeUpdateThreadProperty(client, input, match);
+
+    // ---- 2. Load agency + config + active prompt + PMs -------------------
+    const ctx = await loadAgencyContext(client, input.agencyId);
+    if (ctx.kind === "skipped") {
+      log.warn("draft pipeline skipped", { reason: ctx.reason });
+      return { kind: "skipped", reason: ctx.reason };
+    }
+
+    // ---- 3. Assemble system prompt ---------------------------------------
+    let systemPrompt: string;
+    try {
+      systemPrompt = assemble({
+        basePrompt: ctx.promptContent,
+        now: now(),
+        agency: ctx.agency,
+        agencyConfig: ctx.agencyConfig,
+        pms: ctx.pms,
+      } satisfies AssembleInput);
+    } catch (err) {
+      if (err instanceof MissingNominatedRepairerError) {
+        log.error("draft pipeline aborted: nominated repairer missing", {
+          agency_id: input.agencyId,
+        });
+        return { kind: "skipped", reason: "missing_nominated_repairer" };
+      }
+      throw err;
+    }
+
+    // ---- 4. Drafter ------------------------------------------------------
+    const inboundEmail: InboundEmail = {
+      from: input.fromName ? `${input.fromName} <${input.fromAddress}>` : input.fromAddress,
+      to: input.toAddresses.join(", "),
+      subject: input.subject ?? "(no subject)",
+      body: input.bodyPlain ?? input.bodyHtml ?? "(empty body)",
+      receivedAt: input.receivedAt,
+    };
+    const startedAt = Date.now();
+    const submission = await drafterFn(
+      { systemPrompt, inboundEmail, model },
+      { apiKey: deps.anthropicApiKey },
+    );
+    const durationMs = Date.now() - startedAt;
+
+    // ---- 5. Persist ai_drafts -------------------------------------------
+    const draftId = await insertDraft(client, input, match, submission, ctx.promptVersionId, model);
+
+    // ---- 6. Persist model_calls -----------------------------------------
+    await insertModelCall(
+      client,
+      input,
+      draftId,
+      ctx.promptVersionId,
+      model,
+      inboundEmail,
+      submission,
+      durationMs,
+    );
+
+    // ---- 7. Audit -------------------------------------------------------
+    await writeAuditLog(client, {
+      agency_id: input.agencyId,
+      actor_type: "ai",
+      action: "draft.created",
+      entity_type: "ai_drafts",
+      entity_id: draftId,
+      metadata: {
+        email_message_id: input.emailMessageId,
+        match_confidence: match.confidence,
+        matched_via: match.source,
+        category: submission.category,
+        priority: submission.priority,
+        escalation_flag: submission.escalation_flag,
+        do_not_send: submission.do_not_send,
+        model,
+        duration_ms: durationMs,
+      },
+    });
+
+    log.info("draft created", {
+      draft_id: draftId,
+      category: submission.category,
+      priority: submission.priority,
+      escalation_flag: submission.escalation_flag,
+      duration_ms: durationMs,
+    });
+    return {
+      kind: "ok",
+      draftId,
+      matchConfidence: match.confidence,
+      matchedVia: match.source,
+    };
+  } catch (err) {
+    const wrapped = err instanceof Error ? err : new Error(String(err));
+    log.error("draft pipeline failed", { error: wrapped.message });
+    return { kind: "error", error: wrapped };
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Internals
+// ----------------------------------------------------------------------------
+
+const CONFIDENCE_ORDER: Record<MatchConfidence, number> = {
+  none: 0,
+  low: 1,
+  medium: 2,
+  high: 3,
+};
+
+async function maybeUpdateThreadProperty(
+  client: Client,
+  input: DraftPipelineInput,
+  match: { propertyId: string | null; confidence: MatchConfidence },
+): Promise<void> {
+  if (!match.propertyId || CONFIDENCE_ORDER[match.confidence] < CONFIDENCE_ORDER.medium) {
+    return;
+  }
+  // Read current thread state so we don't overwrite a stronger link.
+  const { data: thread } = await client
+    .from("email_threads")
+    .select("property_id, property_match_confidence")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.threadId)
+    .maybeSingle();
+  if (!thread) return;
+  const existing = thread.property_match_confidence ?? "none";
+  if (
+    thread.property_id &&
+    CONFIDENCE_ORDER[existing as MatchConfidence] >= CONFIDENCE_ORDER[match.confidence]
+  ) {
+    return; // keep the stronger or equal existing link
+  }
+  await client
+    .from("email_threads")
+    .update({
+      property_id: match.propertyId,
+      property_match_confidence: match.confidence,
+    })
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.threadId);
+}
+
+interface LoadedContext {
+  kind: "ok";
+  agency: AssembleInput["agency"];
+  agencyConfig: AssembleInput["agencyConfig"];
+  pms: Pm[];
+  promptContent: string;
+  promptVersionId: string;
+}
+
+async function loadAgencyContext(
+  client: Client,
+  agencyId: string,
+): Promise<LoadedContext | { kind: "skipped"; reason: string }> {
+  const [agencyRes, configRes, promptRes, pmsRes] = await Promise.all([
+    client
+      .from("agencies")
+      .select("id, name, suburb, business_hours, after_hours_emergency_line, principal_email")
+      .eq("id", agencyId)
+      .maybeSingle(),
+    client.from("agency_config").select("*").eq("agency_id", agencyId).maybeSingle(),
+    client
+      .from("prompt_versions")
+      .select("id, content")
+      .eq("agency_id", agencyId)
+      .is("active_to", null)
+      .maybeSingle(),
+    client
+      .from("agency_users")
+      .select("full_name, email, signature_block")
+      .eq("agency_id", agencyId)
+      .eq("role", "pm")
+      .eq("active", true),
+  ]);
+
+  if (agencyRes.error || !agencyRes.data) {
+    return { kind: "skipped", reason: "agency_not_found" };
+  }
+  if (configRes.error || !configRes.data) {
+    return { kind: "skipped", reason: "agency_config_not_found" };
+  }
+  if (promptRes.error || !promptRes.data) {
+    return { kind: "skipped", reason: "no_active_prompt_version" };
+  }
+  if (pmsRes.error) {
+    return { kind: "skipped", reason: "pms_lookup_failed" };
+  }
+
+  return {
+    kind: "ok",
+    agency: {
+      id: agencyRes.data.id,
+      name: agencyRes.data.name,
+      suburb: agencyRes.data.suburb,
+      businessHours: agencyRes.data.business_hours,
+      afterHoursLine: agencyRes.data.after_hours_emergency_line,
+      principal: agencyRes.data.principal_email,
+    },
+    agencyConfig: {
+      // jsonb columns come back as the generated `Json` type — cast through
+      // unknown to the structured shape; trust the seed/dashboard to have
+      // written conformant data. A zod boundary parser is a future
+      // hardening step (out of scope for M6).
+      voiceSamples: (configRes.data.voice_samples ??
+        []) as unknown as AssembleInput["agencyConfig"]["voiceSamples"],
+      approvedTradies: (configRes.data.approved_tradies ??
+        []) as unknown as AssembleInput["agencyConfig"]["approvedTradies"],
+      nominatedRepairer: configRes.data
+        .nominated_repairer as unknown as AssembleInput["agencyConfig"]["nominatedRepairer"],
+      routineApprovalThresholdCents: configRes.data.routine_approval_threshold_cents,
+      writtenQuoteThresholdCents: configRes.data.written_quote_threshold_cents,
+      perOwnerQuoteExceptions: (configRes.data.per_owner_quote_exceptions ??
+        []) as unknown as AssembleInput["agencyConfig"]["perOwnerQuoteExceptions"],
+      houseRules: configRes.data.house_rules,
+      leanNotes: (configRes.data.lean_notes ?? []) as unknown as LeanNote[],
+    },
+    pms: (pmsRes.data ?? []).map((u) => ({
+      name: u.full_name,
+      email: u.email,
+    })),
+    promptContent: promptRes.data.content,
+    promptVersionId: promptRes.data.id,
+  };
+}
+
+async function insertDraft(
+  client: Client,
+  input: DraftPipelineInput,
+  match: { confidence: MatchConfidence; source: MatchSource },
+  submission: DraftSubmission,
+  promptVersionId: string,
+  model: string,
+): Promise<string> {
+  const { data, error } = await client
+    .from("ai_drafts")
+    .insert({
+      agency_id: input.agencyId,
+      email_message_id: input.emailMessageId,
+      category: submission.category,
+      category_confidence: submission.category_confidence,
+      priority: submission.priority,
+      escalation_flag: submission.escalation_flag,
+      emergency_landlord_alert: submission.emergency_landlord_alert,
+      do_not_send: submission.do_not_send,
+      draft_confidence: submission.draft_confidence,
+      draft_subject: submission.draft_subject || null,
+      draft_body: submission.draft_body || null,
+      pm_review_notes: submission.pm_review_notes as unknown as Json,
+      model_used: model,
+      prompt_version_id: promptVersionId,
+      raw_response: submission as unknown as Json,
+      match_confidence: match.confidence,
+      matched_via: match.source,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    throw new Error(`ai_drafts insert failed: ${error?.message ?? "no row returned"}`);
+  }
+  return data.id;
+}
+
+async function insertModelCall(
+  client: Client,
+  input: DraftPipelineInput,
+  draftId: string,
+  promptVersionId: string,
+  model: string,
+  inboundEmail: InboundEmail,
+  submission: DraftSubmission,
+  durationMs: number,
+): Promise<void> {
+  const request = {
+    model,
+    prompt_version_id: promptVersionId,
+    email_message_id: input.emailMessageId,
+    inbound_email: inboundEmail,
+  };
+  const response = { stop_reason: "tool_use" as const, submission };
+  const { error } = await client.from("model_calls").insert({
+    agency_id: input.agencyId,
+    draft_id: draftId,
+    model,
+    prompt_version_id: promptVersionId,
+    request: request as unknown as Json,
+    response: response as unknown as Json,
+    duration_ms: durationMs,
+  });
+  if (error) {
+    // Don't fail the whole pipeline on a model_calls insert failure — the
+    // draft itself is already persisted and the PM can act on it.
+    throw new Error(`model_calls insert failed: ${error.message}`);
+  }
+}

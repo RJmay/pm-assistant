@@ -8,7 +8,7 @@ import { INBOUND_FIXTURES } from "./fixtures/inbound";
 const RUN = process.env.RUN_LLM_TESTS === "1";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.1.md"), "utf-8");
+const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.2.md"), "utf-8");
 
 const NOW = new Date("2026-05-28T00:00:00Z");
 const AGENCY_NAME = "Sunshine Coast Test Agency";
@@ -69,6 +69,7 @@ function sunshineCoastSystemPrompt(): string {
       perOwnerQuoteExceptions: [],
       houseRules:
         "- Pet requests are processed within 7 business days\n- We do not accept rent payment by credit card",
+      leanNotes: [],
     },
     pms: [
       { name: "Jess Bowman", email: "jess@scta-test.example" },

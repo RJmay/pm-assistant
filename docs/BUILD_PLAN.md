@@ -160,7 +160,7 @@ Wire the Cloudflare Worker to receive Gmail Pub/Sub pushes. No Gmail fetching ye
 
 ---
 
-## Milestone 5 — Gmail integration `[CURRENT — code complete, runtime DoD pending Phase B]`
+## Milestone 5 — Gmail integration `[DONE — code complete, runtime DoD pending Phase B]`
 
 Pull messages from Gmail and persist them.
 
@@ -185,22 +185,30 @@ Pull messages from Gmail and persist them.
 
 ---
 
-## Milestone 6 — End-to-end draft generation
+## Milestone 6 — End-to-end draft generation `[CURRENT — code complete, runtime DoD pending Phase B]`
 
 Tie it together: inbound message → matcher → assemble → drafter → ai_drafts row.
 
-**Tasks:**
-- Build `services/matcher.ts` with the cascade from ARCHITECTURE.md
-- After persisting an inbound message, run the matcher and update the thread's `property_id` if confidence is high
-- Load `agency_config` + active `prompt_versions` row
-- Call `assemble()`
-- Call `drafter()`
-- Persist `ai_drafts` row with the structured output
-- Write to `audit_log`
+**Status:** All M6 code is written and `pnpm exec biome check .` + `pnpm -r typecheck` + `pnpm -r test` pass (worker suite: 11 files, 106 tests; prompts suite: 2 files, 18 tests; LLM-gated tests skip without `RUN_LLM_TESTS=1`). The runtime DoD below cannot be confirmed until Phase B (hosted Supabase + seeded pilot agency) — same "code now, runtime later" pattern that landed M5.
 
-**Definition of done:**
+**Tasks (done):**
+- Migrations `0004_ai_drafts_match_confidence.sql` (adds `match_confidence` + `matched_via` columns + `match_source` enum + low-match partial index), `0005_agency_lean_notes.sql` (adds `lean_notes` jsonb to agency_config), `0006_weekly_digests.sql` (new table + `weekly_digest_status` enum + RLS). `docs/schema.sql` updated to match. `packages/db/src/types.ts` hand-edited; run `pnpm db:types` after applying migrations to a Supabase to regenerate.
+- Base prompt bumped to `pm-drafting-v2.2.md` with new `[LEAN_NOTES]` section after `House rules and quirks`. `packages/prompts/src/render.ts` gains `LeanNote` interface + `activeLeanNotes()` (filter by `expiresAt`) + `renderLeanNotes()`. `assemble.ts` substitutes `[LEAN_NOTES]` and strips the whole section when there are no active leans. Snapshot tests cover empty/populated/expired leans.
+- `apps/worker/src/services/matcher.ts` — 5-step cascade (exact_email → thread_continuity → subject_fuzzy → body_scan → fallback). Every query scoped by `agency_id`. Tenant/owner lookups chain through `tenancies` → `properties` to a concrete `property_id` when unambiguous; ambiguous matches drop a confidence tier.
+- `apps/worker/src/services/draft-pipeline.ts` — `runDraftPipeline()` orchestrator: matcher → maybe-update `email_threads.property_id` (never downgrades a stronger existing link) → load `agency` + `agency_config` + active `prompt_versions` + PMs → `assemble()` (catches `MissingNominatedRepairerError` → skipped) → `draft()` (always `claude-sonnet-4-6`; opus pre-classifier deferred) → insert `ai_drafts` + `model_calls` + `audit_log` with `draft.created`. Returns a discriminated union so the webhook can tally ok/skipped/failed without throwing.
+- `apps/worker/src/routes/gmail-webhook.ts` — `persistMessages()` now returns `Array<{ emailMessageId, threadId, parsed }>`; webhook loops and calls `runDraftPipeline` per message. Audit metadata includes `drafts_ok` / `drafts_skipped` / `drafts_failed`. `email_messages` upsert switched off `ignoreDuplicates` so the row id is returned even on redelivery.
+- `apps/worker/src/cron/weekly-drift.ts` + new cron `0 23 * * 0` (Mon 09:00 AEST). Computes this-week-vs-4-week-baseline shifts on category mix, escalation rate, do-not-send rate, mean draft confidence. Silent when nothing crosses the 25% threshold or sample sizes are below `MIN_THIS_WEEK=5` / `MIN_BASELINE=10`. On signal it inserts a `weekly_digests` row with `signals` + `suggested_directions` ready for the M8 dashboard tuning card. Idempotent on `(agency_id, week_start_date)`. `src/index.ts` now dispatches `scheduled()` by cron pattern.
+- Unit tests: `matcher.test.ts` (15 — each cascade step + agency scoping + ambiguity + archived filter), `draft-pipeline.test.ts` (9 — happy path + thread-link no-downgrade + skipped/error paths), `weekly-drift.test.ts` (11 — pure-function math + integration with idempotency + per-agency continue-on-error + week-window math), extended `webhook.test.ts` (+2 pipeline invocation + 200-on-pipeline-error). LLM-gated `draft-pipeline.llm.test.ts` runs 3 M3 fixtures through the full pipeline with real Anthropic when `RUN_LLM_TESTS=1`; mocked Supabase.
+
+**Deferred to a later milestone (intentional, surfaced now):**
+- Standalone `scripts/weekly-drift.ts` for ad-hoc manual runs — the cron + `wrangler cron trigger` are sufficient for v1.
+- Opus-4-7 pre-classifier for LEGAL/REPUTATIONAL drafts — measure sonnet's escalation accuracy first.
+- Drift score from PM `draft_edits` direction — needs M9's `draft_edits` table to exist; current drift script picks this up automatically once that lands.
+- Zod boundary parser for `agency_config.lean_notes`/`voice_samples`/`approved_tradies` jsonb — runtime cast through `unknown` for now.
+
+**Definition of done:** (pending Phase B)
 - An inbound email goes from Gmail → ai_drafts row in under 8 seconds (p50)
-- Match cascade hits the right `property_id` on test fixtures
+- Match cascade hits the right `property_id` on test fixtures against the seeded agency
 - Drift check: re-run the same email through and get a similar (not identical) draft — flag if categorisation changes
 
 ---

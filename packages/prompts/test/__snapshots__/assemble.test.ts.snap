@@ -616,6 +616,7 @@ When a property has an override that downgrades the alert (e.g. \`safety_critica
 
 ## CHANGE LOG
 
+- v2.2 — 2026-05-28 — Added \`\` section so PM-authored tuning leans (from the weekly drift digest) template into the agency-specific config block
 - v2.1 — 2026-05-28 — Added per-owner notification preferences and routing profiles
 - v2 — 2026-05-28 — Rebuild incorporating 2024/2025 QLD law changes, expanded escalation handling, PII rules, edge cases, hedge language library
 - v1 — 2026-05-28 — Initial draft
@@ -1217,6 +1218,7 @@ _None on file._
 
 ## CHANGE LOG
 
+- v2.2 — 2026-05-28 — Added \`\` section so PM-authored tuning leans (from the weekly drift digest) template into the agency-specific config block
 - v2.1 — 2026-05-28 — Added per-owner notification preferences and routing profiles
 - v2 — 2026-05-28 — Rebuild incorporating 2024/2025 QLD law changes, expanded escalation handling, PII rules, edge cases, hedge language library
 - v1 — 2026-05-28 — Initial draft

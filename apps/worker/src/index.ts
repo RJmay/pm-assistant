@@ -1,6 +1,8 @@
 import { Hono } from "hono";
-import { handleScheduled } from "./cron/refresh-watches";
+import { handleRefreshWatches } from "./cron/refresh-watches";
+import { handleWeeklyDrift } from "./cron/weekly-drift";
 import type { WorkerBindings } from "./lib/env";
+import { createLogger } from "./lib/log";
 import { gmailWebhook } from "./routes/gmail-webhook";
 import { health } from "./routes/health";
 import { oauthGmail } from "./routes/oauth-gmail";
@@ -22,12 +24,36 @@ app.route("/", health);
 app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
 
+const DAILY_REFRESH_CRON = "0 13 * * *";
+const WEEKLY_DRIFT_CRON = "0 23 * * 0";
+
+// Dispatch by cron pattern. ScheduledController.cron carries the literal
+// pattern that fired, so we route here rather than having each handler do
+// its own filtering.
+async function scheduled(
+  controller: ScheduledController,
+  env: WorkerBindings,
+  _ctx: ExecutionContext,
+): Promise<void> {
+  if (controller.cron === DAILY_REFRESH_CRON) {
+    await handleRefreshWatches(controller, env);
+    return;
+  }
+  if (controller.cron === WEEKLY_DRIFT_CRON) {
+    await handleWeeklyDrift(controller, env);
+    return;
+  }
+  createLogger({ base: { request_id: crypto.randomUUID() } }).warn("unknown cron trigger", {
+    cron: controller.cron,
+  });
+}
+
 // The Workers runtime expects `default` to be an object with `fetch` and/or
 // `scheduled`. We expose both so the same worker handles HTTP traffic and
-// the daily cron that refreshes Gmail watch subscriptions.
+// the cron triggers.
 const handler: ExportedHandler<WorkerBindings> = {
   fetch: app.fetch,
-  scheduled: handleScheduled,
+  scheduled,
 };
 
 export default handler;
