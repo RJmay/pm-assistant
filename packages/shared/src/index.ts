@@ -14,6 +14,12 @@ export const submitDraftSchema = z.object({
   priority: z.enum(["STANDARD", "PRIORITY", "EMERGENCY_ALERT"]),
   escalation_flag: z.enum(["NONE", "WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"]),
   emergency_landlord_alert: z.boolean(),
+  // True when the AI assesses the property is unsafe, insecure, structurally
+  // compromised, or has an insurance-relevant defect. Gates the
+  // `safety_critical_only` owner notification profile (ARCHITECTURE §"Owner
+  // notification routing"). Independent of emergency_landlord_alert — a tap
+  // leak can be an emergency without being safety_critical, and vice versa.
+  safety_critical: z.boolean(),
   do_not_send: z.boolean(),
   draft_confidence: z.enum(["HIGH", "MEDIUM", "LOW"]),
   draft_subject: z.string(),
@@ -135,5 +141,65 @@ export class OAuthStateError extends Error {
   constructor(reason: string, opts?: { cause?: unknown }) {
     super(`OAuth state verification failed: ${reason}`, { cause: opts?.cause });
     this.reason = reason;
+  }
+}
+
+/**
+ * Thrown when a Twilio API call returns non-2xx or a malformed response.
+ * Captures the HTTP status and Twilio's error code/body for diagnosis. Never
+ * carries the auth token (it lives in the request, never the error).
+ */
+export class TwilioApiError extends Error {
+  override readonly name = "TwilioApiError";
+  readonly statusCode: number;
+  readonly endpoint: string;
+  readonly twilioErrorCode: number | undefined;
+  readonly responseBody: unknown;
+
+  constructor(
+    message: string,
+    opts: {
+      statusCode: number;
+      endpoint: string;
+      twilioErrorCode?: number;
+      responseBody?: unknown;
+      cause?: unknown;
+    },
+  ) {
+    super(message, { cause: opts.cause });
+    this.statusCode = opts.statusCode;
+    this.endpoint = opts.endpoint;
+    this.twilioErrorCode = opts.twilioErrorCode;
+    this.responseBody = opts.responseBody;
+  }
+}
+
+/**
+ * Thrown when a Resend API call returns non-2xx or a malformed response.
+ * Captures the HTTP status and Resend's error body for diagnosis. Never
+ * carries the API key.
+ */
+export class ResendApiError extends Error {
+  override readonly name = "ResendApiError";
+  readonly statusCode: number;
+  readonly endpoint: string;
+  readonly resendErrorName: string | undefined;
+  readonly responseBody: unknown;
+
+  constructor(
+    message: string,
+    opts: {
+      statusCode: number;
+      endpoint: string;
+      resendErrorName?: string;
+      responseBody?: unknown;
+      cause?: unknown;
+    },
+  ) {
+    super(message, { cause: opts.cause });
+    this.statusCode = opts.statusCode;
+    this.endpoint = opts.endpoint;
+    this.resendErrorName = opts.resendErrorName;
+    this.responseBody = opts.responseBody;
   }
 }

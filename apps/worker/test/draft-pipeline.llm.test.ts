@@ -31,7 +31,7 @@ const describeIf = RUN ? describe : describe.skip;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE_PROMPT = readFileSync(
-  resolve(__dirname, "../../../packages/prompts/src/base/pm-drafting-v2.2.md"),
+  resolve(__dirname, "../../../packages/prompts/src/base/pm-drafting-v2.3.md"),
   "utf-8",
 );
 
@@ -292,8 +292,19 @@ describeIf("draft pipeline (live, RUN_LLM_TESTS=1)", () => {
         },
         {
           anthropicApiKey: apiKey,
+          env: {
+            TWILIO_ACCOUNT_SID: "AC0000000000000000000000000000test",
+            TWILIO_AUTH_TOKEN: "00000000000000000000000000000test",
+            TWILIO_FROM_NUMBER: "+61400000000",
+            RESEND_API_KEY: "re_0000000000000000000000000000test",
+            RESEND_FROM_EMAIL: "noreply@scta-test.example",
+            // biome-ignore lint/suspicious/noExplicitAny: test seam — only the fields used by the (mocked) notifier path matter
+          } as any,
           logger: log,
           matcher: noopMatcher,
+          // Notifier is not exercised here — the emergency fixture would call
+          // it, but Supabase is mocked to a minimal surface. Stub it out.
+          notifier: async () => ({ dispatched: 0, queued: 0, suppressed: 0, failed: 0 }),
         },
       );
 

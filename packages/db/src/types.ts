@@ -260,6 +260,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id: string | null;
           raw_response: Json | null;
+          safety_critical: boolean;
           sent_at: string | null;
           sent_gmail_message_id: string | null;
           status: Database["public"]["Enums"]["draft_status"];
@@ -286,6 +287,7 @@ export type Database = {
           priority: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id?: string | null;
           raw_response?: Json | null;
+          safety_critical?: boolean;
           sent_at?: string | null;
           sent_gmail_message_id?: string | null;
           status?: Database["public"]["Enums"]["draft_status"];
@@ -312,6 +314,7 @@ export type Database = {
           priority?: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id?: string | null;
           raw_response?: Json | null;
+          safety_critical?: boolean;
           sent_at?: string | null;
           sent_gmail_message_id?: string | null;
           status?: Database["public"]["Enums"]["draft_status"];

@@ -13,6 +13,11 @@ function validRaw(): Record<string, string> {
     WEBHOOK_BASE_URL: "https://pm-assistant.example.workers.dev",
     OAUTH_STATE_SECRET: "test-oauth-state-secret-min-32-chars-12345",
     PUBSUB_TOPIC: "projects/test-project/topics/pm-assistant-gmail",
+    TWILIO_ACCOUNT_SID: "AC0000000000000000000000000000test",
+    TWILIO_AUTH_TOKEN: "00000000000000000000000000000test",
+    TWILIO_FROM_NUMBER: "+61400000000",
+    RESEND_API_KEY: "re_0000000000000000000000000000test",
+    RESEND_FROM_EMAIL: "noreply@scta-test.example",
   };
 }
 
@@ -59,5 +64,17 @@ describe("envSchema / parseEnv", () => {
 
   it("rejects a malformed PUBSUB_TOPIC (missing projects/.../topics/...)", () => {
     expect(() => parseEnv({ ...validRaw(), PUBSUB_TOPIC: "pm-assistant-gmail" })).toThrow();
+  });
+
+  it("rejects a too-short TWILIO_ACCOUNT_SID", () => {
+    expect(() => parseEnv({ ...validRaw(), TWILIO_ACCOUNT_SID: "AC123" })).toThrow();
+  });
+
+  it("rejects a non-E.164 TWILIO_FROM_NUMBER", () => {
+    expect(() => parseEnv({ ...validRaw(), TWILIO_FROM_NUMBER: "0400 000 000" })).toThrow();
+  });
+
+  it("rejects a too-short RESEND_API_KEY", () => {
+    expect(() => parseEnv({ ...validRaw(), RESEND_API_KEY: "re_short" })).toThrow();
   });
 });

@@ -64,6 +64,11 @@ const env: WorkerBindings = {
   WEBHOOK_BASE_URL: "https://pm-assistant.example.workers.dev",
   OAUTH_STATE_SECRET: "test-oauth-state-secret-min-32-chars-12345",
   PUBSUB_TOPIC: "projects/test-project/topics/pm-assistant-gmail",
+  TWILIO_ACCOUNT_SID: "AC0000000000000000000000000000test",
+  TWILIO_AUTH_TOKEN: "00000000000000000000000000000test",
+  TWILIO_FROM_NUMBER: "+61400000000",
+  RESEND_API_KEY: "re_0000000000000000000000000000test",
+  RESEND_FROM_EMAIL: "noreply@scta-test.example",
   JWKS_CACHE: {} as KVNamespace,
 };
 

@@ -8,6 +8,7 @@ const VALID_DRAFT: DraftSubmission = {
   priority: "STANDARD",
   escalation_flag: "NONE",
   emergency_landlord_alert: false,
+  safety_critical: false,
   do_not_send: false,
   draft_confidence: "HIGH",
   draft_subject: "Re: dripping tap",

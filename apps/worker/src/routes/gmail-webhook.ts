@@ -192,7 +192,7 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
         bodyHtml: row.parsed.bodyHtml,
         receivedAt: row.parsed.receivedAt.toISOString(),
       },
-      { anthropicApiKey: c.env.ANTHROPIC_API_KEY, logger: log },
+      { anthropicApiKey: c.env.ANTHROPIC_API_KEY, env: c.env, logger: log },
     );
     if (result.kind === "ok") draftsOk += 1;
     else if (result.kind === "skipped") draftsSkipped += 1;

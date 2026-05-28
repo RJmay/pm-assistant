@@ -21,6 +21,18 @@ export const envSchema = z.object({
   /** Full Pub/Sub topic path used by Gmail's users.watch:
    *  `projects/<gcp-project>/topics/pm-assistant-gmail` */
   PUBSUB_TOPIC: z.string().regex(/^projects\/[^/]+\/topics\/[^/]+$/),
+  // ---- Notifier (M7) -----------------------------------------------------
+  // Twilio + Resend secrets backing services/twilio.ts and services/resend.ts.
+  // Twilio account SIDs are 34 chars (`AC` + 32 hex); the auth token is 32
+  // hex. Resend keys begin with `re_` and are ~40 chars. We use length-only
+  // floors so test fixtures don't need real-looking values.
+  TWILIO_ACCOUNT_SID: z.string().min(20),
+  TWILIO_AUTH_TOKEN: z.string().min(20),
+  /** E.164 phone number Twilio sends from, e.g. `+61400000000`. */
+  TWILIO_FROM_NUMBER: z.string().regex(/^\+[1-9]\d{6,15}$/),
+  RESEND_API_KEY: z.string().min(20),
+  /** Verified Resend sender; either bare email or `Name <addr>` form. */
+  RESEND_FROM_EMAIL: z.string().min(3),
 });
 
 export type WorkerEnv = z.infer<typeof envSchema>;

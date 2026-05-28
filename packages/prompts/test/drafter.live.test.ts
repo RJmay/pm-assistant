@@ -8,7 +8,7 @@ import { INBOUND_FIXTURES } from "./fixtures/inbound";
 const RUN = process.env.RUN_LLM_TESTS === "1";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.2.md"), "utf-8");
+const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.3.md"), "utf-8");
 
 const NOW = new Date("2026-05-28T00:00:00Z");
 const AGENCY_NAME = "Sunshine Coast Test Agency";

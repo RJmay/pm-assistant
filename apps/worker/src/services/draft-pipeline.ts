@@ -10,12 +10,15 @@ import {
   type Pm,
   draft as runDrafter,
 } from "@pm/prompts";
+import type { WorkerBindings } from "../lib/env";
 import type { Logger } from "../lib/log";
 import { type MatchConfidence, type MatcherInput, type MatchSource, matchEmail } from "./matcher";
+import { dispatchOwnerNotification, type NotifyResult } from "./notifier";
 import { writeAuditLog } from "./supabase";
 
 /**
- * Single-message orchestrator: matcher → assemble → drafter → persist.
+ * Single-message orchestrator: matcher → assemble → drafter → persist →
+ * (optional) owner notification.
  *
  * Called from the Gmail webhook for each newly-persisted inbound message.
  * Per-message failures are surfaced via the returned discriminated union so
@@ -28,6 +31,10 @@ import { writeAuditLog } from "./supabase";
  *   2. Inserts one `ai_drafts` row (unique on `email_message_id`).
  *   3. Inserts one `model_calls` row capturing the Anthropic exchange.
  *   4. Writes one `audit_log` row with action `draft.created`.
+ *   5. When `submission.emergency_landlord_alert` is true, dispatches owner
+ *      notifications via `services/notifier`. Failures are logged but
+ *      swallowed — the draft is already persisted, alerts being late is
+ *      better than the draft being lost.
  */
 
 export const DEFAULT_DRAFTER_MODEL: DrafterModel = "claude-sonnet-4-6";
@@ -49,6 +56,8 @@ export interface DraftPipelineInput {
 export interface DraftPipelineDeps {
   /** Anthropic API key — passed to the drafter; not stored. */
   anthropicApiKey: string;
+  /** Full Worker env — required so the notifier can read Twilio/Resend creds. */
+  env: WorkerBindings;
   /** Override for the model — defaults to claude-sonnet-4-6 (see ARCHITECTURE). */
   model?: DrafterModel;
   logger: Logger;
@@ -56,12 +65,20 @@ export interface DraftPipelineDeps {
   drafter?: typeof runDrafter;
   /** Test seam — defaults to matchEmail. */
   matcher?: typeof matchEmail;
+  /** Test seam — defaults to dispatchOwnerNotification. */
+  notifier?: typeof dispatchOwnerNotification;
   /** Injectable clock for deterministic tests. */
   now?: () => Date;
 }
 
 export type DraftPipelineResult =
-  | { kind: "ok"; draftId: string; matchConfidence: MatchConfidence; matchedVia: MatchSource }
+  | {
+      kind: "ok";
+      draftId: string;
+      matchConfidence: MatchConfidence;
+      matchedVia: MatchSource;
+      notifier?: NotifyResult;
+    }
   | { kind: "skipped"; reason: string }
   | { kind: "error"; error: Error };
 
@@ -77,6 +94,7 @@ export async function runDraftPipeline(
   const now = deps.now ?? (() => new Date());
   const drafterFn = deps.drafter ?? runDrafter;
   const matcherFn = deps.matcher ?? matchEmail;
+  const notifierFn = deps.notifier ?? dispatchOwnerNotification;
   const model = deps.model ?? DEFAULT_DRAFTER_MODEL;
 
   try {
@@ -156,7 +174,35 @@ export async function runDraftPipeline(
       durationMs,
     );
 
-    // ---- 7. Audit -------------------------------------------------------
+    // ---- 7. Owner notification (only on emergency_landlord_alert) -------
+    let notifierResult: NotifyResult | undefined;
+    if (submission.emergency_landlord_alert) {
+      try {
+        notifierResult = await notifierFn(
+          client,
+          {
+            draftId,
+            agencyId: input.agencyId,
+            propertyId: match.propertyId,
+            ownerId: match.ownerId,
+            safetyCritical: submission.safety_critical,
+            draftSummary: {
+              category: submission.category,
+              issueLine: input.subject ?? `${submission.category} issue`,
+            },
+          },
+          { env: deps.env, logger: log, now: deps.now },
+        );
+      } catch (err) {
+        // Don't fail the pipeline — the draft is already persisted. Alerts
+        // can be re-fired from the dashboard later.
+        log.error("notifier dispatch failed (swallowed)", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // ---- 8. Audit -------------------------------------------------------
     await writeAuditLog(client, {
       agency_id: input.agencyId,
       actor_type: "ai",
@@ -171,8 +217,13 @@ export async function runDraftPipeline(
         priority: submission.priority,
         escalation_flag: submission.escalation_flag,
         do_not_send: submission.do_not_send,
+        safety_critical: submission.safety_critical,
         model,
         duration_ms: durationMs,
+        notifications_dispatched: notifierResult?.dispatched ?? 0,
+        notifications_queued: notifierResult?.queued ?? 0,
+        notifications_suppressed: notifierResult?.suppressed ?? 0,
+        notifications_failed: notifierResult?.failed ?? 0,
       },
     });
 
@@ -182,12 +233,14 @@ export async function runDraftPipeline(
       priority: submission.priority,
       escalation_flag: submission.escalation_flag,
       duration_ms: durationMs,
+      notifier: notifierResult,
     });
     return {
       kind: "ok",
       draftId,
       matchConfidence: match.confidence,
       matchedVia: match.source,
+      notifier: notifierResult,
     };
   } catch (err) {
     const wrapped = err instanceof Error ? err : new Error(String(err));
@@ -342,6 +395,7 @@ async function insertDraft(
       priority: submission.priority,
       escalation_flag: submission.escalation_flag,
       emergency_landlord_alert: submission.emergency_landlord_alert,
+      safety_critical: submission.safety_critical,
       do_not_send: submission.do_not_send,
       draft_confidence: submission.draft_confidence,
       draft_subject: submission.draft_subject || null,

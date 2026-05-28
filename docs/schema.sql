@@ -794,3 +794,18 @@ create policy tenant_isolation on weekly_digests
   for all
   using (agency_id = auth_helpers.current_agency_id())
   with check (agency_id = auth_helpers.current_agency_id());
+
+-- ============================================================================
+-- AI_DRAFTS.SAFETY_CRITICAL (added in migration 0007)
+-- ============================================================================
+-- Boolean from the drafter's structured output. Gates the
+-- `safety_critical_only` owner notification profile: when set, the alert
+-- fires; when unset, the alert is suppressed (and logged in notification_log).
+-- ============================================================================
+
+alter table ai_drafts
+  add column safety_critical boolean not null default false;
+
+create index idx_ai_drafts_safety_critical
+  on ai_drafts(agency_id, created_at desc)
+  where safety_critical = true;

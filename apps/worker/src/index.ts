@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { handleOwnerDigest } from "./cron/owner-digest";
 import { handleRefreshWatches } from "./cron/refresh-watches";
 import { handleWeeklyDrift } from "./cron/weekly-drift";
 import type { WorkerBindings } from "./lib/env";
@@ -25,6 +26,7 @@ app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";
+const OWNER_DIGEST_CRON = "0 21 * * *";
 const WEEKLY_DRIFT_CRON = "0 23 * * 0";
 
 // Dispatch by cron pattern. ScheduledController.cron carries the literal
@@ -37,6 +39,10 @@ async function scheduled(
 ): Promise<void> {
   if (controller.cron === DAILY_REFRESH_CRON) {
     await handleRefreshWatches(controller, env);
+    return;
+  }
+  if (controller.cron === OWNER_DIGEST_CRON) {
+    await handleOwnerDigest(controller, env);
     return;
   }
   if (controller.cron === WEEKLY_DRIFT_CRON) {

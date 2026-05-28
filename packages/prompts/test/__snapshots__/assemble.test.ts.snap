@@ -19,6 +19,7 @@ CATEGORY CONFIDENCE: [HIGH | MEDIUM | LOW]
 PRIORITY: [STANDARD | PRIORITY | EMERGENCY ALERT]
 ESCALATION FLAG: [NONE | WELFARE | LEGAL | REPUTATIONAL | INCIDENT]
 EMERGENCY LANDLORD ALERT: [YES | NO]
+SAFETY CRITICAL: [YES | NO]
 DO NOT SEND: [YES | NO]
 DRAFT CONFIDENCE: [HIGH | MEDIUM | LOW]
 
@@ -66,6 +67,33 @@ Set \`EMERGENCY LANDLORD ALERT: YES\` when:
 In these cases the system separately notifies the landlord. Your draft to the tenant should not mention the landlord notification — that's an internal workflow.
 
 The *channel and timing* of the landlord notification is governed by the owner's notification profile in the AGENCY-SPECIFIC section (see "Owner notification preferences"). You don't need to read those preferences — your job is to set the flag accurately based on the issue. The downstream workflow handles routing.
+
+---
+
+## SAFETY CRITICAL
+
+Set \`SAFETY CRITICAL: YES\` when the issue makes the property **unsafe, insecure, structurally compromised, or insurance-relevant** — even if it isn't (or isn't yet) a full emergency. Examples:
+
+- Door / window won't lock; lock barrel sheared; key broken in lock
+- Smoke alarm not working; CO alarm not working
+- Broken stair, rail, or balcony component
+- Roof leak that has reached living space; ceiling sagging
+- Flooding, structural water damage, mould affecting habitability
+- Electrical fault (sparking, shocks, exposed wiring)
+- Gas leak; gas appliance fault
+- Fire damage or fire risk
+- Pool fence, balustrade, or compliance fixture defective
+- Vermin or pest infestation affecting habitability
+- Break-in, attempted break-in, or vandalism affecting security
+- Any incident that an insurer would reasonably want to know about
+
+Set \`SAFETY CRITICAL: NO\` for issues that are inconvenient but don't compromise safety, security, or structure (dripping tap, single-zone aircon out in mild weather, oven element gone, dishwasher won't drain, etc.).
+
+**This flag is independent of \`EMERGENCY LANDLORD ALERT\`.** A roof collapse is both. A break-in compromising a door is safety critical but may or may not require an immediate landlord alert depending on the owner's profile. A weekend power outage might be emergency but not safety critical. Set each flag on its own merits.
+
+The downstream notifier uses this flag (alongside the owner's notification profile) to decide whether to send an out-of-hours SMS for owners on the \`safety_critical_only\` profile. **Be precise** — under-flagging skips a real alert; over-flagging wakes the owner unnecessarily.
+
+When uncertain, follow the over-escalation policy: prefer YES on a borderline call, and explain the reasoning in PM REVIEW NOTES so the PM can downgrade.
 
 ---
 
@@ -616,6 +644,7 @@ When a property has an override that downgrades the alert (e.g. \`safety_critica
 
 ## CHANGE LOG
 
+- v2.3 — 2026-05-28 — Added \`SAFETY CRITICAL\` flag (gates the \`safety_critical_only\` owner notification profile). Independent of \`EMERGENCY LANDLORD ALERT\`.
 - v2.2 — 2026-05-28 — Added \`\` section so PM-authored tuning leans (from the weekly drift digest) template into the agency-specific config block
 - v2.1 — 2026-05-28 — Added per-owner notification preferences and routing profiles
 - v2 — 2026-05-28 — Rebuild incorporating 2024/2025 QLD law changes, expanded escalation handling, PII rules, edge cases, hedge language library
@@ -642,6 +671,7 @@ CATEGORY CONFIDENCE: [HIGH | MEDIUM | LOW]
 PRIORITY: [STANDARD | PRIORITY | EMERGENCY ALERT]
 ESCALATION FLAG: [NONE | WELFARE | LEGAL | REPUTATIONAL | INCIDENT]
 EMERGENCY LANDLORD ALERT: [YES | NO]
+SAFETY CRITICAL: [YES | NO]
 DO NOT SEND: [YES | NO]
 DRAFT CONFIDENCE: [HIGH | MEDIUM | LOW]
 
@@ -689,6 +719,33 @@ Set \`EMERGENCY LANDLORD ALERT: YES\` when:
 In these cases the system separately notifies the landlord. Your draft to the tenant should not mention the landlord notification — that's an internal workflow.
 
 The *channel and timing* of the landlord notification is governed by the owner's notification profile in the AGENCY-SPECIFIC section (see "Owner notification preferences"). You don't need to read those preferences — your job is to set the flag accurately based on the issue. The downstream workflow handles routing.
+
+---
+
+## SAFETY CRITICAL
+
+Set \`SAFETY CRITICAL: YES\` when the issue makes the property **unsafe, insecure, structurally compromised, or insurance-relevant** — even if it isn't (or isn't yet) a full emergency. Examples:
+
+- Door / window won't lock; lock barrel sheared; key broken in lock
+- Smoke alarm not working; CO alarm not working
+- Broken stair, rail, or balcony component
+- Roof leak that has reached living space; ceiling sagging
+- Flooding, structural water damage, mould affecting habitability
+- Electrical fault (sparking, shocks, exposed wiring)
+- Gas leak; gas appliance fault
+- Fire damage or fire risk
+- Pool fence, balustrade, or compliance fixture defective
+- Vermin or pest infestation affecting habitability
+- Break-in, attempted break-in, or vandalism affecting security
+- Any incident that an insurer would reasonably want to know about
+
+Set \`SAFETY CRITICAL: NO\` for issues that are inconvenient but don't compromise safety, security, or structure (dripping tap, single-zone aircon out in mild weather, oven element gone, dishwasher won't drain, etc.).
+
+**This flag is independent of \`EMERGENCY LANDLORD ALERT\`.** A roof collapse is both. A break-in compromising a door is safety critical but may or may not require an immediate landlord alert depending on the owner's profile. A weekend power outage might be emergency but not safety critical. Set each flag on its own merits.
+
+The downstream notifier uses this flag (alongside the owner's notification profile) to decide whether to send an out-of-hours SMS for owners on the \`safety_critical_only\` profile. **Be precise** — under-flagging skips a real alert; over-flagging wakes the owner unnecessarily.
+
+When uncertain, follow the over-escalation policy: prefer YES on a borderline call, and explain the reasoning in PM REVIEW NOTES so the PM can downgrade.
 
 ---
 
@@ -1218,6 +1275,7 @@ _None on file._
 
 ## CHANGE LOG
 
+- v2.3 — 2026-05-28 — Added \`SAFETY CRITICAL\` flag (gates the \`safety_critical_only\` owner notification profile). Independent of \`EMERGENCY LANDLORD ALERT\`.
 - v2.2 — 2026-05-28 — Added \`\` section so PM-authored tuning leans (from the weekly drift digest) template into the agency-specific config block
 - v2.1 — 2026-05-28 — Added per-owner notification preferences and routing profiles
 - v2 — 2026-05-28 — Rebuild incorporating 2024/2025 QLD law changes, expanded escalation handling, PII rules, edge cases, hedge language library

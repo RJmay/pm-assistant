@@ -185,7 +185,7 @@ Pull messages from Gmail and persist them.
 
 ---
 
-## Milestone 6 — End-to-end draft generation `[CURRENT — code complete, runtime DoD pending Phase B]`
+## Milestone 6 — End-to-end draft generation `[DONE — code complete, runtime DoD pending Phase B]`
 
 Tie it together: inbound message → matcher → assemble → drafter → ai_drafts row.
 
@@ -213,19 +213,29 @@ Tie it together: inbound message → matcher → assemble → drafter → ai_dra
 
 ---
 
-## Milestone 7 — Owner notification routing
+## Milestone 7 — Owner notification routing `[CURRENT — code complete, runtime DoD pending test system]`
 
 If `emergency_landlord_alert: true`, dispatch via the owner's profile.
 
-**Tasks:**
-- Build `services/notifier.ts`
-- Twilio client (SMS) and Resend client (email)
-- Implement the profile logic from ARCHITECTURE.md
-- Write `notification_log` for every attempted send, including suppressions
-- Add a Cron Trigger for the 7am AEST owner digest (aggregate `pm_proxy` and queued items)
-- Tests: each profile, each scenario (in/out of business hours, safety-critical or not)
+**Status:** All M7 code is written and `pnpm exec biome check .` + `pnpm -r typecheck` + `pnpm -r test` pass (worker suite: 15 files / 154 tests; prompts suite: 2 files / 18 tests; LLM-gated test file skips without `RUN_LLM_TESTS=1`). Runtime DoD (real SMS delivered within 30s, owner digest sends one combined email) deferred until the test system (Twilio test account, Resend, hosted Supabase) is set up — same code-now-runtime-later pattern as M5/M6.
 
-**Definition of done:**
+**Tasks (done):**
+- Migration `0007_ai_drafts_safety_critical.sql` adds a `safety_critical boolean` column on `ai_drafts` + partial index. `submitDraftSchema` in `@pm/shared` requires the field; base prompt bumped to `pm-drafting-v2.3.md` with a dedicated `SAFETY CRITICAL` section documenting when to set it. Independent of `EMERGENCY LANDLORD ALERT`.
+- Worker `lib/env.ts` adds `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` with zod validation. `@pm/shared` gains `TwilioApiError` + `ResendApiError` classes following the `GmailApiError` shape.
+- `apps/worker/src/services/twilio.ts` — fetch-based POST to `Messages.json` with HTTP Basic auth. Zod-validated response, throws `TwilioApiError` on non-2xx or schema violations.
+- `apps/worker/src/services/resend.ts` — fetch-based POST to `/emails` with Bearer auth. Same error shape. Refuses to call when neither `html` nor `text` is supplied.
+- `apps/worker/src/services/notifier.ts` — `dispatchOwnerNotification()` resolves owner via property → owner_notification_preferences (property-level beats owner-level; default `immediate` if no row), branches on profile, dispatches via Twilio/Resend, and writes a `notification_log` row for every dispatch / suppression / queue. Business hours hardcoded to QLD AEST Mon-Fri 09:00-17:00 for v1. Per-agency hours deferred to M10.
+- `apps/worker/src/services/draft-pipeline.ts` — after `ai_drafts` insert, when `submission.emergency_landlord_alert` is true, the pipeline calls the notifier with `safetyCritical: submission.safety_critical`. Notifier failures are logged and swallowed (draft is already persisted). Pipeline result + audit metadata gain notification counts (dispatched / queued / suppressed / failed).
+- `apps/worker/src/cron/owner-digest.ts` + new cron `0 21 * * *` (07:00 AEST daily). Groups queued `notification_log` rows by owner, sends one combined email per owner via Resend, marks rows `sent`. Idempotent on `status='queued'`; per-owner failures don't tank the batch. `src/index.ts` `scheduled()` now dispatches three crons (daily refresh / daily digest / weekly drift).
+- Tests: `twilio.test.ts` (4), `resend.test.ts` (6), `notifier.test.ts` (24 — every profile × hours × safety_critical × prefs resolution + business-hours math), `owner-digest.test.ts` (8 — aggregate / skip-future / skip-no-email / continue-on-resend-error / continue-on-agency-scan-error / re-queue-on-update-failure). Pipeline tests extended with the emergency path (notifier called, audit counts, swallow-on-failure). Env tests extended for the new vars.
+
+**Deferred (intentional, surfaced now):**
+- Live device validation (real SMS delivered within 30s; combined digest email per owner) — needs Twilio test account + Resend account + hosted Supabase.
+- Per-agency business hours — single pilot agency; QLD-hardcoded for v1.
+- Per-agency notification templates — string templates in `services/notifier.ts` for v1.
+- QLD public holidays — skipped from business-hours math.
+
+**Definition of done:** (pending test system)
 - Test SMS arrives on a real device within 30s of a fake emergency draft
 - Suppression logic is testable and audited
 - Daily digest job runs and sends a single combined email per owner

@@ -13,6 +13,7 @@ import {
   runDraftPipeline,
 } from "../src/services/draft-pipeline";
 import type { MatchResult } from "../src/services/matcher";
+import type { NotifyResult } from "../src/services/notifier";
 import { writeAuditLog } from "../src/services/supabase";
 
 const writeAuditLogMock = writeAuditLog as Mock;
@@ -199,6 +200,7 @@ const VALID_DRAFT: DraftSubmission = {
   priority: "STANDARD",
   escalation_flag: "NONE",
   emergency_landlord_alert: false,
+  safety_critical: false,
   do_not_send: false,
   draft_confidence: "HIGH",
   draft_subject: "Re: kitchen tap",
@@ -226,20 +228,32 @@ function pipelineInput(overrides: Partial<DraftPipelineInput> = {}): DraftPipeli
 function pipelineDeps(
   matcherResult: MatchResult,
   draftResult: DraftSubmission | Error = VALID_DRAFT,
-): DraftPipelineDeps {
+  notifierResult: NotifyResult = { dispatched: 0, queued: 0, suppressed: 0, failed: 0 },
+): DraftPipelineDeps & { notifier: ReturnType<typeof vi.fn> } {
   const matcherMock = vi.fn(async () => matcherResult);
   const drafterMock = vi.fn(async () => {
     if (draftResult instanceof Error) throw draftResult;
     return draftResult;
   });
+  const notifierMock = vi.fn(async () => notifierResult);
   return {
     anthropicApiKey: "sk-ant-test",
+    env: fakeEnv,
     logger: silentLog,
     matcher: matcherMock as DraftPipelineDeps["matcher"],
     drafter: drafterMock as DraftPipelineDeps["drafter"],
+    notifier: notifierMock as unknown as DraftPipelineDeps["notifier"] & ReturnType<typeof vi.fn>,
     now: () => new Date("2026-05-28T10:00:00Z"),
   };
 }
+
+const fakeEnv = {
+  TWILIO_ACCOUNT_SID: "AC0000000000000000000000000000test",
+  TWILIO_AUTH_TOKEN: "00000000000000000000000000000test",
+  TWILIO_FROM_NUMBER: "+61400000000",
+  RESEND_API_KEY: "re_0000000000000000000000000000test",
+  RESEND_FROM_EMAIL: "noreply@scta-test.example",
+} as unknown as DraftPipelineDeps["env"];
 
 beforeEach(() => {
   reset();
@@ -308,6 +322,89 @@ describe("runDraftPipeline", () => {
       agency_id: "agency-aaa",
       entity_type: "ai_drafts",
       entity_id: "draft-1",
+    });
+  });
+
+  it("does NOT call the notifier when emergency_landlord_alert is false", async () => {
+    const match: MatchResult = {
+      propertyId: "p-1",
+      tenantId: null,
+      ownerId: "o-1",
+      confidence: "high",
+      source: "exact_email",
+    };
+    const deps = pipelineDeps(match, VALID_DRAFT);
+    await runDraftPipeline(fakeClient(), pipelineInput(), deps);
+    expect(deps.notifier).not.toHaveBeenCalled();
+  });
+
+  it("calls the notifier with safetyCritical + match propertyId/ownerId on emergency", async () => {
+    const emergencyDraft: DraftSubmission = {
+      ...VALID_DRAFT,
+      priority: "EMERGENCY_ALERT",
+      emergency_landlord_alert: true,
+      safety_critical: true,
+    };
+    const match: MatchResult = {
+      propertyId: "p-1",
+      tenantId: null,
+      ownerId: "o-1",
+      confidence: "high",
+      source: "exact_email",
+    };
+    const deps = pipelineDeps(match, emergencyDraft, {
+      dispatched: 2,
+      queued: 0,
+      suppressed: 0,
+      failed: 0,
+    });
+    const result = await runDraftPipeline(fakeClient(), pipelineInput(), deps);
+
+    expect(deps.notifier).toHaveBeenCalledTimes(1);
+    const [, notifyInput] = deps.notifier.mock.calls[0] ?? [];
+    expect(notifyInput).toMatchObject({
+      draftId: "draft-1",
+      agencyId: "agency-aaa",
+      propertyId: "p-1",
+      ownerId: "o-1",
+      safetyCritical: true,
+    });
+
+    // Result carries the notifier summary
+    if (result.kind !== "ok") throw new Error("expected ok");
+    expect(result.notifier).toEqual({ dispatched: 2, queued: 0, suppressed: 0, failed: 0 });
+
+    // Audit metadata includes the notification counts
+    expect(writeAuditLogMock.mock.calls[0]?.[1]?.metadata).toMatchObject({
+      notifications_dispatched: 2,
+      notifications_queued: 0,
+      notifications_suppressed: 0,
+      notifications_failed: 0,
+      safety_critical: true,
+    });
+  });
+
+  it("swallows notifier failures — draft still ok, audit logs the attempt", async () => {
+    const emergencyDraft: DraftSubmission = {
+      ...VALID_DRAFT,
+      emergency_landlord_alert: true,
+    };
+    const match: MatchResult = {
+      propertyId: "p-1",
+      tenantId: null,
+      ownerId: "o-1",
+      confidence: "high",
+      source: "exact_email",
+    };
+    const deps = pipelineDeps(match, emergencyDraft);
+    deps.notifier.mockReset();
+    deps.notifier.mockRejectedValue(new Error("supabase down"));
+    const result = await runDraftPipeline(fakeClient(), pipelineInput(), deps);
+    expect(result.kind).toBe("ok");
+    // Audit still ran — notifier counts default to 0
+    expect(writeAuditLogMock).toHaveBeenCalledTimes(1);
+    expect(writeAuditLogMock.mock.calls[0]?.[1]?.metadata).toMatchObject({
+      notifications_dispatched: 0,
     });
   });
 
