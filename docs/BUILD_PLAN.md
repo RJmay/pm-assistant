@@ -66,7 +66,7 @@ Bring up Supabase locally, apply the schema from `docs/schema.sql`, generate TS 
 
 ---
 
-## Milestone 2 — Prompt assembly `[CURRENT]`
+## Milestone 2 — Prompt assembly `[DONE]`
 
 Build the package that takes a base prompt + agency config and produces the final system prompt string.
 
@@ -101,7 +101,7 @@ Build the package that takes a base prompt + agency config and produces the fina
 
 ---
 
-## Milestone 3 — Drafter (Anthropic API integration)
+## Milestone 3 — Drafter (Anthropic API integration) `[CURRENT]`
 
 Wire up the call to Claude with structured output.
 
