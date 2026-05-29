@@ -881,3 +881,41 @@ alter table email_messages
 create unique index uniq_prompt_versions_active_per_agency
   on prompt_versions(agency_id)
   where active_to is null;
+
+-- ============================================================================
+-- REGULATORY_ALERTS (added in migration 0011) — monitoring bot, spec §12
+-- ============================================================================
+-- Jurisdiction-scoped REFERENCE data (no agency_id). The monitoring bot writes
+-- one row per detected QLD regulatory-source change with an LLM summary +
+-- proposed rule/template diffs; an operator reviews + approves (which appends a
+-- new versioned regulatory_rules row). Never auto-updates live legal data.
+-- ============================================================================
+
+create type regulatory_alert_state as enum ('open', 'approved', 'dismissed');
+
+create table regulatory_alerts (
+  id uuid primary key default gen_random_uuid(),
+  source text not null,
+  source_url text not null,
+  detected_at timestamptz not null default now(),
+  content_hash text not null,
+  change_summary text,
+  effective_date date,
+  affected_modules text[] not null default '{}',
+  proposed_changes jsonb not null default '{}'::jsonb,
+  operator_review_state regulatory_alert_state not null default 'open',
+  reviewed_by uuid references agency_users(id) on delete set null,
+  reviewed_at timestamptz,
+  client_notice_sent boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index idx_regulatory_alerts_open
+  on regulatory_alerts(detected_at desc)
+  where operator_review_state = 'open';
+
+alter table regulatory_alerts enable row level security;
+
+create policy regulatory_alerts_read on regulatory_alerts
+  for select
+  using (auth.uid() is not null);
