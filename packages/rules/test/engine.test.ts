@@ -8,7 +8,7 @@ import {
   RuleNotConfiguredError,
   RuleNotFoundError,
 } from "../src/engine";
-import { rentIncreaseFrequencyValueSchema } from "../src/schema";
+import { type RegulatoryRule, rentIncreaseFrequencyValueSchema } from "../src/schema";
 
 describe("getRule — version selection by effective date", () => {
   it("returns the property-based frequency rule on/after 2024-06-06", () => {
@@ -51,17 +51,31 @@ describe("getRuleVersions", () => {
 });
 
 describe("getConfiguredRule — refuses to guess", () => {
-  it("throws for rules whose value the spec didn't state", () => {
-    expect(() => getConfiguredRule("entry_notice_routine", "2025-09-02")).toThrow(
-      RuleNotConfiguredError,
-    );
-    expect(() => getConfiguredRule("entry_frequency_cap", "2025-09-02")).toThrow(
+  it("throws RuleNotConfiguredError for a rule still pending confirmation", () => {
+    const flagged: RegulatoryRule[] = [
+      {
+        jurisdiction: "QLD",
+        key: "entry_notice_routine",
+        version: "test-pending",
+        value: null,
+        effectiveFrom: null,
+        effectiveTo: null,
+        sourceUrl: null,
+        sourceNote: "synthetic flagged rule for the test",
+        needsHumanConfirmation: true,
+        notes: null,
+      },
+    ];
+    expect(() => getConfiguredRule("entry_notice_routine", "2025-09-02", flagged)).toThrow(
       RuleNotConfiguredError,
     );
   });
 
-  it("returns configured rules normally", () => {
+  it("returns configured rules normally (entry rules are now confirmed)", () => {
     expect(getConfiguredRule("rent_increase_min_notice", "2025-09-02").version).toBe("qld-current");
+    expect(getConfiguredRule("entry_notice_routine", "2025-09-02").needsHumanConfirmation).toBe(
+      false,
+    );
   });
 });
 

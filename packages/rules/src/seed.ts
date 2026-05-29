@@ -117,28 +117,31 @@ const RAW: RegulatoryRule[] = [
     jurisdiction: "QLD",
     key: "entry_notice_routine",
     version: "qld-2025-05-01",
-    value: null,
+    value: { routineInspectionNoticeDays: 7, generalEntryNoticeHours: 48 },
     effectiveFrom: "2025-05-01",
     effectiveTo: null,
-    sourceUrl: RTA,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/during-a-tenancy/living-in-the-property/entry-to-the-property",
     sourceNote:
-      "Spec §6: entry notice periods updated 1 May 2025. The spec instructs to STORE the current routine-entry notice period as data but does NOT state the number.",
-    needsHumanConfirmation: true,
+      "Confirmed from the RTA 'Entry to the property' page (form versions dated Nov 2025): a routine inspection requires 7 days' written notice (Entry notice Form 9); most other reasons (repairs/maintenance, showing to prospective tenants/buyers, post-breach, valuation) require 48 hours. Entry is 8am-6pm Mon-Sat unless the tenant agrees.",
+    needsHumanConfirmation: false,
     notes:
-      "BLOCKED: confirm the current routine-entry notice period from the RTA before any entry-notice drafting (Phase 2 inspections / Phase 4 Form 9). Do not guess.",
+      "routineInspectionNoticeDays drives Phase 2 inspection scheduling + Phase 4 Form 9; generalEntryNoticeHours (48h) covers repairs/showings. Add finer per-reason periods if a workflow needs them.",
   },
   {
     jurisdiction: "QLD",
     key: "entry_frequency_cap",
     version: "qld-2025-05-01",
-    value: null,
+    value: { minMonthsBetween: 3, overridableByTenantConsent: true },
     effectiveFrom: "2025-05-01",
     effectiveTo: null,
-    sourceUrl: RTA,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/during-a-tenancy/living-in-the-property/routine-inspections",
     sourceNote:
-      "Spec §6: entry frequency updated 1 May 2025. Spec says to store the entry-frequency cap as data but does NOT state the value.",
-    needsHumanConfirmation: true,
-    notes: "BLOCKED: confirm the routine-entry frequency cap from the RTA. Do not guess.",
+      "Confirmed from the RTA 'Routine inspections' page (and the pilot agency): routine inspections cannot be carried out more than once every 3 months, unless the tenant agrees in writing.",
+    needsHumanConfirmation: false,
+    notes:
+      "minMonthsBetween = the minimum gap between routine inspections; overridable by written tenant consent.",
   },
 
   // --- Emergency repairs (RTRA s214) statutory list -------------------------
@@ -292,10 +295,10 @@ const RAW: RegulatoryRule[] = [
         },
         {
           formId: "18b",
-          purpose: null,
+          purpose: "Moveable dwelling tenancy agreement",
           action: null,
           updatedUnder2025Regulation: true,
-          needsHumanConfirmation: true,
+          needsHumanConfirmation: false,
         },
         {
           formId: "R18",
@@ -310,10 +313,10 @@ const RAW: RegulatoryRule[] = [
     effectiveTo: null,
     sourceUrl: RTA,
     sourceNote:
-      "Spec §6: RTA forms relevant to drafting — 18a (general tenancy agreement), 9 (entry notice), 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave), R12 (disputed bond). Forms 18a, 18b, R18 were updated under the 2025 Regulation. The spec does not state the purpose of 18b or R18, so those are flagged for confirmation.",
+      "RTA forms relevant to drafting — 18a (general tenancy agreement), 18b (moveable dwelling tenancy agreement, confirmed from the official RTA form), 9 (entry notice), 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave), R12 (disputed bond). 18a/18b/R18 were updated under the 2025 Regulation.",
     needsHumanConfirmation: false,
     notes:
-      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4).",
+      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 not located by the agency — the R-series are rooming-accommodation forms (cf. Form R9), out of v1 residential scope; left flagged.",
   },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------

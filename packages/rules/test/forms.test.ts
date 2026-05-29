@@ -21,11 +21,17 @@ describe("selectForm", () => {
 });
 
 describe("getFormById", () => {
-  it("returns flagged forms without a confirmed purpose", () => {
+  it("returns a still-flagged form (R18) without a confirmed purpose", () => {
+    const r18 = getFormById("R18", ASOF);
+    expect(r18.purpose).toBeNull();
+    expect(r18.needsHumanConfirmation).toBe(true);
+    expect(r18.updatedUnder2025Regulation).toBe(true);
+  });
+
+  it("returns Form 18b (moveable dwelling) now that it's confirmed", () => {
     const f18b = getFormById("18b", ASOF);
-    expect(f18b.purpose).toBeNull();
-    expect(f18b.needsHumanConfirmation).toBe(true);
-    expect(f18b.updatedUnder2025Regulation).toBe(true);
+    expect(f18b.purpose).toBe("Moveable dwelling tenancy agreement");
+    expect(f18b.needsHumanConfirmation).toBe(false);
   });
 
   it("throws for an unknown form id", () => {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { emergencyRepairsValueSchema, formsValueSchema } from "../src/schema";
+import {
+  emergencyRepairsValueSchema,
+  entryFrequencyValueSchema,
+  entryNoticeValueSchema,
+  formsValueSchema,
+} from "../src/schema";
 import { QLD_RULES, SPEC_ASSERTED_DATES } from "../src/seed";
 
 describe("seed integrity", () => {
@@ -25,25 +30,28 @@ describe("anti-invention guard — no un-asserted regulatory dates", () => {
   });
 });
 
-describe("flagged-but-unstated values are NOT guessed", () => {
-  it("entry rules have null values pending human confirmation", () => {
-    for (const key of ["entry_notice_routine", "entry_frequency_cap"] as const) {
-      const rule = QLD_RULES.find((r) => r.key === key);
-      expect(rule, key).toBeDefined();
-      expect(rule?.value, key).toBeNull();
-      expect(rule?.needsHumanConfirmation, key).toBe(true);
-    }
+describe("RTA values: confirmed vs still-flagged", () => {
+  it("entry rules are confirmed from the RTA (7 days, once / 3 months)", () => {
+    const notice = QLD_RULES.find((r) => r.key === "entry_notice_routine");
+    expect(notice?.needsHumanConfirmation).toBe(false);
+    expect(entryNoticeValueSchema.parse(notice?.value).routineInspectionNoticeDays).toBe(7);
+
+    const freq = QLD_RULES.find((r) => r.key === "entry_frequency_cap");
+    expect(freq?.needsHumanConfirmation).toBe(false);
+    expect(entryFrequencyValueSchema.parse(freq?.value).minMonthsBetween).toBe(3);
   });
 
-  it("forms 18b and R18 have no asserted purpose", () => {
+  it("Form 18b is confirmed; R18 stays flagged (not located, out of scope)", () => {
     const formsRule = QLD_RULES.find((r) => r.key === "forms");
-    expect(formsRule).toBeDefined();
     const { forms } = formsValueSchema.parse(formsRule?.value);
-    for (const id of ["18b", "R18"]) {
-      const f = forms.find((x) => x.formId === id);
-      expect(f?.purpose, id).toBeNull();
-      expect(f?.needsHumanConfirmation, id).toBe(true);
-    }
+
+    const f18b = forms.find((x) => x.formId === "18b");
+    expect(f18b?.purpose).toBe("Moveable dwelling tenancy agreement");
+    expect(f18b?.needsHumanConfirmation).toBe(false);
+
+    const r18 = forms.find((x) => x.formId === "R18");
+    expect(r18?.purpose).toBeNull();
+    expect(r18?.needsHumanConfirmation).toBe(true);
   });
 });
 

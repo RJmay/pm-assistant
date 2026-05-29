@@ -83,12 +83,17 @@ export const housingStandardsValueSchema = z.object({
   allTenanciesFrom: isoDateSchema,
 });
 
-/**
- * Entry rules changed on 1 May 2025 but the spec does NOT state the new
- * numbers, so `value` stays null and `needsHumanConfirmation` is true. The
- * accessor throws rather than guess.
- */
-export const entryNoticeValueSchema = z.null();
+/** Routine-entry notice periods (confirmed from the RTA, form versions Nov 2025). */
+export const entryNoticeValueSchema = z.object({
+  routineInspectionNoticeDays: z.number().int().positive(),
+  generalEntryNoticeHours: z.number().int().positive(),
+});
+
+/** Routine-inspection frequency cap (confirmed from the RTA). */
+export const entryFrequencyValueSchema = z.object({
+  minMonthsBetween: z.number().int().positive(),
+  overridableByTenantConsent: z.boolean(),
+});
 
 export const emergencyRepairItemSchema = z.object({
   /** stable id for the statutory item */

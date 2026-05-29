@@ -64,6 +64,7 @@ export {
   banValueSchema,
   emergencyRepairItemSchema,
   emergencyRepairsValueSchema,
+  entryFrequencyValueSchema,
   entryNoticeValueSchema,
   formActionSchema,
   formDefinitionSchema,
