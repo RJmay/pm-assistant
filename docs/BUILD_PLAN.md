@@ -298,16 +298,22 @@ Wire the Approve & Send button to Gmail.
 
 ---
 
-## Milestone 10 — Polish + onboarding
+## Milestone 10 — Polish + onboarding `[CURRENT — buildable slice done; onboarding + backfill pending Phase B]`
 
 Make it usable for the pilot agency.
 
-**Tasks:**
-- Onboarding flow: an admin can create a new agency, invite PMs, set up Gmail OAuth, configure tradies/voice samples
-- Backfill: pull last 30 days of email from the agency's Gmail and process (carefully — don't notify owners of historical emergencies)
-- Audit log viewer in the dashboard
-- Prompt version management UI for the admin: see active version, view diffs, roll back
-- Documentation for the pilot PM: how to use the queue, what the flags mean
+**Status:** The dashboard-only / no-Phase-B slice is built and green (`pnpm exec biome check .` + `pnpm -r typecheck` + `pnpm -r test`: web 43, worker 179, rules 62, prompts 18, shared 1; db 3 skipped). Adversarially reviewed (2 agents); the two serious findings (a missing server-side role check on the settings save action; a concurrent-activation race that could leave two active prompt versions) are fixed. The two remaining tasks (onboarding flow, 30-day backfill) need a hosted Supabase + live Gmail and are deferred to Phase B.
+
+**Tasks (done — buildable slice):**
+- **Audit-log viewer** `/audit`: agency-scoped, paginated (50/page), filter by action substring / actor type / from-date. `lib/server/audit.ts` + `lib/audit-filters.ts` (pure parse/serialise, tested).
+- **Prompt-version management** `/settings/prompts` (admin/principal only, enforced in load AND action): list versions (active badge, global badge), LCS line-diff (`lib/prompt-diff.ts`, tested) of any version vs active, and **activate** — appends a new active row + closes the old window (never edits content in place; audit-logged). Migration `0010` adds a partial unique index `(agency_id) WHERE active_to IS NULL` so concurrent activations can't create two active rows.
+- **Pilot-PM guide**: `docs/PM_GUIDE.md` + in-app `/help` page (the flow, every flag's meaning, the never-auto-send rule).
+- Nav: Audit + Help links (mobile grid widened to 4); admin-only "Manage prompt versions" link on Settings.
+- **Security hardening (from review):** the `/settings` save action is now gated to admin/principal (was unguarded — any PM could POST). Non-admins get a read-only settings view. **NOTE: this makes agency settings admin/principal-only to edit — loosen if PMs should edit.**
+
+**Deferred to Phase B (intentional):**
+- Onboarding flow (create agency / invite PMs / Gmail OAuth connect) — needs hosted Supabase + Gmail OAuth.
+- 30-day backfill (suppressing owner alerts on historical emergencies) — needs live Gmail.
 
 **Definition of done:**
 - A fresh agency can be onboarded end-to-end in under 30 minutes

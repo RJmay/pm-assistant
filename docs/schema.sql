@@ -868,3 +868,16 @@ create index idx_ai_drafts_bounced
 alter table email_messages
   add column is_bounce boolean not null default false,
   add column bounce_of_email_message_id uuid references email_messages(id) on delete set null;
+
+-- ============================================================================
+-- PROMPT_VERSIONS active-uniqueness (added in migration 0010)
+-- ============================================================================
+-- At most one active prompt version per agency. The M10 activation flow closes
+-- the current active row (active_to = now()) and appends a new one; this index
+-- stops two concurrent activations leaving an agency with two active rows.
+-- Global base rows (agency_id null) are unconstrained (NULLs are distinct).
+-- ============================================================================
+
+create unique index uniq_prompt_versions_active_per_agency
+  on prompt_versions(agency_id)
+  where active_to is null;

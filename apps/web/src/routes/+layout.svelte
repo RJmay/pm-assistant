@@ -3,7 +3,7 @@
   import { page } from "$app/state";
   import { Toaster } from "$lib/components/ui/sonner";
   import { cn } from "$lib/utils";
-  import { AlertTriangle, Inbox, LogOut, Settings } from "lucide-svelte";
+  import { AlertTriangle, HelpCircle, Inbox, LogOut, ScrollText, Settings } from "lucide-svelte";
   import type { Snippet } from "svelte";
   import type { LayoutData } from "./$types";
 
@@ -12,6 +12,7 @@
   const navItems = [
     { href: "/queue", label: "Queue", icon: Inbox },
     { href: "/alerts", label: "Alerts", icon: AlertTriangle },
+    { href: "/audit", label: "Audit", icon: ScrollText },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
@@ -54,6 +55,14 @@
           {#if data.agencyName}
             <span class="hidden text-sm text-muted-foreground sm:inline">{data.agencyName}</span>
           {/if}
+          <a
+            href="/help"
+            class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Help"
+          >
+            <HelpCircle class="h-4 w-4" />
+            <span class="hidden sm:inline">Help</span>
+          </a>
           <form method="POST" action="/logout">
             <button
               type="submit"
@@ -75,7 +84,7 @@
 
     <!-- Mobile bottom nav -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-3 border-t bg-background sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background sm:hidden"
     >
       {#each navItems as item (item.href)}
         <a

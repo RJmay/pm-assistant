@@ -43,6 +43,17 @@ function normaliseExceptions(v: unknown): QuoteException[] {
     .filter((e) => e.note !== "");
 }
 
+async function isAdminUser(locals: App.Locals, agencyId: string): Promise<boolean> {
+  if (!locals.user) return false;
+  const { data } = await locals.supabase
+    .from("agency_users")
+    .select("role")
+    .eq("agency_id", agencyId)
+    .eq("auth_user_id", locals.user.id)
+    .maybeSingle();
+  return data?.role === "admin" || data?.role === "principal";
+}
+
 export const load: PageServerLoad = async ({ locals }) => {
   const agencyId = locals.agencyId;
   if (!agencyId) error(403, "No agency context");
@@ -57,6 +68,7 @@ export const load: PageServerLoad = async ({ locals }) => {
   if (cfgErr) error(500, cfgErr.message);
 
   return {
+    isAdmin: await isAdminUser(locals, agencyId),
     tradies: normaliseTradies(data?.approved_tradies),
     voiceSamples: normaliseVoice(data?.voice_samples),
     leanNotes: normaliseLeans(data?.lean_notes),
@@ -72,6 +84,9 @@ export const actions: Actions = {
   save: async ({ request, locals }) => {
     const agencyId = locals.agencyId;
     if (!agencyId) return fail(403, { error: "No agency context" });
+    if (!(await isAdminUser(locals, agencyId))) {
+      return fail(403, { error: "Only an agency admin or principal can change settings." });
+    }
 
     const form = await request.formData();
     const routineDollars = Number(form.get("routine_dollars"));

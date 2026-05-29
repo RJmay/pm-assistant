@@ -43,6 +43,21 @@
 
 <svelte:head><title>Settings · PM Assistant</title></svelte:head>
 
+{#if data.isAdmin}
+  <div class="mb-4">
+    <a
+      href="/settings/prompts"
+      class="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+    >
+      Manage prompt versions →
+    </a>
+  </div>
+{:else}
+  <p class="mb-4 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+    You have read-only access to settings. Ask an agency admin or principal to make changes.
+  </p>
+{/if}
+
 <form
   method="POST"
   action="?/save"
@@ -64,7 +79,9 @@
 
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-semibold tracking-tight">Agency settings</h1>
-    <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+    <Button type="submit" disabled={saving || !data.isAdmin}>
+      {saving ? "Saving…" : "Save changes"}
+    </Button>
   </div>
 
   {#if !data.hasNominatedRepairer}
