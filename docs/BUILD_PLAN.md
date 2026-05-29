@@ -213,7 +213,7 @@ Tie it together: inbound message → matcher → assemble → drafter → ai_dra
 
 ---
 
-## Milestone 7 — Owner notification routing `[CURRENT — code complete, runtime DoD pending test system]`
+## Milestone 7 — Owner notification routing `[DONE — code complete, runtime DoD pending test system]`
 
 If `emergency_landlord_alert: true`, dispatch via the owner's profile.
 
@@ -242,25 +242,30 @@ If `emergency_landlord_alert: true`, dispatch via the owner's profile.
 
 ---
 
-## Milestone 8 — Dashboard MVP
+## Milestone 8 — Dashboard MVP `[CURRENT — code complete, runtime DoD pending test system]`
 
 The PM-facing daily review queue.
 
-**Tasks:**
-- SvelteKit pages:
-  - `/login` — Supabase Auth (email/password and Google OAuth)
-  - `/queue` — daily review queue, default sort `priority desc, received_at asc`, filterable by category/escalation/PM
-  - `/queue/[draftId]` — detail view with inbound email, draft (editable), PM review notes
-  - `/alerts` — emergency alerts stream (separate from queue)
-  - `/settings` — agency config editor (tradies, voice samples, spending authority, owner notification preferences)
-- Real-time updates via Supabase Realtime subscription on `ai_drafts`
-- Edit + Approve + Send action (calls Worker `/api/drafts/:id/send` — built next milestone)
-- Edit-without-send saves as `status: 'edited'`
-- Discard sets `status: 'discarded'` with a reason
-- shadcn-svelte components, Tailwind
-- Empty states designed (no drafts yet, no alerts, etc.)
+**Status:** All M8 code is written and `pnpm exec biome check .` + `pnpm -r typecheck` + `pnpm -r test` pass (web suite: 4 files / 29 tests — `svelte-check` 0 errors / 0 warnings; worker 154; prompts 18; shared 1; db 3 skipped). The dashboard can't be exercised end-to-end until there's a Supabase to authenticate against + seed data — same code-now-runtime-later pattern as M5–M7. Local `supabase start` + seed clears most of the runtime DoD; hosted (Phase B) is needed for the deployed dashboard.
 
-**Definition of done:**
+**Tasks (done):**
+- Web foundation: Tailwind v4 (`@tailwindcss/vite` + CSS-first `@theme` tokens in `src/app.css`), shadcn-svelte-style primitives owned in `lib/components/ui` (button, card, badge, input, textarea, label, separator, a hand-rolled accessible dialog, svelte-sonner toaster), `cn()` util, `components.json`.
+- Auth: `hooks.server.ts` builds a cookie-bound Supabase server client + `safeGetSession` (validates via `getUser`, reads `agency_id` from `app_metadata`), guards all non-public routes → `/login`. `app.d.ts` Locals typing. `/login` (email+password + Google OAuth actions, open-redirect-guarded), `/auth/callback` (code exchange), `/logout`. Browser client singleton in `lib/supabase-browser.ts` for realtime.
+- Shell: `+layout.server.ts` loads session + agency name; `+layout.svelte` top nav + mobile bottom nav + sign-out + Toaster, hidden on `/login`.
+- Shared lib (unit-tested): `format.ts` (relative time + label/variant maps), `queue-filters.ts` (parse/serialise/apply/sort/isAlert), `draft-diff.ts` (edit diff), `types.ts` (row + config types). Server query module `lib/server/drafts.ts` (queue / alerts / PM fetches).
+- `/queue` — server load (pending drafts joined to inbound email), URL-driven category/escalation/PM filters applied client-side, `DraftRow` cards, empty states, realtime subscription on `ai_drafts` → `invalidateAll`.
+- `/queue/[draftId]` — split panel (read-only inbound | editable subject+body + PM review notes), `saveEdit` action (diff → `draft_edits` insert + `status='edited'`), `discard` action (dialog reason → `status='discarded'` + `audit_log`), Approve & Send → client POST to `PUBLIC_WORKER_URL/api/drafts/:id/send` (handles the absent M9 route with an info toast), edit history.
+- `/alerts` — escalation / emergency / safety-critical / do-not-send stream (server `.or()` filter), realtime.
+- `/settings` — `agency_config` editor: spending-authority thresholds, repeatable tradie + voice-sample editors, house rules (read-write); lean notes + quote exceptions (read-only). Owner-notification-prefs UI deferred to M10.
+- Tests: vitest (jsdom + `@testing-library/svelte`) — `format`, `queue-filters`, `draft-diff` unit specs + `DraftRow` component spec (29 total). Playwright config + a gated `e2e/queue.spec.ts` (self-skips unless `RUN_E2E_TESTS=1`). `biome.json` now also excludes `**/*.css` (Tailwind v4 `@theme` isn't biome-parseable).
+
+**Deferred (intentional, surfaced now):**
+- Live run: login → queue, two-tab realtime, mobile-on-device — need a Supabase + seed (local clears most; hosted for the deploy).
+- Owner notification preferences editor — DB-edited for now; UI in M10 onboarding/polish.
+- Approve & Send is wired but the Worker route is M9; until then it surfaces an info toast.
+- Nominated-repairer editor — flagged in settings, DB-edited for now.
+
+**Definition of done:** (pending test system)
 - PM logs in, sees the queue, can open and edit a draft
 - Edits persist via `draft_edits` rows
 - Realtime: opening the dashboard in two tabs, a new draft appears in both without refresh
