@@ -16,4 +16,12 @@ describe("extractText", () => {
       "Tenant & lessor — 7 days",
     );
   });
+
+  it("decodes numeric (decimal + hex) entities", () => {
+    const out = extractText("<p>tenant&#8217;s &#169;2026 &#x2014; ok &#39;quoted&#39;</p>");
+    expect(out).toContain("’"); // &#8217;
+    expect(out).toContain("©"); // &#169;
+    expect(out).toContain("—"); // &#x2014;
+    expect(out).toContain("'quoted'"); // &#39;
+  });
 });

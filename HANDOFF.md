@@ -5,6 +5,49 @@ Written for the next session / your return. Read this top to bottom; it records
 
 ---
 
+## 0. Latest state (2026-05-30, autonomous) — read this first
+
+Since the original handover, a lot has shipped and is **green** (biome clean,
+`pnpm -r typecheck` 0 errors; tests: worker **219**, web 43, rules 62, prompts
+18, shared 1; db 3 skipped). Delivered + committed:
+
+- **M9 Send path** — Gmail-API send, dashboard JWT auth, bounce handling. *(pushed)*
+- **`@pm/rules`** — deterministic QLD compliance engine; **RTA values seeded**
+  (7-day routine-entry notice, once-/-3-months frequency, Form 18a/18b); only
+  Form R18 still flagged (rooming-accommodation, out of v1 scope). *(pushed)*
+- **M10 dashboard slice** — `/audit`, prompt-version management, PM guide; plus a
+  settings RBAC fix (admin/principal-only edits). *(pushed)*
+- **Compliance floor** — `@pm/rules` wired into the draft pipeline: deterministic
+  escalation safety-net (raises, never downgrades; forces `do_not_send` on
+  welfare) + s214 emergency triage (priority bump, no auto owner-alert). *(pushed)*
+- **`do_not_send` is now hard-enforced on the send route** (was bypassable);
+  editing a draft clears the flag. *(pushed)*
+- **Regulatory monitoring bot (§12)** — `regulatory_alerts` table (0011),
+  hash-and-diff source scan → on change, Sonnet summarises + proposes rule diffs
+  → writes an alert; daily cron; never auto-updates live rules. **2 commits not
+  yet pushed** (`fdc6695`, `7c0f0b4`).
+- **9-email regression pack (§14)** — deterministic assertions that emergency is
+  prioritised and DV is escalated + never auto-sent. *(not yet pushed)*
+
+**Push state:** `main` is **2 commits ahead of origin** (the monitoring scan +
+9-email pack). Say "push" to publish them.
+
+**Decisions / things waiting on you:**
+1. **Phase B setup** (only you can) — hosted Supabase + `SUPABASE_JWT_SECRET` +
+   Gmail/Twilio/Resend creds + the `MONITORING_CACHE` KV ids. Unblocks every
+   runtime DoD (M5–M10 + the monitoring bot's alert writes/operator emails).
+2. **RTA Form R18** — left flagged; confirm/remove when rooming accommodation is
+   in scope.
+3. **Settings is now admin/principal-only to edit** (from a security review). Say
+   so if you want regular PMs to edit settings and I'll loosen it.
+4. **Operator-review dashboard for `regulatory_alerts`** — NOT built yet. The
+   read view is easy, but the approve/dismiss WRITE needs a security-model call:
+   `regulatory_alerts` is a global (no-agency) table, so a dashboard write needs
+   either a loosened RLS update policy (app-gated admin) or routing through the
+   Worker (service-role). Your call — I deferred it rather than decide unilaterally.
+
+---
+
 ## 1. ⚠️ Decision: spec vs. committed stack — ✅ RESOLVED 2026-05-29
 
 > **Decision:** keep the **current committed stack** (SvelteKit + Cloudflare
