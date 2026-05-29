@@ -21,6 +21,10 @@ export interface ParsedEmail {
   bodyHtml: string | null;
   receivedAt: Date;
   attachments: ParsedAttachment[];
+  /** True when this looks like a bounce / Delivery Status Notification. */
+  isBounce: boolean;
+  /** For a bounce: the RFC Message-ID of the message that failed, if recoverable. */
+  failedMessageId: string | null;
 }
 
 interface GmailPart {
@@ -70,9 +74,21 @@ export function parseGmailMessage(msg: GmailMessage): ParsedEmail {
   }
   const receivedAt = new Date(receivedAtMs);
 
-  const { bodyPlain, bodyHtml, attachments } = extractBodiesAndAttachments(
+  const { bodyPlain, bodyHtml, attachments, nestedMessageIds } = extractBodiesAndAttachments(
     msg.payload as GmailPart,
   );
+
+  // Bounce / DSN detection. A DSN is a `multipart/report; report-type=delivery-
+  // status` message, and/or comes from a mailer-daemon / postmaster sender.
+  const contentType = findHeader(headers, "Content-Type") ?? "";
+  const fromLower = from.toLowerCase();
+  const isReportType =
+    /multipart\/report/i.test(contentType) && /delivery-status/i.test(contentType);
+  const isDaemon = /^(mailer-daemon|postmaster)@/i.test(fromLower);
+  const isBounce = isReportType || isDaemon;
+  // The failed message's Message-ID is embedded in the DSN's nested original
+  // headers; fall back to In-Reply-To. Only meaningful for a bounce.
+  const failedMessageId = isBounce ? (nestedMessageIds[0] ?? inReplyTo ?? null) : null;
 
   const result: ParsedEmail = {
     from,
@@ -87,6 +103,8 @@ export function parseGmailMessage(msg: GmailMessage): ParsedEmail {
     bodyHtml,
     receivedAt,
     attachments,
+    isBounce,
+    failedMessageId,
   };
   if (fromName) {
     result.fromName = fromName;
@@ -167,16 +185,37 @@ interface ExtractResult {
   bodyPlain: string | null;
   bodyHtml: string | null;
   attachments: ParsedAttachment[];
+  /** Message-IDs found in NESTED parts — a DSN embeds the failed original here. */
+  nestedMessageIds: string[];
 }
 
 function extractBodiesAndAttachments(part: GmailPart): ExtractResult {
-  const result: ExtractResult = { bodyPlain: null, bodyHtml: null, attachments: [] };
-  walk(part, result);
+  const result: ExtractResult = {
+    bodyPlain: null,
+    bodyHtml: null,
+    attachments: [],
+    nestedMessageIds: [],
+  };
+  walk(part, result, true);
   return result;
 }
 
-function walk(part: GmailPart, acc: ExtractResult): void {
+const NESTED_MID_RE = /message-id:\s*(<[^>\s]+>)/i;
+
+function walk(part: GmailPart, acc: ExtractResult, isRoot: boolean): void {
   const mime = (part.mimeType ?? "").toLowerCase();
+
+  // A nested part's own headers may carry the failed original's Message-ID
+  // (Gmail embeds the bounced message as a message/rfc822 part).
+  if (!isRoot && part.headers) {
+    const mid = findHeader(part.headers, "Message-ID");
+    if (mid) acc.nestedMessageIds.push(mid.trim());
+  }
+  // Some DSNs carry the original headers as a text part instead.
+  if ((mime === "text/rfc822-headers" || mime === "message/delivery-status") && part.body?.data) {
+    const matched = decodeBase64Url(part.body.data).match(NESTED_MID_RE);
+    if (matched?.[1]) acc.nestedMessageIds.push(matched[1]);
+  }
 
   // An attachment has a filename. Record + don't descend further into its body.
   if (part.filename && part.filename.length > 0) {
@@ -196,7 +235,7 @@ function walk(part: GmailPart, acc: ExtractResult): void {
   }
 
   if (part.parts && part.parts.length > 0) {
-    for (const child of part.parts) walk(child, acc);
+    for (const child of part.parts) walk(child, acc, false);
   }
 }
 

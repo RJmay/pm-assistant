@@ -848,3 +848,23 @@ alter table regulatory_rules enable row level security;
 create policy regulatory_rules_read on regulatory_rules
   for select
   using (auth.uid() is not null);
+
+-- ============================================================================
+-- BOUNCE / DSN TRACKING (added in migration 0009)
+-- ============================================================================
+-- A bounced reply's DSN lands in the watched agency mailbox and is ingested by
+-- the inbound pipeline. We detect it, link it to the originating draft via the
+-- sent message id, mark the draft bounced, and skip drafting on the DSN itself.
+-- ============================================================================
+
+alter table ai_drafts
+  add column bounced_at timestamptz,
+  add column bounce_detail text;
+
+create index idx_ai_drafts_bounced
+  on ai_drafts(agency_id, bounced_at desc)
+  where bounced_at is not null;
+
+alter table email_messages
+  add column is_bounce boolean not null default false,
+  add column bounce_of_email_message_id uuid references email_messages(id) on delete set null;

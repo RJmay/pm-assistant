@@ -273,23 +273,28 @@ The PM-facing daily review queue.
 
 ---
 
-## Milestone 9 — Send path `[CURRENT]`
+## Milestone 9 — Send path `[DONE — code complete, runtime DoD pending Phase B]`
 
 Wire the Approve & Send button to Gmail.
 
-**Tasks:**
-- Build `apps/worker/src/routes/send.ts`
-- RLS check via authed JWT passed from dashboard
-- Capture diff to `draft_edits` if the body changed
-- Use the PM's Gmail token to send in-thread (set `threadId`, `In-Reply-To`, `References`)
-- Persist outbound `email_messages` row
-- Update `ai_drafts.status = 'sent'`, set `sent_at`
-- Audit log entry
-- Return 200 with the sent message id
+**Status:** All M9 code is written and `pnpm exec biome check .` + `pnpm -r typecheck` + `pnpm -r test` pass (worker 20 files / 179 tests incl. send + bounce; web 29; rules 61; prompts 18; shared 1; db 3 skipped). Decisions (made by the human 2026-05-29): send from the shared **agency mailbox** using M5's agency-level Vault token (per-PM Gmail deferred behind a `resolveSendIdentity` seam); **only the assigned PM** (or an unassigned draft) may be sent; **bounce handling is in scope**. Runtime DoD deferred until Phase B (hosted Supabase + agency Gmail OAuth + a `SUPABASE_JWT_SECRET` wrangler secret).
 
-**Definition of done:**
-- Approve & Send sends a real email from the PM's Gmail in the original thread
-- Bounces (if any) come back through the inbound pipeline and surface to the PM
+**Tasks (done):**
+- Migration `0009_bounce_tracking.sql`: `ai_drafts.bounced_at` + `bounce_detail` (+ partial index); `email_messages.is_bounce` + `bounce_of_email_message_id`. `docs/schema.sql` reconciled; `packages/db/src/types.ts` hand-edited (run `pnpm db:types` after applying).
+- Worker `lib/env.ts` gains `SUPABASE_JWT_SECRET`; `lib/auth.ts` verifies the dashboard's Supabase access token (HS256, alg-pinned, aud/iss checked) → `{ authUserId, agencyId }`.
+- `services/gmail.ts` `usersMessagesSend` (raw + threadId); `services/mime.ts` `buildRawMessage` (In-Reply-To / References / controlled Message-ID, CRLF-injection guard, UTF-8 base64url); `services/send-identity.ts` `resolveSendIdentity` (agency token now, per-PM-ready seam, From = "PM — Agency").
+- `routes/send.ts` `POST /api/drafts/:id/send`: JWT → active `agency_users` row → load draft (agency-scoped) → assigned-PM/unassigned authz → state guard (`pending`/`edited` only, else 409) → `draft_edits` on change → send in-thread → outbound `email_messages` written **before** flipping `status='sent'` (fail-safe: a send failure does NOT flip status) → claim `assigned_pm_id` if null → audit. Registered in `index.ts`.
+- Bounce ingestion: `email-parser.ts` detects DSNs + extracts the failed Message-ID from nested parts; `gmail-webhook.ts` `handleBounce` links the DSN to the originating draft (outbound `message_id_header` → `sent_gmail_message_id`), marks it bounced, records the bounce row, and SKIPS the draft pipeline. Audit tallies `bounces_detected` / `bounces_matched`.
+- Dashboard: Approve & Send now surfaces the server error on failure (M9-absent stub removed); a "Bounced" badge on `/alerts` + the draft detail with the bounce reason; `/alerts` `.or()` includes `bounced_at`. Two M8 audit nits fixed (`TODO(types)` comment; discard 403-on-missing-actor).
+- Tests: `send.test.ts` (9), `auth.test.ts` (7), `mime.test.ts` (5), `email-parser-bounce.test.ts` (3), webhook bounce path (+1); env + dashboard `QueueItem` fixtures updated.
+
+**Deferred (intentional, surfaced now):**
+- Per-PM Gmail send (personal / agency sub-addresses) — agency mailbox for v1; swap in `resolveSendIdentity` once onboarding populates `agency_users.gmail_oauth_vault_key`.
+- Asymmetric Supabase JWT verification (JWKS) — HS256 shared secret for v1; switch if the project moves to asymmetric signing keys.
+
+**Definition of done:** (runtime pending Phase B)
+- Approve & Send sends a real email from the agency mailbox in the original thread
+- A real bounce surfaces against the draft in the dashboard
 
 ---
 

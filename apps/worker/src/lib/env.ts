@@ -33,6 +33,15 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().min(20),
   /** Verified Resend sender; either bare email or `Name <addr>` form. */
   RESEND_FROM_EMAIL: z.string().min(3),
+  // ---- Send path (M9) ----------------------------------------------------
+  /**
+   * The Supabase project JWT secret (HS256). Used by lib/auth.ts to verify the
+   * dashboard-issued access token on the send route, so the Worker can trust
+   * the caller's `sub` + `app_metadata.agency_id`. Supabase JWT secrets are
+   * 40+ chars; floor at 20 so test fixtures don't need a real value. (If the
+   * project later moves to asymmetric signing keys, swap to JWKS verification.)
+   */
+  SUPABASE_JWT_SECRET: z.string().min(20),
 });
 
 export type WorkerEnv = z.infer<typeof envSchema>;

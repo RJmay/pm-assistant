@@ -269,3 +269,39 @@ export async function usersWatch(opts: UsersWatchOpts): Promise<WatchResponse> {
   });
   return parseJsonResponse(res, endpoint, watchResponseSchema);
 }
+
+// ----------------------------------------------------------------------------
+// Gmail API: messages.send (M9 send path)
+// ----------------------------------------------------------------------------
+
+const sendResponseSchema = z.object({
+  id: z.string(),
+  threadId: z.string(),
+  labelIds: z.array(z.string()).optional(),
+});
+export type SendMessageResponse = z.infer<typeof sendResponseSchema>;
+
+export interface UsersMessagesSendOpts extends AuthedOpts {
+  /** base64url-encoded RFC 5322 message (see services/mime.ts). */
+  raw: string;
+  /** existing Gmail thread to attach the reply to, for thread continuity. */
+  threadId?: string;
+  mailbox?: string;
+}
+
+export async function usersMessagesSend(opts: UsersMessagesSendOpts): Promise<SendMessageResponse> {
+  const f = opts.fetchImpl ?? fetch;
+  const mailbox = opts.mailbox ?? "me";
+  const endpoint = `POST users/${mailbox}/messages/send`;
+  const body: { raw: string; threadId?: string } = { raw: opts.raw };
+  if (opts.threadId) body.threadId = opts.threadId;
+  const res = await f(`${GMAIL_BASE}/users/${encodeURIComponent(mailbox)}/messages/send`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${opts.accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return parseJsonResponse(res, endpoint, sendResponseSchema);
+}

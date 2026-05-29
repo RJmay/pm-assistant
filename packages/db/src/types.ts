@@ -242,6 +242,8 @@ export type Database = {
         Row: {
           agency_id: string;
           assigned_pm_id: string | null;
+          bounce_detail: string | null;
+          bounced_at: string | null;
           category: Database["public"]["Enums"]["draft_category"];
           category_confidence: Database["public"]["Enums"]["confidence_level"];
           created_at: string;
@@ -296,6 +298,8 @@ export type Database = {
         Update: {
           agency_id?: string;
           assigned_pm_id?: string | null;
+          bounce_detail?: string | null;
+          bounced_at?: string | null;
           category?: Database["public"]["Enums"]["draft_category"];
           category_confidence?: Database["public"]["Enums"]["confidence_level"];
           created_at?: string;
@@ -460,6 +464,8 @@ export type Database = {
           bcc_addresses: Json;
           body_html: string | null;
           body_plain: string | null;
+          bounce_of_email_message_id: string | null;
+          is_bounce: boolean;
           cc_addresses: Json;
           created_at: string;
           direction: Database["public"]["Enums"]["email_direction"];
@@ -483,6 +489,8 @@ export type Database = {
           bcc_addresses?: Json;
           body_html?: string | null;
           body_plain?: string | null;
+          bounce_of_email_message_id?: string | null;
+          is_bounce?: boolean;
           cc_addresses?: Json;
           created_at?: string;
           direction: Database["public"]["Enums"]["email_direction"];
@@ -506,6 +514,8 @@ export type Database = {
           bcc_addresses?: Json;
           body_html?: string | null;
           body_plain?: string | null;
+          bounce_of_email_message_id?: string | null;
+          is_bounce?: boolean;
           cc_addresses?: Json;
           created_at?: string;
           direction?: Database["public"]["Enums"]["email_direction"];

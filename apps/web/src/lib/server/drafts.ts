@@ -2,7 +2,7 @@ import type { Client } from "@pm/db";
 import type { QueueItem } from "$lib/types";
 
 const DRAFT_COLUMNS =
-  "id, email_message_id, category, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, match_confidence, status, assigned_pm_id, draft_subject, created_at";
+  "id, email_message_id, category, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, match_confidence, status, assigned_pm_id, bounced_at, draft_subject, created_at";
 
 interface DraftRow {
   id: string;
@@ -17,6 +17,7 @@ interface DraftRow {
   match_confidence: QueueItem["match_confidence"];
   status: QueueItem["status"];
   assigned_pm_id: string | null;
+  bounced_at: string | null;
   draft_subject: string | null;
   created_at: string;
 }
@@ -55,6 +56,7 @@ async function project(client: Client, agencyId: string, drafts: DraftRow[]): Pr
       match_confidence: d.match_confidence,
       status: d.status,
       assigned_pm_id: d.assigned_pm_id,
+      bounced_at: d.bounced_at,
       draft_subject: d.draft_subject,
       created_at: d.created_at,
       from_name: m?.from_name ?? null,
@@ -83,7 +85,7 @@ export async function fetchAlertItems(client: Client, agencyId: string): Promise
     .select(DRAFT_COLUMNS)
     .eq("agency_id", agencyId)
     .or(
-      "escalation_flag.neq.NONE,emergency_landlord_alert.eq.true,safety_critical.eq.true,do_not_send.eq.true",
+      "escalation_flag.neq.NONE,emergency_landlord_alert.eq.true,safety_critical.eq.true,do_not_send.eq.true,bounced_at.not.is.null",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(`ai_drafts alerts fetch failed: ${error.message}`);

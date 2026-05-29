@@ -22,6 +22,7 @@ function item(overrides: Partial<QueueItem> = {}): QueueItem {
     match_confidence: "high",
     status: "pending",
     assigned_pm_id: null,
+    bounced_at: null,
     draft_subject: null,
     created_at: "2026-05-29T00:00:00Z",
     from_name: "Alex",

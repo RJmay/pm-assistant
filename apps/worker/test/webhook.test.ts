@@ -23,6 +23,9 @@ interface AgencyStateRow {
 
 let stateRowToReturn: AgencyStateRow | null = null;
 let lastHistoryUpdateValue: number | null = null;
+// Bounce path (handleBounce) collaborators
+let outboundRowToReturn: { id: string; gmail_message_id: string } | null = null;
+let bounceDraftUpdateRow: Record<string, unknown> | null = null;
 
 function makeSupabaseMock() {
   return {
@@ -59,6 +62,32 @@ function makeSupabaseMock() {
               }),
             }),
           }),
+          // outbound lookup used by handleBounce
+          select: () => ({
+            eq: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: outboundRowToReturn, error: null }),
+                }),
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "ai_drafts") {
+        return {
+          update: (row: Record<string, unknown>) => {
+            bounceDraftUpdateRow = row;
+            return {
+              eq: () => ({
+                eq: () => ({
+                  is: () => ({
+                    select: async () => ({ data: [{ id: "draft-1" }], error: null }),
+                  }),
+                }),
+              }),
+            };
+          },
         };
       }
       throw new Error(`unexpected table ${table} in supabase mock`);
@@ -179,6 +208,8 @@ beforeEach(() => {
 
   stateRowToReturn = { agency_id: "agency-aaa-bbb", last_history_id: 12345 };
   lastHistoryUpdateValue = null;
+  outboundRowToReturn = null;
+  bounceDraftUpdateRow = null;
 });
 
 interface TokenOpts {
@@ -227,6 +258,7 @@ const env = {
   TWILIO_FROM_NUMBER: "+61400000000",
   RESEND_API_KEY: "re_0000000000000000000000000000test",
   RESEND_FROM_EMAIL: "noreply@scta-test.example",
+  SUPABASE_JWT_SECRET: "test-supabase-jwt-secret-0123456789",
   JWKS_CACHE: {} as KVNamespace,
 };
 
@@ -259,7 +291,7 @@ describe("POST /webhook/gmail", () => {
     const res = await post(envelope, { Authorization: `Bearer ${token}` });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; messages: number };
-    expect(body).toEqual({ ok: true, messages: 1 });
+    expect(body).toEqual({ ok: true, messages: 1, bounces: 0 });
 
     expect(getGmailRefreshTokenMock).toHaveBeenCalledTimes(1);
     expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
@@ -308,13 +340,71 @@ describe("POST /webhook/gmail", () => {
     const res = await post(envelope, { Authorization: `Bearer ${token}` });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; messages: number };
-    expect(body).toEqual({ ok: true, messages: 1 });
+    expect(body).toEqual({ ok: true, messages: 1, bounces: 0 });
     const entry = writeAuditLogMock.mock.calls[0]?.[1];
     expect(entry?.metadata).toMatchObject({
       messages_processed: 1,
       drafts_ok: 0,
       drafts_skipped: 0,
       drafts_failed: 1,
+    });
+  });
+
+  it("records a bounce, links the draft, and skips drafting", async () => {
+    runDraftPipelineMock.mockReset();
+    outboundRowToReturn = { id: "out-1", gmail_message_id: "gmid-1" };
+    usersMessagesGetMock.mockReset();
+    usersMessagesGetMock.mockResolvedValue({
+      id: "msg-1",
+      threadId: "thread-gmail-1",
+      internalDate: String(Date.parse("2026-05-29T01:00:00Z")),
+      payload: {
+        mimeType: "multipart/report",
+        headers: [
+          { name: "From", value: "Mail Delivery Subsystem <mailer-daemon@googlemail.com>" },
+          { name: "To", value: "agency@example.com" },
+          { name: "Subject", value: "Delivery Status Notification (Failure)" },
+          {
+            name: "Content-Type",
+            value: 'multipart/report; report-type=delivery-status; boundary="b"',
+          },
+        ],
+        parts: [
+          { mimeType: "text/plain", body: { data: btoa("Address not found"), size: 17 } },
+          {
+            mimeType: "message/rfc822",
+            parts: [
+              {
+                mimeType: "text/rfc822-headers",
+                headers: [{ name: "Message-ID", value: "<sent-original@agency.com.au>" }],
+                body: { data: btoa("Message-ID: <sent-original@agency.com.au>"), size: 40 },
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const token = await makeToken();
+    const res = await post(makeEnvelope({ emailAddress: "agency@example.com", historyId: "999" }), {
+      Authorization: `Bearer ${token}`,
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, messages: 0, bounces: 1 });
+
+    // a DSN is never drafted
+    expect(runDraftPipelineMock).not.toHaveBeenCalled();
+    // the originating draft is marked bounced
+    expect(bounceDraftUpdateRow?.bounced_at).toBeTruthy();
+    expect(bounceDraftUpdateRow?.bounce_detail).toBeTruthy();
+    // the processed-audit tallies the bounce
+    const processed = writeAuditLogMock.mock.calls.find(
+      (c) => c[1]?.action === "gmail.pubsub.processed",
+    )?.[1];
+    expect(processed?.metadata).toMatchObject({
+      messages_processed: 0,
+      bounces_detected: 1,
+      bounces_matched: 1,
     });
   });
 

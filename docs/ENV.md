@@ -17,6 +17,7 @@ Set via `wrangler secret put <NAME>` in production, `.dev.vars` in local dev (gi
 | `GMAIL_OAUTH_CLIENT_SECRET` | Google Cloud OAuth credentials | Same |
 | `WEBHOOK_BASE_URL` | Manual | Base URL of the deployed Worker (no trailing slash). Used to build the OAuth redirect URI `${base}/oauth/gmail/callback/`. |
 | `OAUTH_STATE_SECRET` | Generated, ≥32 chars | HMAC key for the OAuth `state` JWT (signs `agency_id`, 5-min TTL). |
+| `SUPABASE_JWT_SECRET` | Supabase project settings (JWT secret) | Verify the dashboard user's access token (HS256) on the send route, so the Worker can trust the caller's `sub` + `app_metadata.agency_id`. |
 | `PUBSUB_TOPIC` | Google Cloud Pub/Sub | Full topic path `projects/<gcp-project>/topics/pm-assistant-gmail`. Passed to Gmail's `users.watch` so notifications publish to this topic. |
 | `TWILIO_ACCOUNT_SID` | Twilio console | Send SMS for owner alerts |
 | `TWILIO_AUTH_TOKEN` | Twilio console | Same |

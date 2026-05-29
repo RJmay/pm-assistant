@@ -75,10 +75,9 @@
       if (res.ok) {
         toast.success("Draft sent.");
         await invalidateAll();
-      } else if (res.status === 404 || res.status === 501) {
-        toast.info("The Worker send route lands in Milestone 9.");
       } else {
-        toast.error(`Send failed (${res.status}).`);
+        const detail = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast.error(detail?.error ? `Send failed: ${detail.error}` : `Send failed (${res.status}).`);
       }
     } catch {
       toast.error("Could not reach the Worker.");
@@ -105,6 +104,7 @@
     {/if}
     {#if data.draft.safety_critical}<Badge variant="destructive">Safety critical</Badge>{/if}
     {#if data.draft.emergency_landlord_alert}<Badge variant="destructive">Landlord alert</Badge>{/if}
+    {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
     <Badge variant="secondary">Status: {data.draft.status}</Badge>
   </div>
 
@@ -147,6 +147,12 @@
         <CardTitle class="text-base">Draft reply</CardTitle>
       </CardHeader>
       <CardContent class="space-y-4">
+        {#if data.draft.bounced_at}
+          <p class="rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
+            This reply <strong>bounced</strong> ({relativeTime(data.draft.bounced_at)}).
+            {data.draft.bounce_detail ?? "Delivery failed."} Check the recipient address before resending.
+          </p>
+        {/if}
         {#if data.draft.do_not_send}
           <p class="rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
             The AI flagged this as <strong>do not send</strong>. Review carefully — the body below

@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const { data: draft, error: draftErr } = await locals.supabase
     .from("ai_drafts")
     .select(
-      "id, email_message_id, category, category_confidence, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, draft_subject, draft_body, pm_review_notes, model_used, match_confidence, matched_via, status, created_at",
+      "id, email_message_id, category, category_confidence, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, draft_subject, draft_body, pm_review_notes, model_used, match_confidence, matched_via, status, bounced_at, bounce_detail, created_at",
     )
     .eq("agency_id", agencyId)
     .eq("id", params.draftId)
@@ -44,6 +44,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     .eq("draft_id", draft.id)
     .order("edited_at", { ascending: false });
 
+  // TODO(types): pm_review_notes is jsonb (typed Json). It always holds a
+  // string[] (drafter contract), but the generated type is the recursive Json
+  // union, so we narrow through unknown[] here.
   const reviewNotes = Array.isArray(draft.pm_review_notes)
     ? (draft.pm_review_notes as unknown[]).map((n) => String(n))
     : [];
@@ -103,6 +106,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const reason = String(form.get("reason") ?? "").trim();
     const editorId = await currentAgencyUserId(locals, agencyId);
+    if (!editorId) return fail(403, { error: "Your user is not linked to this agency." });
 
     const { error: updErr } = await locals.supabase
       .from("ai_drafts")
@@ -114,7 +118,7 @@ export const actions: Actions = {
     await locals.supabase.from("audit_log").insert({
       agency_id: agencyId,
       actor_type: "user",
-      actor_id: editorId ?? locals.user?.id ?? null,
+      actor_id: editorId,
       action: "draft.discarded",
       entity_type: "ai_drafts",
       entity_id: params.draftId,

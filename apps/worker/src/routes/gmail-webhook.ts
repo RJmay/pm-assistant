@@ -156,7 +156,13 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
   } while (pageToken);
 
   // ---- 7. Fetch + persist each new message ----
-  const persisted = await persistMessages(supabase, agencyId, newRefs, tokens.access_token, log);
+  const { persisted, bounceDetected, bounceMatched } = await persistMessages(
+    supabase,
+    agencyId,
+    newRefs,
+    tokens.access_token,
+    log,
+  );
 
   // ---- 8. Advance last_history_id ----
   const finalHistoryNum = Number.parseInt(finalHistoryId, 10);
@@ -213,6 +219,8 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
       drafts_ok: draftsOk,
       drafts_skipped: draftsSkipped,
       drafts_failed: draftsFailed,
+      bounces_detected: bounceDetected,
+      bounces_matched: bounceMatched,
     },
   } satisfies AuditLogEntry);
 
@@ -222,8 +230,10 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
     drafts_ok: draftsOk,
     drafts_skipped: draftsSkipped,
     drafts_failed: draftsFailed,
+    bounces_detected: bounceDetected,
+    bounces_matched: bounceMatched,
   });
-  return c.json({ ok: true, messages: persisted.length }, 200);
+  return c.json({ ok: true, messages: persisted.length, bounces: bounceDetected }, 200);
 });
 
 // ----------------------------------------------------------------------------
@@ -245,12 +255,22 @@ async function persistMessages(
   refs: Array<{ id: string; threadId: string }>,
   accessToken: string,
   log: Logger,
-): Promise<PersistedMessage[]> {
+): Promise<{ persisted: PersistedMessage[]; bounceDetected: number; bounceMatched: number }> {
   const out: PersistedMessage[] = [];
+  let bounceDetected = 0;
+  let bounceMatched = 0;
   for (const ref of refs) {
     try {
       const full = await usersMessagesGet({ accessToken, mailbox: "me", messageId: ref.id });
       const parsed = parseGmailMessage(full);
+
+      // A bounce / DSN is recorded + linked to its originating draft, and is
+      // NOT handed to the draft pipeline (we don't reply to a bounce).
+      if (parsed.isBounce) {
+        bounceDetected += 1;
+        if (await handleBounce(supabase, agencyId, ref, parsed, log)) bounceMatched += 1;
+        continue;
+      }
 
       // Upsert thread → get id
       const { data: thread, error: threadErr } = await supabase
@@ -323,5 +343,107 @@ async function persistMessages(
       });
     }
   }
-  return out;
+  return { persisted: out, bounceDetected, bounceMatched };
+}
+
+/**
+ * Record a bounce/DSN and link it to the draft that was sent. The DSN names the
+ * failed message's Message-ID (`parsed.failedMessageId`), which matches the
+ * outbound `email_messages.message_id_header` we set on send; that outbound
+ * row's gmail id matches `ai_drafts.sent_gmail_message_id`. Returns whether a
+ * draft was matched + marked bounced. Failures are logged, never thrown.
+ */
+async function handleBounce(
+  supabase: ServiceClient,
+  agencyId: string,
+  ref: { id: string; threadId: string },
+  parsed: ParsedEmail,
+  log: Logger,
+): Promise<boolean> {
+  const receivedIso = parsed.receivedAt.toISOString();
+
+  // Thread for the bounce's own message (DSNs often arrive in a new thread).
+  const { data: thread, error: threadErr } = await supabase
+    .from("email_threads")
+    .upsert(
+      {
+        agency_id: agencyId,
+        gmail_thread_id: ref.threadId,
+        subject: parsed.subject,
+        last_message_at: receivedIso,
+      },
+      { onConflict: "agency_id,gmail_thread_id" },
+    )
+    .select("id")
+    .single();
+  if (threadErr || !thread) {
+    log.error("bounce thread upsert failed", { error: threadErr?.message });
+    return false;
+  }
+
+  // Find the outbound message that failed.
+  let outbound: { id: string; gmail_message_id: string } | null = null;
+  if (parsed.failedMessageId) {
+    const { data } = await supabase
+      .from("email_messages")
+      .select("id, gmail_message_id")
+      .eq("agency_id", agencyId)
+      .eq("message_id_header", parsed.failedMessageId)
+      .eq("direction", "outbound")
+      .maybeSingle();
+    outbound = data;
+  }
+
+  // Record the bounce itself (idempotent on (agency_id, gmail_message_id)).
+  const { error: insErr } = await supabase.from("email_messages").upsert(
+    {
+      agency_id: agencyId,
+      thread_id: thread.id,
+      gmail_message_id: ref.id,
+      direction: "inbound" as const,
+      is_bounce: true,
+      from_address: parsed.from,
+      from_name: parsed.fromName ?? null,
+      subject: parsed.subject,
+      body_plain: parsed.bodyPlain,
+      message_id_header: parsed.messageIdHeader,
+      received_at: receivedIso,
+      bounce_of_email_message_id: outbound?.id ?? null,
+    },
+    { onConflict: "agency_id,gmail_message_id" },
+  );
+  if (insErr) log.error("bounce email_messages upsert failed", { error: insErr.message });
+
+  // Mark the originating draft bounced.
+  let matched = false;
+  if (outbound) {
+    const detail = (parsed.subject ?? "Delivery failure").slice(0, 200);
+    const { data: updated, error: updErr } = await supabase
+      .from("ai_drafts")
+      .update({ bounced_at: receivedIso, bounce_detail: detail })
+      .eq("agency_id", agencyId)
+      .eq("sent_gmail_message_id", outbound.gmail_message_id)
+      .is("bounced_at", null) // idempotent: first bounce wins, redelivery won't overwrite
+      .select("id");
+    if (updErr) log.error("ai_drafts bounce update failed", { error: updErr.message });
+    else matched = (updated?.length ?? 0) > 0;
+  }
+
+  await writeAuditLog(supabase, {
+    agency_id: agencyId,
+    actor_type: "system",
+    action: "gmail.bounce.detected",
+    metadata: {
+      gmail_message_id: ref.id,
+      failed_message_id: parsed.failedMessageId,
+      matched,
+    },
+  } satisfies AuditLogEntry);
+
+  log.info("bounce recorded", {
+    agency_id: agencyId,
+    failed_message_id: parsed.failedMessageId,
+    matched,
+  });
+  return matched;
 }

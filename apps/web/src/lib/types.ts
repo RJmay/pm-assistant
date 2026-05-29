@@ -58,6 +58,7 @@ export interface QueueItem {
   match_confidence: MatchConfidence;
   status: DraftStatus;
   assigned_pm_id: string | null;
+  bounced_at: string | null;
   draft_subject: string | null;
   created_at: string;
   from_name: string | null;

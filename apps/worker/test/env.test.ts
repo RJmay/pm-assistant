@@ -18,6 +18,7 @@ function validRaw(): Record<string, string> {
     TWILIO_FROM_NUMBER: "+61400000000",
     RESEND_API_KEY: "re_0000000000000000000000000000test",
     RESEND_FROM_EMAIL: "noreply@scta-test.example",
+    SUPABASE_JWT_SECRET: "test-supabase-jwt-secret-0123456789",
   };
 }
 

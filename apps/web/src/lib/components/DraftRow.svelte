@@ -57,6 +57,9 @@
       {#if item.do_not_send}
         <Badge variant="destructive">Do not send</Badge>
       {/if}
+      {#if item.bounced_at}
+        <Badge variant="destructive">Bounced</Badge>
+      {/if}
     </div>
   </div>
 </a>

@@ -7,6 +7,7 @@ import { createLogger } from "./lib/log";
 import { gmailWebhook } from "./routes/gmail-webhook";
 import { health } from "./routes/health";
 import { oauthGmail } from "./routes/oauth-gmail";
+import { sendRoute } from "./routes/send";
 
 type Vars = { requestId: string };
 
@@ -24,6 +25,7 @@ app.use("*", async (c, next) => {
 app.route("/", health);
 app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
+app.route("/", sendRoute);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";
 const OWNER_DIGEST_CRON = "0 21 * * *";
