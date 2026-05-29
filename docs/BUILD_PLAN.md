@@ -242,7 +242,7 @@ If `emergency_landlord_alert: true`, dispatch via the owner's profile.
 
 ---
 
-## Milestone 8 — Dashboard MVP `[CURRENT — code complete, runtime DoD pending test system]`
+## Milestone 8 — Dashboard MVP `[DONE — code complete, runtime DoD pending test system]`
 
 The PM-facing daily review queue.
 
@@ -273,7 +273,7 @@ The PM-facing daily review queue.
 
 ---
 
-## Milestone 9 — Send path
+## Milestone 9 — Send path `[CURRENT]`
 
 Wire the Approve & Send button to Gmail.
 
