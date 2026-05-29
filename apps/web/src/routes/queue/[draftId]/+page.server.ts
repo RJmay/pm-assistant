@@ -91,7 +91,14 @@ export const actions: Actions = {
 
     const { error: updErr } = await locals.supabase
       .from("ai_drafts")
-      .update({ draft_subject: newSubject, draft_body: newBody, status: "edited" })
+      // Editing clears do_not_send: the PM has taken ownership of the content,
+      // which is the sanctioned path to make a flagged draft sendable.
+      .update({
+        draft_subject: newSubject,
+        draft_body: newBody,
+        status: "edited",
+        do_not_send: false,
+      })
       .eq("agency_id", agencyId)
       .eq("id", params.draftId);
     if (updErr) return fail(500, { error: updErr.message });

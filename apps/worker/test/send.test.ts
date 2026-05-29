@@ -36,6 +36,7 @@ interface SendState {
     draft_body: string | null;
     status: string;
     assigned_pm_id: string | null;
+    do_not_send: boolean;
   } | null;
   inbound: {
     thread_id: string;
@@ -160,6 +161,7 @@ beforeEach(() => {
       draft_body: "Original body",
       status: "pending",
       assigned_pm_id: null,
+      do_not_send: false,
     },
     inbound: {
       thread_id: "thread-1",
@@ -244,6 +246,15 @@ describe("POST /api/drafts/:id/send", () => {
     if (state.draft) state.draft.status = "sent";
     expect((await post("draft-1", { subject: "s", body: "b" }, await token())).status).toBe(409);
     expect(usersMessagesSendMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 409 and never sends a do_not_send draft", async () => {
+    if (state.draft) state.draft.do_not_send = true;
+    const res = await post("draft-1", { subject: "s", body: "b" }, await token());
+    expect(res.status).toBe(409);
+    expect(usersMessagesSendMock).not.toHaveBeenCalled();
+    expect(state.draftUpdates).toHaveLength(0);
+    expect(state.outboundInserts).toHaveLength(0);
   });
 
   it("returns 502 and does NOT flip status when Gmail send fails", async () => {

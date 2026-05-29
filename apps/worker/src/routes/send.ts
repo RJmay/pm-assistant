@@ -97,7 +97,9 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
     // ---- 4. Load draft (agency-scoped) ----
     const { data: draft, error: draftErr } = await supabase
       .from("ai_drafts")
-      .select("id, email_message_id, draft_subject, draft_body, status, assigned_pm_id")
+      .select(
+        "id, email_message_id, draft_subject, draft_body, status, assigned_pm_id, do_not_send",
+      )
       .eq("agency_id", agencyId)
       .eq("id", draftId)
       .maybeSingle();
@@ -117,6 +119,19 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
     // ---- 6. State guard ----
     if (draft.status !== "pending" && draft.status !== "edited") {
       return c.json({ error: `draft cannot be sent from status '${draft.status}'` }, 409);
+    }
+
+    // ---- 6b. do_not_send enforcement (HARD GATE, before any send) ----
+    // The drafter/compliance-floor sets do_not_send for unsafe/low-confidence
+    // drafts (incl. welfare cases). This is read from the persisted row and
+    // checked synchronously BEFORE the Gmail call, so a fast send can never
+    // bypass it. The flag is cleared by editing the draft (see saveEdit).
+    if (draft.do_not_send) {
+      log.warn("send blocked: draft is flagged do_not_send", { draft_id: draft.id });
+      return c.json(
+        { error: "draft is flagged do-not-send; edit it (which clears the flag) before sending" },
+        409,
+      );
     }
 
     // ---- 7. Load inbound message (threading + recipient) ----

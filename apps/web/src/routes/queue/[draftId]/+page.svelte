@@ -193,7 +193,12 @@
             <Button type="submit" variant="outline" disabled={saving || !dirty}>
               {saving ? "Saving…" : "Save edit"}
             </Button>
-            <Button type="button" onclick={approveAndSend} disabled={sending}>
+            <Button
+              type="button"
+              onclick={approveAndSend}
+              disabled={sending || data.draft.do_not_send}
+              title={data.draft.do_not_send ? "Flagged do-not-send — edit the draft to clear the flag" : undefined}
+            >
               {sending ? "Sending…" : "Approve & Send"}
             </Button>
             <Button
