@@ -12,6 +12,7 @@ import {
 } from "@pm/prompts";
 import type { WorkerBindings } from "../lib/env";
 import type { Logger } from "../lib/log";
+import { applyComplianceFloor } from "./compliance-floor";
 import { type MatchConfidence, type MatcherInput, type MatchSource, matchEmail } from "./matcher";
 import { dispatchOwnerNotification, type NotifyResult } from "./notifier";
 import { writeAuditLog } from "./supabase";
@@ -159,8 +160,29 @@ export async function runDraftPipeline(
     );
     const durationMs = Date.now() - startedAt;
 
+    // ---- 4b. Deterministic compliance floor (escalation safety-net + s214) --
+    // Raises a floor under the LLM output; never downgrades it. The ORIGINAL
+    // submission is still recorded raw in model_calls + ai_drafts.raw_response.
+    const inboundText = `${input.subject ?? ""}\n\n${input.bodyPlain ?? input.bodyHtml ?? ""}`;
+    const { submission: finalSubmission, adjustments: floorAdjustments } = applyComplianceFloor(
+      submission,
+      inboundText,
+      input.receivedAt.slice(0, 10),
+    );
+    if (floorAdjustments.length > 0) {
+      log.info("compliance floor applied", { adjustments: floorAdjustments });
+    }
+
     // ---- 5. Persist ai_drafts -------------------------------------------
-    const draftId = await insertDraft(client, input, match, submission, ctx.promptVersionId, model);
+    const draftId = await insertDraft(
+      client,
+      input,
+      match,
+      finalSubmission,
+      ctx.promptVersionId,
+      model,
+      submission,
+    );
 
     // ---- 6. Persist model_calls -----------------------------------------
     await insertModelCall(
@@ -176,7 +198,7 @@ export async function runDraftPipeline(
 
     // ---- 7. Owner notification (only on emergency_landlord_alert) -------
     let notifierResult: NotifyResult | undefined;
-    if (submission.emergency_landlord_alert) {
+    if (finalSubmission.emergency_landlord_alert) {
       try {
         notifierResult = await notifierFn(
           client,
@@ -185,10 +207,10 @@ export async function runDraftPipeline(
             agencyId: input.agencyId,
             propertyId: match.propertyId,
             ownerId: match.ownerId,
-            safetyCritical: submission.safety_critical,
+            safetyCritical: finalSubmission.safety_critical,
             draftSummary: {
-              category: submission.category,
-              issueLine: input.subject ?? `${submission.category} issue`,
+              category: finalSubmission.category,
+              issueLine: input.subject ?? `${finalSubmission.category} issue`,
             },
           },
           { env: deps.env, logger: log, now: deps.now },
@@ -213,11 +235,12 @@ export async function runDraftPipeline(
         email_message_id: input.emailMessageId,
         match_confidence: match.confidence,
         matched_via: match.source,
-        category: submission.category,
-        priority: submission.priority,
-        escalation_flag: submission.escalation_flag,
-        do_not_send: submission.do_not_send,
-        safety_critical: submission.safety_critical,
+        category: finalSubmission.category,
+        priority: finalSubmission.priority,
+        escalation_flag: finalSubmission.escalation_flag,
+        do_not_send: finalSubmission.do_not_send,
+        safety_critical: finalSubmission.safety_critical,
+        floor_adjustments: floorAdjustments,
         model,
         duration_ms: durationMs,
         notifications_dispatched: notifierResult?.dispatched ?? 0,
@@ -229,9 +252,9 @@ export async function runDraftPipeline(
 
     log.info("draft created", {
       draft_id: draftId,
-      category: submission.category,
-      priority: submission.priority,
-      escalation_flag: submission.escalation_flag,
+      category: finalSubmission.category,
+      priority: finalSubmission.priority,
+      escalation_flag: finalSubmission.escalation_flag,
       duration_ms: durationMs,
       notifier: notifierResult,
     });
@@ -381,9 +404,10 @@ async function insertDraft(
   client: Client,
   input: DraftPipelineInput,
   match: { confidence: MatchConfidence; source: MatchSource },
-  submission: DraftSubmission,
+  submission: DraftSubmission, // floored values → ai_drafts structured columns
   promptVersionId: string,
   model: string,
+  rawResponse: DraftSubmission, // ORIGINAL LLM output → raw_response (audit fidelity)
 ): Promise<string> {
   const { data, error } = await client
     .from("ai_drafts")
@@ -403,7 +427,7 @@ async function insertDraft(
       pm_review_notes: submission.pm_review_notes as unknown as Json,
       model_used: model,
       prompt_version_id: promptVersionId,
-      raw_response: submission as unknown as Json,
+      raw_response: rawResponse as unknown as Json,
       match_confidence: match.confidence,
       matched_via: match.source,
     })

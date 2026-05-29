@@ -524,4 +524,43 @@ describe("runDraftPipeline", () => {
     expect(state.modelCallInserts).toHaveLength(0); // never reached
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });
+
+  it("compliance floor raises a welfare escalation the LLM missed; raw stays original", async () => {
+    const match: MatchResult = {
+      propertyId: null,
+      tenantId: null,
+      ownerId: null,
+      confidence: "none",
+      source: "fallback",
+    };
+    const result = await runDraftPipeline(
+      fakeClient(),
+      pipelineInput({ bodyPlain: "I am experiencing domestic violence and feel unsafe" }),
+      pipelineDeps(match), // drafter returns VALID_DRAFT (escalation NONE, do_not_send false)
+    );
+    expect(result.kind).toBe("ok");
+
+    // The persisted draft reflects the floored values...
+    expect(state.draftInserts[0]).toMatchObject({ escalation_flag: "WELFARE", do_not_send: true });
+    // ...but raw_response + model_calls keep the ORIGINAL LLM output.
+    expect((state.draftInserts[0]?.raw_response as DraftSubmission).escalation_flag).toBe("NONE");
+    const mc = state.modelCallInserts[0]?.response as { submission: DraftSubmission };
+    expect(mc.submission.escalation_flag).toBe("NONE");
+  });
+
+  it("compliance floor bumps priority on a possible s214 emergency", async () => {
+    const match: MatchResult = {
+      propertyId: null,
+      tenantId: null,
+      ownerId: null,
+      confidence: "none",
+      source: "fallback",
+    };
+    await runDraftPipeline(
+      fakeClient(),
+      pipelineInput({ bodyPlain: "there is a burst pipe flooding the laundry" }),
+      pipelineDeps(match),
+    );
+    expect(state.draftInserts[0]).toMatchObject({ priority: "PRIORITY" });
+  });
 });
