@@ -14,6 +14,16 @@ binding = "JWKS_CACHE"
 id = "d1b7dddd63234662ad0318024f60d266"
 preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
 
+# KV namespace for the regulatory monitoring bot's per-source hash + content
+# snapshots (spec §12). Placeholder ids work for local Miniflare; before deploy:
+#   wrangler kv namespace create MONITORING_CACHE
+#   wrangler kv namespace create MONITORING_CACHE --preview
+# and replace the two ids below. TODO(phase-b): wire real ids.
+[[kv_namespaces]]
+binding = "MONITORING_CACHE"
+id = "0000000000000000000000000000000a"
+preview_id = "0000000000000000000000000000000b"
+
 # Cron triggers.
 #  - "0 13 * * *"  — daily 13:00 UTC. Refreshes Gmail users.watch subscriptions
 #    (Gmail expires them every 7 days; daily is comfortable headroom).
@@ -23,5 +33,7 @@ preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
 #  - "0 23 * * 0"  — weekly Sun 23:00 UTC = Mon 09:00 AEST. Runs the drift
 #    detector. Silent by default; writes a `weekly_digests` row only when
 #    metric shifts cross the threshold.
+#  - "0 15 * * *"  — daily 15:00 UTC = 01:00 AEST. Regulatory monitoring scan:
+#    hash-and-diffs QLD sources, raises a `regulatory_alerts` row on a change.
 [triggers]
-crons = ["0 13 * * *", "0 21 * * *", "0 23 * * 0"]
+crons = ["0 13 * * *", "0 21 * * *", "0 23 * * 0", "0 15 * * *"]

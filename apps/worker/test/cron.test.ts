@@ -73,6 +73,7 @@ const env = {
   RESEND_FROM_EMAIL: "noreply@scta-test.example",
   SUPABASE_JWT_SECRET: "test-supabase-jwt-secret-0123456789",
   JWKS_CACHE: {} as KVNamespace,
+  MONITORING_CACHE: {} as KVNamespace,
 } satisfies WorkerBindings;
 
 const silentLog = createLogger({ level: "error" });

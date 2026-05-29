@@ -71,6 +71,7 @@ const env: WorkerBindings = {
   RESEND_FROM_EMAIL: "noreply@scta-test.example",
   SUPABASE_JWT_SECRET: "test-supabase-jwt-secret-0123456789",
   JWKS_CACHE: {} as KVNamespace,
+  MONITORING_CACHE: {} as KVNamespace,
 };
 
 const VALID_AGENCY = "00000000-0000-0000-0000-0000000000aa";

@@ -968,6 +968,65 @@ export type Database = {
           },
         ];
       };
+      regulatory_alerts: {
+        Row: {
+          affected_modules: string[];
+          change_summary: string | null;
+          client_notice_sent: boolean;
+          content_hash: string;
+          created_at: string;
+          detected_at: string;
+          effective_date: string | null;
+          id: string;
+          operator_review_state: Database["public"]["Enums"]["regulatory_alert_state"];
+          proposed_changes: Json;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          source: string;
+          source_url: string;
+        };
+        Insert: {
+          affected_modules?: string[];
+          change_summary?: string | null;
+          client_notice_sent?: boolean;
+          content_hash: string;
+          created_at?: string;
+          detected_at?: string;
+          effective_date?: string | null;
+          id?: string;
+          operator_review_state?: Database["public"]["Enums"]["regulatory_alert_state"];
+          proposed_changes?: Json;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          source: string;
+          source_url: string;
+        };
+        Update: {
+          affected_modules?: string[];
+          change_summary?: string | null;
+          client_notice_sent?: boolean;
+          content_hash?: string;
+          created_at?: string;
+          detected_at?: string;
+          effective_date?: string | null;
+          id?: string;
+          operator_review_state?: Database["public"]["Enums"]["regulatory_alert_state"];
+          proposed_changes?: Json;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          source?: string;
+          source_url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "regulatory_alerts_reviewed_by_fkey";
+            columns: ["reviewed_by"];
+            isOneToOne: false;
+            referencedRelation: "agency_users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenancies: {
         Row: {
           agency_id: string;
@@ -1177,6 +1236,7 @@ export type Database = {
         | "safety_critical_only"
         | "email_only"
         | "pm_proxy";
+      regulatory_alert_state: "open" | "approved" | "dismissed";
       rent_frequency: "weekly" | "fortnightly" | "monthly";
       tenancy_status: "draft" | "active" | "ending" | "ended";
       weekly_digest_status: "open" | "acted" | "dismissed";
@@ -1329,6 +1389,7 @@ export const Constants = {
         "email_only",
         "pm_proxy",
       ],
+      regulatory_alert_state: ["open", "approved", "dismissed"],
       rent_frequency: ["weekly", "fortnightly", "monthly"],
       tenancy_status: ["draft", "active", "ending", "ended"],
       weekly_digest_status: ["open", "acted", "dismissed"],

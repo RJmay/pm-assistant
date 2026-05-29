@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { handleOwnerDigest } from "./cron/owner-digest";
 import { handleRefreshWatches } from "./cron/refresh-watches";
+import { handleRegulatoryScan } from "./cron/regulatory-scan";
 import { handleWeeklyDrift } from "./cron/weekly-drift";
 import type { WorkerBindings } from "./lib/env";
 import { createLogger } from "./lib/log";
@@ -30,6 +31,7 @@ app.route("/", sendRoute);
 const DAILY_REFRESH_CRON = "0 13 * * *";
 const OWNER_DIGEST_CRON = "0 21 * * *";
 const WEEKLY_DRIFT_CRON = "0 23 * * 0";
+const REGULATORY_SCAN_CRON = "0 15 * * *";
 
 // Dispatch by cron pattern. ScheduledController.cron carries the literal
 // pattern that fired, so we route here rather than having each handler do
@@ -49,6 +51,10 @@ async function scheduled(
   }
   if (controller.cron === WEEKLY_DRIFT_CRON) {
     await handleWeeklyDrift(controller, env);
+    return;
+  }
+  if (controller.cron === REGULATORY_SCAN_CRON) {
+    await handleRegulatoryScan(controller, env);
     return;
   }
   createLogger({ base: { request_id: crypto.randomUUID() } }).warn("unknown cron trigger", {

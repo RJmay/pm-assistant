@@ -52,6 +52,8 @@ export type WorkerEnv = z.infer<typeof envSchema>;
  */
 export interface WorkerBindings extends WorkerEnv {
   JWKS_CACHE: KVNamespace;
+  /** Per-source hash + content snapshots for the regulatory monitoring bot. */
+  MONITORING_CACHE: KVNamespace;
 }
 
 export function parseEnv(raw: unknown): WorkerEnv {
