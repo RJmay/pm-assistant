@@ -809,3 +809,42 @@ alter table ai_drafts
 create index idx_ai_drafts_safety_critical
   on ai_drafts(agency_id, created_at desc)
   where safety_critical = true;
+
+-- ============================================================================
+-- REGULATORY_RULES (added in migration 0008)
+-- ============================================================================
+-- Deterministic, versioned QLD compliance data backing @pm/rules
+-- (PM-Manager_Build_Spec.md §4, §6). Jurisdiction-scoped REFERENCE data, NOT
+-- agency-owned (no agency_id) — every agency reads the same rules. Versioning
+-- is append-only: a changed rule is a new row with a new effective_from;
+-- existing rows are never overwritten (the monitoring bot proposes, a human
+-- approves, the service role inserts). `value` is nullable: where the spec
+-- named a change but withheld the number, the row carries value = null +
+-- needs_human_confirmation = true so nothing downstream guesses a regulatory
+-- fact (spec §0.3). Canonical seed: packages/rules/src/seed.ts.
+-- ============================================================================
+
+create table regulatory_rules (
+  id uuid primary key default gen_random_uuid(),
+  jurisdiction text not null default 'QLD',
+  key text not null,
+  version text not null,
+  value jsonb,
+  effective_from date,
+  effective_to date,
+  source_url text,
+  source_note text not null,
+  needs_human_confirmation boolean not null default false,
+  notes text,
+  created_at timestamptz not null default now(),
+  unique (jurisdiction, key, version)
+);
+
+create index idx_regulatory_rules_lookup
+  on regulatory_rules(jurisdiction, key, effective_from);
+
+alter table regulatory_rules enable row level security;
+
+create policy regulatory_rules_read on regulatory_rules
+  for select
+  using (auth.uid() is not null);
