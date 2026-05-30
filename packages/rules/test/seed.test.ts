@@ -41,7 +41,7 @@ describe("RTA values: confirmed vs still-flagged", () => {
     expect(entryFrequencyValueSchema.parse(freq?.value).minMonthsBetween).toBe(3);
   });
 
-  it("Form 18b is confirmed; R18 stays flagged (not located, out of scope)", () => {
+  it("Forms 18b and R18 are both confirmed from the official RTA forms", () => {
     const formsRule = QLD_RULES.find((r) => r.key === "forms");
     const { forms } = formsValueSchema.parse(formsRule?.value);
 
@@ -50,8 +50,14 @@ describe("RTA values: confirmed vs still-flagged", () => {
     expect(f18b?.needsHumanConfirmation).toBe(false);
 
     const r18 = forms.find((x) => x.formId === "R18");
-    expect(r18?.purpose).toBeNull();
-    expect(r18?.needsHumanConfirmation).toBe(true);
+    expect(r18?.purpose).toBe("Rooming accommodation agreement");
+    expect(r18?.needsHumanConfirmation).toBe(false);
+  });
+
+  it("no form remains flagged for confirmation", () => {
+    const formsRule = QLD_RULES.find((r) => r.key === "forms");
+    const { forms } = formsValueSchema.parse(formsRule?.value);
+    expect(forms.every((f) => !f.needsHumanConfirmation)).toBe(true);
   });
 });
 

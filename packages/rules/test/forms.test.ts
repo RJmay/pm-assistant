@@ -21,10 +21,10 @@ describe("selectForm", () => {
 });
 
 describe("getFormById", () => {
-  it("returns a still-flagged form (R18) without a confirmed purpose", () => {
+  it("returns Form R18 (rooming accommodation agreement) now that it's confirmed", () => {
     const r18 = getFormById("R18", ASOF);
-    expect(r18.purpose).toBeNull();
-    expect(r18.needsHumanConfirmation).toBe(true);
+    expect(r18.purpose).toBe("Rooming accommodation agreement");
+    expect(r18.needsHumanConfirmation).toBe(false);
     expect(r18.updatedUnder2025Regulation).toBe(true);
   });
 

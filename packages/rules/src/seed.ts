@@ -302,10 +302,10 @@ const RAW: RegulatoryRule[] = [
         },
         {
           formId: "R18",
-          purpose: null,
+          purpose: "Rooming accommodation agreement",
           action: null,
           updatedUnder2025Regulation: true,
-          needsHumanConfirmation: true,
+          needsHumanConfirmation: false,
         },
       ],
     },
@@ -316,7 +316,7 @@ const RAW: RegulatoryRule[] = [
       "RTA forms relevant to drafting — 18a (general tenancy agreement), 18b (moveable dwelling tenancy agreement, confirmed from the official RTA form), 9 (entry notice), 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave), R12 (disputed bond). 18a/18b/R18 were updated under the 2025 Regulation.",
     needsHumanConfirmation: false,
     notes:
-      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 not located by the agency — the R-series are rooming-accommodation forms (cf. Form R9), out of v1 residential scope; left flagged.",
+      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 (rooming accommodation agreement) confirmed from the official RTA form; rooming accommodation is out of v1 residential scope but the metadata is recorded.",
   },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------
