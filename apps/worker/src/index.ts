@@ -8,6 +8,7 @@ import { createLogger } from "./lib/log";
 import { gmailWebhook } from "./routes/gmail-webhook";
 import { health } from "./routes/health";
 import { oauthGmail } from "./routes/oauth-gmail";
+import { regulatoryReview } from "./routes/regulatory-review";
 import { sendRoute } from "./routes/send";
 
 type Vars = { requestId: string };
@@ -27,6 +28,7 @@ app.route("/", health);
 app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
 app.route("/", sendRoute);
+app.route("/", regulatoryReview);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";
 const OWNER_DIGEST_CRON = "0 21 * * *";
