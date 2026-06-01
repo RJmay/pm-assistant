@@ -1,5 +1,5 @@
 import { type Client, createBrowserClient } from "@pm/db";
-import { env } from "$env/dynamic/public";
+import { env } from "$lib/public-env";
 
 // Singleton browser client. @supabase/ssr's browser client reads the auth
 // session from document.cookie (set server-side by hooks.server.ts), so

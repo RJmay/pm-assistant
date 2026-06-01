@@ -1,6 +1,6 @@
 import { createServerClient } from "@pm/db";
 import { type Handle, redirect } from "@sveltejs/kit";
-import { env } from "$env/dynamic/public";
+import { env } from "$lib/public-env";
 
 // Routes reachable without an authenticated session. Everything else
 // redirects to /login.

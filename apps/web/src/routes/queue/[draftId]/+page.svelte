@@ -20,7 +20,7 @@
     senderName,
   } from "$lib/format";
   import { getBrowserClient } from "$lib/supabase-browser";
-  import { env } from "$env/dynamic/public";
+  import { env } from "$lib/public-env";
   import { ArrowLeft } from "lucide-svelte";
   import type { PageData } from "./$types";
 
