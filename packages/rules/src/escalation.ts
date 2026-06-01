@@ -38,11 +38,21 @@ const TRIGGERS: TriggerDef[] = [
     phrases: [
       "suicide",
       "kill myself",
+      "killing myself",
       "end my life",
+      "ending my life",
+      "end it all",
+      "take my own life",
+      "don't want to live",
       "self-harm",
       "self harm",
       "harm myself",
+      "harming myself",
       "hurt myself",
+      // gerund forms are common in real ideation phrasing ("thinking about
+      // hurting myself") and are NOT substrings of the base phrases, so they
+      // must be listed explicitly or the deterministic floor misses the case.
+      "hurting myself",
       "harm to others",
       "hurt someone",
       "kill him",

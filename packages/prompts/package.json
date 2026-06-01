@@ -16,6 +16,7 @@
     "zod": "^4.4.0"
   },
   "devDependencies": {
+    "@pm/rules": "workspace:*",
     "@types/node": "^22.0.0",
     "typescript": "^6.0.0",
     "vitest": "^4.1.0"

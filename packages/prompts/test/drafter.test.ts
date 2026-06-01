@@ -156,4 +156,45 @@ describe("draft (unit, mocked Anthropic client)", () => {
       DrafterValidationError,
     );
   });
+
+  it("retries when the first response is malformed, then returns the valid one", async () => {
+    createMock
+      .mockResolvedValueOnce({
+        content: [
+          { type: "tool_use", id: "toolu_bad", name: "submit_draft", input: { category: "NOPE" } },
+        ],
+        stop_reason: "tool_use",
+      })
+      .mockResolvedValueOnce(makeValidResponse());
+    const out = await draft(makeMinimalInput(), { apiKey: "irrelevant", client });
+    expect(out.category).toBe("MAINTENANCE");
+    expect(createMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops at maxAttempts and throws when every attempt is malformed", async () => {
+    createMock.mockResolvedValue({
+      content: [{ type: "text", text: "still refusing the tool" }],
+      stop_reason: "end_turn",
+    });
+    await expect(
+      draft(makeMinimalInput(), { apiKey: "irrelevant", client, maxAttempts: 3 }),
+    ).rejects.toThrow(DrafterValidationError);
+    expect(createMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("coerces YES/NO strings to booleans (prompt documents [YES|NO], schema wants boolean)", async () => {
+    createMock.mockResolvedValue(
+      makeValidResponse({
+        ...VALID_DRAFT,
+        // The model often echoes the prompt's human-readable YES/NO format.
+        emergency_landlord_alert: "NO" as unknown as boolean,
+        safety_critical: "YES" as unknown as boolean,
+        do_not_send: "no" as unknown as boolean,
+      }),
+    );
+    const out = await draft(makeMinimalInput(), { apiKey: "irrelevant", client });
+    expect(out.emergency_landlord_alert).toBe(false);
+    expect(out.safety_critical).toBe(true);
+    expect(out.do_not_send).toBe(false);
+  });
 });

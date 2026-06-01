@@ -37,6 +37,14 @@ export interface DrafterOpts {
   maxTokens?: number;
   /** Test seam: inject a constructed (or mocked) Anthropic client. */
   client?: Anthropic;
+  /**
+   * How many times to call the model when it returns an unusable response
+   * (no `submit_draft` tool_use block, or args that fail `submitDraftSchema`).
+   * Tool output is occasionally malformed; a fresh attempt almost always yields
+   * a valid call. Transport/API errors are NOT retried here (the SDK does that).
+   * Default 2.
+   */
+  maxAttempts?: number;
 }
 
 const DEFAULT_MODEL: DrafterModel = "claude-sonnet-4-6";
@@ -61,44 +69,84 @@ export async function draft(input: DrafterInput, opts: DrafterOpts): Promise<Dra
   const model = input.model ?? DEFAULT_MODEL;
   const client = opts.client ?? new Anthropic({ apiKey: opts.apiKey });
   const maxTokens = opts.maxTokens ?? 4096;
+  const maxAttempts = Math.max(1, opts.maxAttempts ?? 2);
 
   const userMessage = formatUserMessage(input.inboundEmail, input.threadHistory);
 
-  let response: Anthropic.Message;
-  try {
-    response = await client.messages.create({
-      model,
-      max_tokens: maxTokens,
-      system: input.systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-      tools: [TOOL_DEFINITION],
-      tool_choice: { type: "tool", name: TOOL_NAME },
-    });
-  } catch (cause) {
-    throw new DrafterApiError(`Anthropic API call failed: ${describeError(cause)}`, {
-      model,
-      cause,
-      requestId: extractRequestId(cause),
-      statusCode: extractStatusCode(cause),
-    });
+  // Retry only on an unusable model response (malformed tool args / no tool_use).
+  // Such failures are intermittent — the model usually produces a valid call on
+  // a fresh attempt. Transport/API errors propagate immediately (the SDK retries
+  // those itself), so they're thrown inside the loop, not caught and retried.
+  let lastValidationError: DrafterValidationError | undefined;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let response: Anthropic.Message;
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: maxTokens,
+        system: input.systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
+        tools: [TOOL_DEFINITION],
+        tool_choice: { type: "tool", name: TOOL_NAME },
+      });
+    } catch (cause) {
+      throw new DrafterApiError(`Anthropic API call failed: ${describeError(cause)}`, {
+        model,
+        cause,
+        requestId: extractRequestId(cause),
+        statusCode: extractStatusCode(cause),
+      });
+    }
+
+    const toolUse = response.content.find((block) => block.type === "tool_use");
+    if (!toolUse || toolUse.type !== "tool_use" || toolUse.name !== TOOL_NAME) {
+      lastValidationError = new DrafterValidationError(
+        `Model did not emit a ${TOOL_NAME} tool_use block. Stop reason: ${response.stop_reason ?? "unknown"}`,
+        { rawArgs: response.content, issues: [] },
+      );
+      continue;
+    }
+
+    const parsed = submitDraftSchema.safeParse(coerceBooleanishFields(toolUse.input));
+    if (!parsed.success) {
+      lastValidationError = new DrafterValidationError(
+        `Model emitted ${TOOL_NAME} with args that don't match submitDraftSchema`,
+        { rawArgs: toolUse.input, issues: parsed.error.issues },
+      );
+      continue;
+    }
+    return parsed.data;
   }
 
-  const toolUse = response.content.find((block) => block.type === "tool_use");
-  if (!toolUse || toolUse.type !== "tool_use" || toolUse.name !== TOOL_NAME) {
-    throw new DrafterValidationError(
-      `Model did not emit a ${TOOL_NAME} tool_use block. Stop reason: ${response.stop_reason ?? "unknown"}`,
-      { rawArgs: response.content, issues: [] },
-    );
-  }
+  // Exhausted every attempt without a valid tool call.
+  throw (
+    lastValidationError ??
+    new DrafterValidationError("Drafter exhausted all attempts with no valid response", {
+      rawArgs: null,
+      issues: [],
+    })
+  );
+}
 
-  const parsed = submitDraftSchema.safeParse(toolUse.input);
-  if (!parsed.success) {
-    throw new DrafterValidationError(
-      `Model emitted ${TOOL_NAME} with args that don't match submitDraftSchema`,
-      { rawArgs: toolUse.input, issues: parsed.error.issues },
-    );
+// The system prompt documents the boolean flags in a human-readable `[YES | NO]`
+// format, so the model frequently returns the literal strings "YES"/"NO" for
+// these fields instead of JSON booleans (most often on the escalation/DO-NOT-SEND
+// templates). Bridge that convention to the boolean contract at the parse
+// boundary rather than letting validation fail. Unrecognised values are left
+// untouched so zod still reports a real type error.
+const BOOLEANISH_FIELDS = ["emergency_landlord_alert", "safety_critical", "do_not_send"] as const;
+
+function coerceBooleanishFields(input: unknown): unknown {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return input;
+  const obj = { ...(input as Record<string, unknown>) };
+  for (const field of BOOLEANISH_FIELDS) {
+    const value = obj[field];
+    if (typeof value !== "string") continue;
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "yes" || normalized === "true") obj[field] = true;
+    else if (normalized === "no" || normalized === "false") obj[field] = false;
   }
-  return parsed.data;
+  return obj;
 }
 
 function formatUserMessage(inbound: InboundEmail, thread?: ThreadEntry[]): string {

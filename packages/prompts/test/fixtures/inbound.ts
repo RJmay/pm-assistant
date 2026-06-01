@@ -6,12 +6,17 @@ import type { DraftSubmission, InboundEmail } from "../../src";
  * borderline cases) can land on more than one valid value — keep the test
  * tight but not over-pinned.
  */
+/** A classification field may accept a single value or any of several defensible ones. */
+export type OneOrMany<T> = T | readonly T[];
+
 export interface ExpectedClassification {
-  category: DraftSubmission["category"];
-  priority: DraftSubmission["priority"];
-  escalation_flag: DraftSubmission["escalation_flag"];
+  category: OneOrMany<DraftSubmission["category"]>;
+  priority: OneOrMany<DraftSubmission["priority"]>;
+  escalation_flag: OneOrMany<DraftSubmission["escalation_flag"]>;
+  // do_not_send stays single-valued on purpose — it's the safety field, and the
+  // live test asserts it at the SYSTEM level (LLM ∨ deterministic floor).
   do_not_send: boolean;
-  emergency_landlord_alert: boolean;
+  emergency_landlord_alert: OneOrMany<boolean>;
 }
 
 export interface InboundFixture {
@@ -55,10 +60,14 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
     },
     expected: {
       category: "MAINTENANCE",
-      priority: "PRIORITY",
+      // Borderline by the prompt's own rules: Tier 2 lists "intermittent hot
+      // water" as PRIORITY, while the s214 essential-service list + the infant
+      // tier-override push toward EMERGENCY_ALERT. Both defensible; the owner's
+      // safety_critical_only profile suppresses the SMS if it lands as emergency.
+      priority: ["PRIORITY", "EMERGENCY_ALERT"],
       escalation_flag: "NONE",
       do_not_send: false,
-      emergency_landlord_alert: false,
+      emergency_landlord_alert: [false, true],
     },
   },
   {
@@ -91,7 +100,9 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
     },
     expected: {
       category: "RENT",
-      priority: "STANDARD",
+      // A late-rent heads-up is routine (STANDARD), but "mentions money" /
+      // "time-sensitive within 48h" also reads as PRIORITY under the prompt.
+      priority: ["STANDARD", "PRIORITY"],
       escalation_flag: "NONE",
       do_not_send: false,
       emergency_landlord_alert: false,
@@ -127,7 +138,10 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
     },
     expected: {
       category: "COMPLAINT",
-      priority: "PRIORITY",
+      // Recurring noise supports PRIORITY (escalate-one-tier), but the tenant
+      // explicitly downplays urgency ("not asking you to fix it overnight"),
+      // which supports STANDARD. Both are defensible.
+      priority: ["STANDARD", "PRIORITY"],
       escalation_flag: "NONE",
       do_not_send: false,
       emergency_landlord_alert: false,
@@ -144,7 +158,9 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
       receivedAt: RECEIVED_AT,
     },
     expected: {
-      category: "OTHER",
+      // A bond dispute fits OTHER or LEASE equally; the escalation flag is the
+      // field that drives handling here, and it must be LEGAL.
+      category: ["OTHER", "LEASE"],
       priority: "PRIORITY",
       escalation_flag: "LEGAL",
       do_not_send: false,
@@ -198,7 +214,8 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
       receivedAt: RECEIVED_AT,
     },
     expected: {
-      category: "OTHER",
+      // Wrong-agency redirect reads as OTHER or as an ADMIN handling task.
+      category: ["OTHER", "ADMIN"],
       priority: "STANDARD",
       escalation_flag: "NONE",
       do_not_send: false,
@@ -216,8 +233,11 @@ export const INBOUND_FIXTURES: InboundFixture[] = [
       receivedAt: RECEIVED_AT,
     },
     expected: {
-      category: "MAINTENANCE",
-      priority: "STANDARD",
+      // Multi-issue: classify by the most actionable item. The deadline-bound
+      // lease renewal and the maintenance item are both defensible primaries;
+      // STANDARD or PRIORITY are both reasonable for the overall urgency.
+      category: ["MAINTENANCE", "LEASE"],
+      priority: ["STANDARD", "PRIORITY"],
       escalation_flag: "NONE",
       do_not_send: false,
       emergency_landlord_alert: false,

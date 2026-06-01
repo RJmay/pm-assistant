@@ -23,6 +23,15 @@ describe("detectEscalations — welfare", () => {
   it("flags self-harm", () => {
     expect(detectEscalations("I feel like I want to end my life").flags).toContain("WELFARE");
   });
+
+  it("flags self-harm phrased as a gerund (recall-gap regression)", () => {
+    // "hurting myself" is NOT a substring of "hurt myself" — must be matched
+    // explicitly or the deterministic floor silently misses the case.
+    expect(detectEscalations("I've been thinking about hurting myself").flags).toContain("WELFARE");
+    expect(detectEscalations("some nights I just want to take my own life").flags).toContain(
+      "WELFARE",
+    );
+  });
 });
 
 describe("detectEscalations — reputational", () => {
