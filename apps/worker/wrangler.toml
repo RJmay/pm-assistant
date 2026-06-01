@@ -1,6 +1,11 @@
 name = "pm-assistant-worker"
 main = "src/index.ts"
 compatibility_date = "2024-11-06"
+# The Anthropic SDK imports node: builtins (fs, crypto, stream, …); Workers needs
+# nodejs_compat to provide them. compatibility_date is >= 2024-09-23, as required.
+compatibility_flags = ["nodejs_compat"]
+# Pinned so wrangler doesn't need the account-list permission (not a secret).
+account_id = "9d5299d5a1bcad11da7b2c7133359e6b"
 
 # KV namespace for caching Google's JWKS (Pub/Sub OIDC public keys).
 #
