@@ -1,6 +1,11 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5";
+  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -271,6 +276,8 @@ export type Database = {
         Insert: {
           agency_id: string;
           assigned_pm_id?: string | null;
+          bounce_detail?: string | null;
+          bounced_at?: string | null;
           category: Database["public"]["Enums"]["draft_category"];
           category_confidence: Database["public"]["Enums"]["confidence_level"];
           created_at?: string;
@@ -465,7 +472,6 @@ export type Database = {
           body_html: string | null;
           body_plain: string | null;
           bounce_of_email_message_id: string | null;
-          is_bounce: boolean;
           cc_addresses: Json;
           created_at: string;
           direction: Database["public"]["Enums"]["email_direction"];
@@ -475,6 +481,7 @@ export type Database = {
           gmail_message_id: string;
           id: string;
           in_reply_to: string | null;
+          is_bounce: boolean;
           message_id_header: string | null;
           received_at: string | null;
           references_headers: string[] | null;
@@ -490,7 +497,6 @@ export type Database = {
           body_html?: string | null;
           body_plain?: string | null;
           bounce_of_email_message_id?: string | null;
-          is_bounce?: boolean;
           cc_addresses?: Json;
           created_at?: string;
           direction: Database["public"]["Enums"]["email_direction"];
@@ -500,6 +506,7 @@ export type Database = {
           gmail_message_id: string;
           id?: string;
           in_reply_to?: string | null;
+          is_bounce?: boolean;
           message_id_header?: string | null;
           received_at?: string | null;
           references_headers?: string[] | null;
@@ -515,7 +522,6 @@ export type Database = {
           body_html?: string | null;
           body_plain?: string | null;
           bounce_of_email_message_id?: string | null;
-          is_bounce?: boolean;
           cc_addresses?: Json;
           created_at?: string;
           direction?: Database["public"]["Enums"]["email_direction"];
@@ -525,6 +531,7 @@ export type Database = {
           gmail_message_id?: string;
           id?: string;
           in_reply_to?: string | null;
+          is_bounce?: boolean;
           message_id_header?: string | null;
           received_at?: string | null;
           references_headers?: string[] | null;
@@ -539,6 +546,13 @@ export type Database = {
             columns: ["agency_id"];
             isOneToOne: false;
             referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "email_messages_bounce_of_email_message_id_fkey";
+            columns: ["bounce_of_email_message_id"];
+            isOneToOne: false;
+            referencedRelation: "email_messages";
             referencedColumns: ["id"];
           },
           {
@@ -1026,6 +1040,51 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      regulatory_rules: {
+        Row: {
+          created_at: string;
+          effective_from: string | null;
+          effective_to: string | null;
+          id: string;
+          jurisdiction: string;
+          key: string;
+          needs_human_confirmation: boolean;
+          notes: string | null;
+          source_note: string;
+          source_url: string | null;
+          value: Json | null;
+          version: string;
+        };
+        Insert: {
+          created_at?: string;
+          effective_from?: string | null;
+          effective_to?: string | null;
+          id?: string;
+          jurisdiction?: string;
+          key: string;
+          needs_human_confirmation?: boolean;
+          notes?: string | null;
+          source_note: string;
+          source_url?: string | null;
+          value?: Json | null;
+          version: string;
+        };
+        Update: {
+          created_at?: string;
+          effective_from?: string | null;
+          effective_to?: string | null;
+          id?: string;
+          jurisdiction?: string;
+          key?: string;
+          needs_human_confirmation?: boolean;
+          notes?: string | null;
+          source_note?: string;
+          source_url?: string | null;
+          value?: Json | null;
+          version?: string;
+        };
+        Relationships: [];
       };
       tenancies: {
         Row: {
