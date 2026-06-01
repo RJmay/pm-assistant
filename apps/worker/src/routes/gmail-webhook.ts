@@ -176,63 +176,79 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
     }
   }
 
-  // ---- 9. Run the draft pipeline per persisted message ----
-  // Per-message failures are surfaced in the pipeline result and logged inside
-  // runDraftPipeline; we tally counts here for the audit metadata.
-  let draftsOk = 0;
-  let draftsSkipped = 0;
-  let draftsFailed = 0;
-  for (const row of persisted) {
-    const result = await runDraftPipeline(
-      supabase,
-      {
-        agencyId,
-        emailMessageId: row.emailMessageId,
-        threadId: row.threadId,
-        gmailThreadId: row.gmailThreadId,
-        fromAddress: row.parsed.from,
-        fromName: row.parsed.fromName ?? null,
-        toAddresses: row.parsed.to,
-        subject: row.parsed.subject,
-        bodyPlain: row.parsed.bodyPlain,
-        bodyHtml: row.parsed.bodyHtml,
-        receivedAt: row.parsed.receivedAt.toISOString(),
-      },
-      { anthropicApiKey: c.env.ANTHROPIC_API_KEY, env: c.env, logger: log },
-    );
-    if (result.kind === "ok") draftsOk += 1;
-    else if (result.kind === "skipped") draftsSkipped += 1;
-    else draftsFailed += 1;
-  }
+  // ---- 9 + 10. Draft pipeline + audit — run AFTER acking Pub/Sub ----
+  // Drafting calls the LLM (multi-second). Doing it before we respond risks
+  // blowing the Pub/Sub push acknowledgement deadline: Pub/Sub gives up and the
+  // request is canceled mid-draft — and since last_history_id has already
+  // advanced (step 8), the redelivery finds nothing and the draft is lost.
+  // So: ACK Pub/Sub immediately, finish the work in the background.
+  c.executionCtx.waitUntil(
+    (async () => {
+      let draftsOk = 0;
+      let draftsSkipped = 0;
+      let draftsFailed = 0;
+      try {
+        for (const row of persisted) {
+          const result = await runDraftPipeline(
+            supabase,
+            {
+              agencyId,
+              emailMessageId: row.emailMessageId,
+              threadId: row.threadId,
+              gmailThreadId: row.gmailThreadId,
+              fromAddress: row.parsed.from,
+              fromName: row.parsed.fromName ?? null,
+              toAddresses: row.parsed.to,
+              subject: row.parsed.subject,
+              bodyPlain: row.parsed.bodyPlain,
+              bodyHtml: row.parsed.bodyHtml,
+              receivedAt: row.parsed.receivedAt.toISOString(),
+            },
+            { anthropicApiKey: c.env.ANTHROPIC_API_KEY, env: c.env, logger: log },
+          );
+          if (result.kind === "ok") draftsOk += 1;
+          else if (result.kind === "skipped") draftsSkipped += 1;
+          else draftsFailed += 1;
+        }
 
-  // ---- 10. Audit log ----
-  await writeAuditLog(supabase, {
-    agency_id: agencyId,
-    actor_type: "system",
-    action: "gmail.pubsub.processed",
-    metadata: {
-      emailAddress: mailboxAddress,
-      historyId: payload.data.historyId,
-      messageId: envelope.data.message.messageId,
-      verified_email: claims.email,
-      messages_processed: persisted.length,
-      drafts_ok: draftsOk,
-      drafts_skipped: draftsSkipped,
-      drafts_failed: draftsFailed,
-      bounces_detected: bounceDetected,
-      bounces_matched: bounceMatched,
-    },
-  } satisfies AuditLogEntry);
+        await writeAuditLog(supabase, {
+          agency_id: agencyId,
+          actor_type: "system",
+          action: "gmail.pubsub.processed",
+          metadata: {
+            emailAddress: mailboxAddress,
+            historyId: payload.data.historyId,
+            messageId: envelope.data.message.messageId,
+            verified_email: claims.email,
+            messages_processed: persisted.length,
+            drafts_ok: draftsOk,
+            drafts_skipped: draftsSkipped,
+            drafts_failed: draftsFailed,
+            bounces_detected: bounceDetected,
+            bounces_matched: bounceMatched,
+          },
+        } satisfies AuditLogEntry);
 
-  log.info("gmail pubsub processed", {
-    agency_id: agencyId,
-    messages_processed: persisted.length,
-    drafts_ok: draftsOk,
-    drafts_skipped: draftsSkipped,
-    drafts_failed: draftsFailed,
-    bounces_detected: bounceDetected,
-    bounces_matched: bounceMatched,
-  });
+        log.info("gmail pubsub processed", {
+          agency_id: agencyId,
+          messages_processed: persisted.length,
+          drafts_ok: draftsOk,
+          drafts_skipped: draftsSkipped,
+          drafts_failed: draftsFailed,
+          bounces_detected: bounceDetected,
+          bounces_matched: bounceMatched,
+        });
+      } catch (err) {
+        // The response is already sent; a background failure must not throw.
+        log.error("background draft processing failed", {
+          agency_id: agencyId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    })(),
+  );
+
+  // ACK Pub/Sub right away; drafting continues in the background (above).
   return c.json({ ok: true, messages: persisted.length, bounces: bounceDetected }, 200);
 });
 

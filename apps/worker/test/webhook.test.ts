@@ -274,7 +274,17 @@ function makeApp() {
 }
 
 async function post(body: unknown, headers: Record<string, string>) {
-  return makeApp().request(
+  // The route ACKs Pub/Sub immediately and runs the draft pipeline + audit via
+  // executionCtx.waitUntil. Provide a ctx that collects those promises and drain
+  // them before the test asserts on the (now background) side effects.
+  const background: Promise<unknown>[] = [];
+  const ctx = {
+    waitUntil: (p: Promise<unknown>) => {
+      background.push(p);
+    },
+    passThroughOnException: () => {},
+  } as unknown as ExecutionContext;
+  const res = await makeApp().request(
     "/webhook/gmail",
     {
       method: "POST",
@@ -282,7 +292,10 @@ async function post(body: unknown, headers: Record<string, string>) {
       body: JSON.stringify(body),
     },
     env,
+    ctx,
   );
+  await Promise.all(background);
+  return res;
 }
 
 describe("POST /webhook/gmail", () => {
