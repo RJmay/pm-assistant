@@ -15,14 +15,11 @@ id = "d1b7dddd63234662ad0318024f60d266"
 preview_id = "7cf9bb3532bc46d7a98ee36af970ccc1"
 
 # KV namespace for the regulatory monitoring bot's per-source hash + content
-# snapshots (spec §12). Placeholder ids work for local Miniflare; before deploy:
-#   wrangler kv namespace create MONITORING_CACHE
-#   wrangler kv namespace create MONITORING_CACHE --preview
-# and replace the two ids below. TODO(phase-b): wire real ids.
+# snapshots (spec §12). Real namespace ids created 2026-06-01 (Phase B stage 4).
 [[kv_namespaces]]
 binding = "MONITORING_CACHE"
-id = "0000000000000000000000000000000a"
-preview_id = "0000000000000000000000000000000b"
+id = "93204ae9c1f749598c2fb76b6ea4df28"
+preview_id = "f36ef2768284458fa929880377c54474"
 
 # Cron triggers.
 #  - "0 13 * * *"  — daily 13:00 UTC. Refreshes Gmail users.watch subscriptions
