@@ -402,7 +402,7 @@ function fromAestToUtc(aestDate: Date): Date {
 }
 
 /**
- * Cron handler for the weekly drift trigger (`0 23 * * 0`). The top-level
+ * Cron handler for the weekly drift trigger (`0 23 * * SUN`). The top-level
  * scheduled dispatch in src/index.ts routes to this based on `controller.cron`.
  */
 export async function handleWeeklyDrift(

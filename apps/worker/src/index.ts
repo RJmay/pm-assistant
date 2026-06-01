@@ -32,7 +32,8 @@ app.route("/", regulatoryReview);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";
 const OWNER_DIGEST_CRON = "0 21 * * *";
-const WEEKLY_DRIFT_CRON = "0 23 * * 0";
+// Cloudflare's scheduler rejects `0` for Sunday in the day-of-week field; use SUN.
+const WEEKLY_DRIFT_CRON = "0 23 * * SUN";
 const REGULATORY_SCAN_CRON = "0 15 * * *";
 
 // Dispatch by cron pattern. ScheduledController.cron carries the literal
