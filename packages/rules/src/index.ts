@@ -45,6 +45,11 @@ export {
   NoFormForActionError,
   selectForm,
 } from "./forms";
+export type { EntryNoticeRequirements, RoutineInspectionWindow } from "./inspection";
+export {
+  earliestRoutineInspectionDate,
+  entryNoticeRequirements,
+} from "./inspection";
 export type { RentIncreaseAssessment, RentIncreaseQuery } from "./rent";
 // Domain logic
 export {

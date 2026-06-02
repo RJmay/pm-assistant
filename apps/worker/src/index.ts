@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { handleOwnerDigest } from "./cron/owner-digest";
 import { handleRefreshWatches } from "./cron/refresh-watches";
 import { handleRegulatoryScan } from "./cron/regulatory-scan";
+import { handleDailySequences } from "./cron/sequences";
 import { handleWeeklyDrift } from "./cron/weekly-drift";
 import type { WorkerBindings } from "./lib/env";
 import { createLogger } from "./lib/log";
@@ -35,6 +36,9 @@ const OWNER_DIGEST_CRON = "0 21 * * *";
 // Cloudflare's scheduler rejects `0` for Sunday in the day-of-week field; use SUN.
 const WEEKLY_DRIFT_CRON = "0 23 * * SUN";
 const REGULATORY_SCAN_CRON = "0 15 * * *";
+// 22:00 UTC = 08:00 AEST. Daily Phase 2 outbound-sequence sweep (lease-renewal,
+// inspection, arrears, owner-update — all idempotent; see cron/sequences.ts).
+const DAILY_SEQUENCES_CRON = "0 22 * * *";
 
 // Dispatch by cron pattern. ScheduledController.cron carries the literal
 // pattern that fired, so we route here rather than having each handler do
@@ -58,6 +62,10 @@ async function scheduled(
   }
   if (controller.cron === REGULATORY_SCAN_CRON) {
     await handleRegulatoryScan(controller, env);
+    return;
+  }
+  if (controller.cron === DAILY_SEQUENCES_CRON) {
+    await handleDailySequences(controller, env);
     return;
   }
   createLogger({ base: { request_id: crypto.randomUUID() } }).warn("unknown cron trigger", {

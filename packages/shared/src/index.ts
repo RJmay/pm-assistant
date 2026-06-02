@@ -30,6 +30,47 @@ export const submitDraftSchema = z.object({
 export type DraftSubmission = z.infer<typeof submitDraftSchema>;
 
 // ----------------------------------------------------------------------------
+// Outbound sequences (Phase 2, spec §8) — shared enums + contracts
+// ----------------------------------------------------------------------------
+// Sequences detect recurring OUTBOUND work on a schedule and draft it into the
+// same review queue as inbound replies. These mirror the Postgres enums in
+// migration 0012 (and `@pm/db` types) so worker + dashboard agree on the
+// vocabulary without importing the generated DB types everywhere.
+
+export const SEQUENCE_TYPES = ["arrears", "lease_renewal", "inspection", "owner_update"] as const;
+export const sequenceTypeSchema = z.enum(SEQUENCE_TYPES);
+export type SequenceType = z.infer<typeof sequenceTypeSchema>;
+
+export const SEQUENCE_RUN_STATES = [
+  "pending",
+  "active",
+  "awaiting_response",
+  "completed",
+  "cancelled",
+  "escalated",
+] as const;
+export const sequenceRunStateSchema = z.enum(SEQUENCE_RUN_STATES);
+export type SequenceRunState = z.infer<typeof sequenceRunStateSchema>;
+
+export const DRAFT_SOURCES = ["inbound_reply", "sequence"] as const;
+export const draftSourceSchema = z.enum(DRAFT_SOURCES);
+export type DraftSource = z.infer<typeof draftSourceSchema>;
+
+/**
+ * One append-only entry in `sequence_runs.history` — a breadcrumb of what the
+ * scanner did each step, so a run is auditable end to end without reading the
+ * audit log.
+ */
+export const sequenceHistoryEntrySchema = z.object({
+  at: z.string(),
+  step: z.number().int(),
+  action: z.string(),
+  draft_id: z.string().optional(),
+  note: z.string().optional(),
+});
+export type SequenceHistoryEntry = z.infer<typeof sequenceHistoryEntrySchema>;
+
+// ----------------------------------------------------------------------------
 // Errors
 // ----------------------------------------------------------------------------
 

@@ -11,7 +11,7 @@ import { resolveSendIdentity } from "../services/send-identity";
 import { type AuditLogEntry, createServiceClient, writeAuditLog } from "../services/supabase";
 
 // ============================================================================
-// POST /api/drafts/:id/send  — approve & send a draft reply (M9)
+// POST /api/drafts/:id/send  — approve & send a draft (M9 + Phase 2)
 // ============================================================================
 // The dashboard's "Approve & Send" calls this with the user's Supabase access
 // token (Bearer) and the (possibly edited) { subject, body }. We:
@@ -19,10 +19,15 @@ import { type AuditLogEntry, createServiceClient, writeAuditLog } from "../servi
 //   2. resolve the caller to an active agency_users row
 //   3. load the draft (agency-scoped); 404 if missing
 //   4. authorise: assigned PM, or unassigned
-//   5. guard state: only pending/edited can be sent
-//   6. capture a draft_edits row if the body/subject changed on send
-//   7. send in-thread via the AGENCY mailbox (see services/send-identity.ts)
-//   8. persist the outbound email_messages row BEFORE flipping status (so a
+//   5. guard state: only pending/edited can be sent; hard-gate do_not_send
+//   6. resolve the send target:
+//        - inbound-reply draft (has email_message_id) → reply IN-THREAD to the
+//          inbound message (In-Reply-To/References, existing thread)
+//        - sequence draft (draft_source='sequence') → NEW outbound email to the
+//          draft's own recipient, in a fresh thread, no In-Reply-To
+//   7. capture a draft_edits row if the body/subject changed on send
+//   8. send via the AGENCY mailbox (see services/send-identity.ts)
+//   9. persist the outbound email_messages row BEFORE flipping status (so a
 //      bounce can always link back), then mark the draft sent + audit-log.
 // Every query is explicitly scoped by agencyId because the service-role client
 // bypasses RLS.
@@ -98,7 +103,7 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
     const { data: draft, error: draftErr } = await supabase
       .from("ai_drafts")
       .select(
-        "id, email_message_id, draft_subject, draft_body, status, assigned_pm_id, do_not_send",
+        "id, email_message_id, draft_source, recipient_email, recipient_name, property_id, draft_subject, draft_body, status, assigned_pm_id, do_not_send",
       )
       .eq("agency_id", agencyId)
       .eq("id", draftId)
@@ -134,39 +139,66 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
       );
     }
 
-    // ---- 7. Load inbound message (threading + recipient) ----
-    const { data: inbound, error: inErr } = await supabase
-      .from("email_messages")
-      .select("thread_id, from_address, message_id_header, references_headers")
-      .eq("agency_id", agencyId)
-      .eq("id", draft.email_message_id)
-      .maybeSingle();
-    if (inErr) {
-      log.error("inbound email_messages lookup failed", { error: inErr.message });
-      return c.json({ error: "internal" }, 500);
-    }
-    if (!inbound) {
-      return c.json({ error: "inbound message not found" }, 404);
+    // ---- 7. Resolve the send target (inbound reply vs outbound sequence) ----
+    // An inbound-reply draft replies in-thread to its inbound message. A
+    // sequence draft (draft_source='sequence') is a NEW outbound email to its
+    // own recipient — no inbound message, no In-Reply-To, a fresh thread.
+    const isSequence = draft.email_message_id === null;
+    let recipient: string;
+    let inReplyTo: string | undefined;
+    let references: string[] = [];
+    let inboundThreadDbId: string | null = null;
+    let inboundThreadGmailId: string | undefined;
+
+    if (!isSequence) {
+      const { data: inbound, error: inErr } = await supabase
+        .from("email_messages")
+        .select("thread_id, from_address, message_id_header, references_headers")
+        .eq("agency_id", agencyId)
+        .eq("id", draft.email_message_id as string)
+        .maybeSingle();
+      if (inErr) {
+        log.error("inbound email_messages lookup failed", { error: inErr.message });
+        return c.json({ error: "internal" }, 500);
+      }
+      if (!inbound) {
+        return c.json({ error: "inbound message not found" }, 404);
+      }
+      recipient = inbound.from_address;
+      inReplyTo = inbound.message_id_header ?? undefined;
+      references = [...(inbound.references_headers ?? [])];
+      if (inbound.message_id_header && !references.includes(inbound.message_id_header)) {
+        references.push(inbound.message_id_header);
+      }
+      inboundThreadDbId = inbound.thread_id;
+    } else {
+      if (!draft.recipient_email) {
+        return c.json({ error: "sequence draft has no recipient address" }, 409);
+      }
+      recipient = draft.recipient_email;
     }
 
-    // ---- 8. Sending mailbox + agency name + thread gmail id ----
-    const [{ data: agency }, { data: state }, { data: thread }] = await Promise.all([
+    // ---- 8. Sending mailbox + agency name (+ thread gmail id for replies) ----
+    const [{ data: agency }, { data: state }, threadRes] = await Promise.all([
       supabase.from("agencies").select("name").eq("id", agencyId).maybeSingle(),
       supabase
         .from("agency_email_state")
         .select("mailbox_address")
         .eq("agency_id", agencyId)
         .maybeSingle(),
-      supabase
-        .from("email_threads")
-        .select("gmail_thread_id")
-        .eq("agency_id", agencyId)
-        .eq("id", inbound.thread_id)
-        .maybeSingle(),
+      inboundThreadDbId
+        ? supabase
+            .from("email_threads")
+            .select("gmail_thread_id")
+            .eq("agency_id", agencyId)
+            .eq("id", inboundThreadDbId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     if (!state?.mailbox_address) {
       return c.json({ error: "agency mailbox is not configured" }, 409);
     }
+    inboundThreadGmailId = threadRes.data?.gmail_thread_id ?? undefined;
 
     // ---- 9. Capture a draft_edits row if the content changed on send ----
     if (finalSubject !== (draft.draft_subject ?? "") || finalBody !== (draft.draft_body ?? "")) {
@@ -199,11 +231,6 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
     }
 
     // ---- 11. Build the raw RFC 5322 message ----
-    const recipient = inbound.from_address;
-    const references = [...(inbound.references_headers ?? [])];
-    if (inbound.message_id_header && !references.includes(inbound.message_id_header)) {
-      references.push(inbound.message_id_header);
-    }
     const domain = state.mailbox_address.split("@")[1] ?? "pm-assistant.local";
     const built = buildRawMessage({
       fromAddress: identity.fromAddress,
@@ -211,20 +238,20 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
       to: [recipient],
       subject: finalSubject,
       bodyText: finalBody,
-      inReplyTo: inbound.message_id_header,
+      inReplyTo,
       references,
       messageId: `<${crypto.randomUUID()}@${domain}>`,
       date: new Date(),
     });
 
-    // ---- 12. Send via Gmail (in-thread) ----
+    // ---- 12. Send via Gmail (in-thread for replies, new thread otherwise) ----
     let sent: Awaited<ReturnType<typeof usersMessagesSend>>;
     try {
       const sendOpts: { accessToken: string; raw: string; threadId?: string } = {
         accessToken: identity.accessToken,
         raw: built.raw,
       };
-      if (thread?.gmail_thread_id) sendOpts.threadId = thread.gmail_thread_id;
+      if (inboundThreadGmailId) sendOpts.threadId = inboundThreadGmailId;
       sent = await usersMessagesSend(sendOpts);
     } catch (err) {
       // Send failed => the draft is NOT marked sent (fail-safe). The PM can retry.
@@ -237,34 +264,69 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
       return c.json({ error: "the email could not be sent" }, 502);
     }
 
-    // ---- 13. Persist outbound message BEFORE flipping status (bounce linkage) ----
+    // ---- 13. Resolve the DB thread to file the outbound message under -------
+    // Replies file under the existing inbound thread. A new outbound email gets
+    // a thread row keyed on the Gmail thread id Gmail just assigned (upsert so a
+    // later reply in the same thread reuses it). Best-effort: if we can't get a
+    // thread id, we skip persisting the message but still mark the draft sent —
+    // the email already went out, so never double-send.
     const nowIso = new Date().toISOString();
-    const { error: outErr } = await supabase.from("email_messages").insert({
-      agency_id: agencyId,
-      thread_id: inbound.thread_id,
-      gmail_message_id: sent.id,
-      direction: "outbound",
-      from_address: identity.fromAddress,
-      from_name: identity.fromDisplayName,
-      to_addresses: [recipient] as unknown as Json,
-      subject: finalSubject,
-      body_plain: finalBody,
-      message_id_header: built.messageId,
-      in_reply_to: inbound.message_id_header,
-      references_headers: references,
-      sent_at: nowIso,
-    });
-    if (outErr) {
-      // The message WAS sent; we just failed to record it. Log loudly and carry
-      // on to mark the draft sent so the PM doesn't double-send.
-      log.error("outbound email_messages insert failed (message already sent)", {
-        draft_id: draft.id,
-        gmail_message_id: sent.id,
-        error: outErr.message,
-      });
+    let outboundThreadDbId: string | null = inboundThreadDbId;
+    if (isSequence) {
+      const { data: threadRow, error: thErr } = await supabase
+        .from("email_threads")
+        .upsert(
+          {
+            agency_id: agencyId,
+            gmail_thread_id: sent.threadId,
+            subject: finalSubject,
+            property_id: draft.property_id,
+            last_message_at: nowIso,
+          },
+          { onConflict: "agency_id,gmail_thread_id" },
+        )
+        .select("id")
+        .maybeSingle();
+      if (thErr || !threadRow) {
+        log.error("email_threads upsert failed for outbound send (message already sent)", {
+          draft_id: draft.id,
+          gmail_message_id: sent.id,
+          error: thErr?.message,
+        });
+      } else {
+        outboundThreadDbId = threadRow.id;
+      }
     }
 
-    // ---- 14. Mark the draft sent (claim it if it was unassigned) ----
+    // ---- 14. Persist outbound message BEFORE flipping status (bounce linkage) ----
+    if (outboundThreadDbId) {
+      const { error: outErr } = await supabase.from("email_messages").insert({
+        agency_id: agencyId,
+        thread_id: outboundThreadDbId,
+        gmail_message_id: sent.id,
+        direction: "outbound",
+        from_address: identity.fromAddress,
+        from_name: identity.fromDisplayName,
+        to_addresses: [recipient] as unknown as Json,
+        subject: finalSubject,
+        body_plain: finalBody,
+        message_id_header: built.messageId,
+        in_reply_to: inReplyTo ?? null,
+        references_headers: references,
+        sent_at: nowIso,
+      });
+      if (outErr) {
+        // The message WAS sent; we just failed to record it. Log loudly and
+        // carry on to mark the draft sent so the PM doesn't double-send.
+        log.error("outbound email_messages insert failed (message already sent)", {
+          draft_id: draft.id,
+          gmail_message_id: sent.id,
+          error: outErr.message,
+        });
+      }
+    }
+
+    // ---- 15. Mark the draft sent (claim it if it was unassigned) ----
     const draftUpdate: {
       status: "sent";
       sent_at: string;
@@ -295,7 +357,7 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
       });
     }
 
-    // ---- 15. Audit ----
+    // ---- 16. Audit ----
     await writeAuditLog(supabase, {
       agency_id: agencyId,
       actor_type: "user",
@@ -304,8 +366,9 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
       entity_type: "ai_drafts",
       entity_id: draft.id,
       metadata: {
+        draft_source: draft.draft_source,
         gmail_message_id: sent.id,
-        gmail_thread_id: thread?.gmail_thread_id ?? null,
+        gmail_thread_id: sent.threadId,
         message_id_header: built.messageId,
         to: recipient,
         from: identity.fromAddress,

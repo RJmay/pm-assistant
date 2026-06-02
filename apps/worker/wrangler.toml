@@ -37,5 +37,8 @@ preview_id = "f36ef2768284458fa929880377c54474"
 #    metric shifts cross the threshold.
 #  - "0 15 * * *"  — daily 15:00 UTC = 01:00 AEST. Regulatory monitoring scan:
 #    hash-and-diffs QLD sources, raises a `regulatory_alerts` row on a change.
+#  - "0 22 * * *"  — daily 22:00 UTC = 08:00 AEST. Phase 2 outbound-sequence
+#    sweep: runs the lease-renewal, inspection, arrears, and owner-update
+#    scanners (all idempotent) under one trigger — see cron/sequences.ts.
 [triggers]
-crons = ["0 13 * * *", "0 21 * * *", "0 23 * * SUN", "0 15 * * *"]
+crons = ["0 13 * * *", "0 21 * * *", "0 23 * * SUN", "0 15 * * *", "0 22 * * *"]

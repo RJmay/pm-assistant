@@ -919,3 +919,143 @@ alter table regulatory_alerts enable row level security;
 create policy regulatory_alerts_read on regulatory_alerts
   for select
   using (auth.uid() is not null);
+
+-- ============================================================================
+-- OUTBOUND SEQUENCES (added in migration 0012) — Phase 2, spec §8
+-- ============================================================================
+-- Proactive outbound work (arrears, lease renewals, inspections, owner
+-- updates) is detected on a schedule and drafted into the SAME review queue
+-- as inbound replies — still human-sent (§13). An outbound draft is an
+-- ai_drafts row with no inbound email_message_id and a recipient of its own.
+-- `sequences` holds per-agency enablement/config; `sequence_runs` is one
+-- durable, idempotent run per detected cycle (unique on dedupe_key).
+-- ============================================================================
+
+create type draft_source as enum ('inbound_reply', 'sequence');
+
+alter table ai_drafts
+  alter column email_message_id drop not null;
+
+alter table ai_drafts
+  add column draft_source draft_source not null default 'inbound_reply',
+  add column sequence_run_id uuid,
+  add column recipient_email text,
+  add column recipient_name text,
+  add column tenancy_id uuid references tenancies(id) on delete set null,
+  add column property_id uuid references properties(id) on delete set null;
+
+alter table ai_drafts
+  add constraint ai_drafts_source_shape check (
+    (draft_source = 'inbound_reply' and email_message_id is not null)
+    or (draft_source = 'sequence' and recipient_email is not null)
+  );
+
+create index idx_ai_drafts_sequence_run on ai_drafts(sequence_run_id)
+  where sequence_run_id is not null;
+
+create type sequence_type as enum (
+  'arrears',
+  'lease_renewal',
+  'inspection',
+  'owner_update'
+);
+
+create type sequence_run_state as enum (
+  'pending',
+  'active',
+  'awaiting_response',
+  'completed',
+  'cancelled',
+  'escalated'
+);
+
+create table sequences (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  type sequence_type not null,
+  config jsonb not null default '{}'::jsonb,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (agency_id, type)
+);
+
+create index idx_sequences_agency_active on sequences(agency_id) where is_active;
+
+create table sequence_runs (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  sequence_id uuid references sequences(id) on delete set null,
+  type sequence_type not null,
+  tenancy_id uuid references tenancies(id) on delete cascade,
+  property_id uuid references properties(id) on delete set null,
+  owner_id uuid references owners(id) on delete cascade,
+  dedupe_key text not null,
+  state sequence_run_state not null default 'pending',
+  step integer not null default 0,
+  next_action_at timestamptz,
+  history jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (agency_id, dedupe_key)
+);
+
+create index idx_sequence_runs_agency_state on sequence_runs(agency_id, state);
+create index idx_sequence_runs_next_action on sequence_runs(next_action_at)
+  where state in ('active', 'awaiting_response');
+
+alter table ai_drafts
+  add constraint ai_drafts_sequence_run_id_fkey
+  foreign key (sequence_run_id) references sequence_runs(id) on delete set null;
+
+create trigger trg_sequences_updated_at
+  before update on sequences
+  for each row execute function tg_set_updated_at();
+
+create trigger trg_sequence_runs_updated_at
+  before update on sequence_runs
+  for each row execute function tg_set_updated_at();
+
+alter table sequences enable row level security;
+alter table sequence_runs enable row level security;
+
+create policy tenant_isolation on sequences
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create policy tenant_isolation on sequence_runs
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+-- ============================================================================
+-- ROUTINE INSPECTION TRACKING (added in migration 0013) — Phase 2, spec §8
+-- ============================================================================
+-- Last routine-inspection date per tenancy, so the inspection-scheduling
+-- sequence can detect the next inspection falling due. Null → the scanner
+-- uses the tenancy start_date as the baseline.
+-- ============================================================================
+
+alter table tenancies
+  add column last_routine_inspection_date date;
+
+create index idx_tenancies_inspection_due
+  on tenancies(agency_id, last_routine_inspection_date)
+  where status = 'active';
+
+-- ============================================================================
+-- ARREARS FLAG (added in migration 0014) — Phase 2, spec §8
+-- ============================================================================
+-- Manual arrears flag (no payment feed yet). A PM sets `arrears_since` to the
+-- date rent fell into arrears; the arrears sequence drafts a courtesy reminder.
+-- The statutory Form 11 threshold is intentionally NOT encoded (not in the
+-- rules-engine seed) — escalation stays a PM decision.
+-- ============================================================================
+
+alter table tenancies
+  add column arrears_since date;
+
+create index idx_tenancies_arrears
+  on tenancies(agency_id, arrears_since)
+  where arrears_since is not null;

@@ -24,3 +24,27 @@ export type {
   VoiceSample,
 } from "./render";
 export { activeLeanNotes, renderLeanNotes } from "./render";
+// Template engine + outbound-sequence templates (spec §5b / §8)
+export {
+  ARREARS_TEMPLATE,
+  type ArrearsInput,
+  type BuiltDraft,
+  buildArrearsDraft,
+  buildInspectionDraft,
+  buildLeaseRenewalDraft,
+  buildOwnerUpdateDraft,
+  humanDate,
+  INSPECTION_TEMPLATE,
+  type InspectionInput,
+  LEASE_RENEWAL_TEMPLATE,
+  type LeaseRenewalInput,
+  MissingTemplateVariableError,
+  OWNER_UPDATE_TEMPLATE,
+  type OwnerUpdateInput,
+  type RenderedTemplate,
+  type RentReviewWindow,
+  renderTemplate,
+  type Template,
+  type TemplateVars,
+  UnresolvedTemplateSlotError,
+} from "./templates";

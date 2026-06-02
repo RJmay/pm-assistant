@@ -12,6 +12,7 @@ import type { QueueItem } from "./types";
 function item(overrides: Partial<QueueItem> = {}): QueueItem {
   return {
     id: "d1",
+    draft_source: "inbound_reply",
     category: "MAINTENANCE",
     priority: "STANDARD",
     escalation_flag: "NONE",

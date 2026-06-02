@@ -2,11 +2,14 @@ import type { Client } from "@pm/db";
 import type { QueueItem } from "$lib/types";
 
 const DRAFT_COLUMNS =
-  "id, email_message_id, category, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, match_confidence, status, assigned_pm_id, bounced_at, draft_subject, created_at";
+  "id, email_message_id, draft_source, recipient_email, recipient_name, category, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, match_confidence, status, assigned_pm_id, bounced_at, draft_subject, created_at";
 
 interface DraftRow {
   id: string;
-  email_message_id: string;
+  email_message_id: string | null;
+  draft_source: QueueItem["draft_source"];
+  recipient_email: string | null;
+  recipient_name: string | null;
   category: QueueItem["category"];
   priority: QueueItem["priority"];
   escalation_flag: QueueItem["escalation_flag"];
@@ -30,22 +33,34 @@ interface MessageRow {
   received_at: string | null;
 }
 
-/** Join draft rows to their inbound email_messages and flatten to QueueItem. */
+/**
+ * Flatten draft rows to QueueItem. Inbound-reply drafts join to their inbound
+ * email_messages row for sender/subject; sequence (outbound) drafts have no
+ * inbound message, so the counterparty shown is the RECIPIENT and the subject
+ * is the draft's own subject.
+ */
 async function project(client: Client, agencyId: string, drafts: DraftRow[]): Promise<QueueItem[]> {
   if (drafts.length === 0) return [];
-  const messageIds = drafts.map((d) => d.email_message_id);
-  const { data: messages, error } = await client
-    .from("email_messages")
-    .select("id, from_name, from_address, subject, received_at")
-    .eq("agency_id", agencyId)
-    .in("id", messageIds);
-  if (error) throw new Error(`email_messages fetch failed: ${error.message}`);
+  const messageIds = drafts
+    .map((d) => d.email_message_id)
+    .filter((id): id is string => id !== null);
+  let byId = new Map<string, MessageRow>();
+  if (messageIds.length > 0) {
+    const { data: messages, error } = await client
+      .from("email_messages")
+      .select("id, from_name, from_address, subject, received_at")
+      .eq("agency_id", agencyId)
+      .in("id", messageIds);
+    if (error) throw new Error(`email_messages fetch failed: ${error.message}`);
+    byId = new Map<string, MessageRow>((messages ?? []).map((m) => [m.id, m as MessageRow]));
+  }
 
-  const byId = new Map<string, MessageRow>((messages ?? []).map((m) => [m.id, m as MessageRow]));
   return drafts.map((d) => {
-    const m = byId.get(d.email_message_id);
+    const m = d.email_message_id ? byId.get(d.email_message_id) : undefined;
+    const isSequence = d.draft_source === "sequence";
     return {
       id: d.id,
+      draft_source: d.draft_source,
       category: d.category,
       priority: d.priority,
       escalation_flag: d.escalation_flag,
@@ -59,10 +74,13 @@ async function project(client: Client, agencyId: string, drafts: DraftRow[]): Pr
       bounced_at: d.bounced_at,
       draft_subject: d.draft_subject,
       created_at: d.created_at,
-      from_name: m?.from_name ?? null,
-      from_address: m?.from_address ?? "(unknown sender)",
-      subject: m?.subject ?? null,
-      received_at: m?.received_at ?? null,
+      // For sequence drafts the "counterparty" is the recipient we're writing to.
+      from_name: isSequence ? d.recipient_name : (m?.from_name ?? null),
+      from_address: isSequence
+        ? (d.recipient_email ?? "(no recipient)")
+        : (m?.from_address ?? "(unknown sender)"),
+      subject: isSequence ? d.draft_subject : (m?.subject ?? null),
+      received_at: isSequence ? d.created_at : (m?.received_at ?? null),
     } satisfies QueueItem;
   });
 }

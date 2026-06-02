@@ -31,7 +31,11 @@ interface SendState {
   pm: { id: string; full_name: string; active: boolean } | null;
   draft: {
     id: string;
-    email_message_id: string;
+    email_message_id: string | null;
+    draft_source: "inbound_reply" | "sequence";
+    recipient_email: string | null;
+    recipient_name: string | null;
+    property_id: string | null;
     draft_subject: string | null;
     draft_body: string | null;
     status: string;
@@ -50,6 +54,7 @@ interface SendState {
   outboundInsertError: { message: string } | null;
   editInserts: Array<Record<string, unknown>>;
   outboundInserts: Array<Record<string, unknown>>;
+  threadUpserts: Array<Record<string, unknown>>;
   draftUpdates: Array<Record<string, unknown>>;
 }
 
@@ -102,7 +107,17 @@ function makeClient(s: SendState) {
         case "agency_email_state":
           return { select: () => selectChain({ data: s.emailState, error: null }) };
         case "email_threads":
-          return { select: () => selectChain({ data: s.thread, error: null }) };
+          return {
+            select: () => selectChain({ data: s.thread, error: null }),
+            upsert: (row: Record<string, unknown>) => {
+              s.threadUpserts.push(row);
+              return {
+                select: () => ({
+                  maybeSingle: async () => ({ data: { id: "new-thread-db-1" }, error: null }),
+                }),
+              };
+            },
+          };
         case "draft_edits":
           return {
             insert: (row: Record<string, unknown>) => {
@@ -157,6 +172,10 @@ beforeEach(() => {
     draft: {
       id: "draft-1",
       email_message_id: "msg-1",
+      draft_source: "inbound_reply",
+      recipient_email: null,
+      recipient_name: null,
+      property_id: null,
       draft_subject: "Re: leaking tap",
       draft_body: "Original body",
       status: "pending",
@@ -175,6 +194,7 @@ beforeEach(() => {
     outboundInsertError: null,
     editInserts: [],
     outboundInserts: [],
+    threadUpserts: [],
     draftUpdates: [],
   };
   currentClient = makeClient(state);
@@ -271,5 +291,72 @@ describe("POST /api/drafts/:id/send", () => {
     if (state.draft) state.draft.assigned_pm_id = "pm-1";
     const res = await post("draft-1", { subject: "s", body: "b" }, await token());
     expect(res.status).toBe(200);
+  });
+
+  // --- Outbound (sequence) drafts -------------------------------------------
+
+  it("sends an outbound sequence draft as a new email (new thread, no In-Reply-To)", async () => {
+    state.draft = {
+      id: "draft-1",
+      email_message_id: null,
+      draft_source: "sequence",
+      recipient_email: "alex.tan@example.com",
+      recipient_name: "Alex Tan",
+      property_id: "prop-1",
+      draft_subject: "Your tenancy — renewal",
+      draft_body: "Hi Alex, your lease is ending…",
+      status: "pending",
+      assigned_pm_id: null,
+      do_not_send: false,
+    };
+    const res = await post(
+      "draft-1",
+      { subject: "Your tenancy — renewal", body: "Hi Alex, your lease is ending…" },
+      await token(),
+    );
+    expect(res.status).toBe(200);
+
+    // New email: no threadId passed to Gmail (it starts a fresh thread).
+    expect(usersMessagesSendMock).toHaveBeenCalledTimes(1);
+    expect(usersMessagesSendMock.mock.calls[0]?.[0]?.threadId).toBeUndefined();
+
+    // A thread row is upserted on the Gmail thread id Gmail just assigned.
+    expect(state.threadUpserts).toHaveLength(1);
+    expect(state.threadUpserts[0]).toMatchObject({
+      gmail_thread_id: "gmail-thread-1",
+      property_id: "prop-1",
+    });
+
+    // Outbound message filed under the new thread, addressed to the recipient,
+    // with no In-Reply-To (it's not a reply).
+    expect(state.outboundInserts).toHaveLength(1);
+    expect(state.outboundInserts[0]).toMatchObject({
+      direction: "outbound",
+      thread_id: "new-thread-db-1",
+      to_addresses: ["alex.tan@example.com"],
+      in_reply_to: null,
+    });
+
+    expect(state.draftUpdates[0]).toMatchObject({ status: "sent" });
+  });
+
+  it("409s an outbound sequence draft that has no recipient address", async () => {
+    state.draft = {
+      id: "draft-1",
+      email_message_id: null,
+      draft_source: "sequence",
+      recipient_email: null,
+      recipient_name: null,
+      property_id: null,
+      draft_subject: "s",
+      draft_body: "b",
+      status: "pending",
+      assigned_pm_id: null,
+      do_not_send: false,
+    };
+    const res = await post("draft-1", { subject: "s", body: "b" }, await token());
+    expect(res.status).toBe(409);
+    expect(usersMessagesSendMock).not.toHaveBeenCalled();
+    expect(state.outboundInserts).toHaveLength(0);
   });
 });

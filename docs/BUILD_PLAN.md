@@ -1,10 +1,14 @@
 # BUILD_PLAN.md
 
-> **STATUS (2026-06-02): Phase 1 COMPLETE + LIVE.** Milestones M0–M10 are built and
-> Phase B (runtime bring-up) is done — the system is deployed, hosted on Cloudflare +
-> Supabase, and auto-deploying from `main`. See **`HANDOFF.md`** for live URLs, wiring,
-> and real-pilot follow-ups. The per-milestone DoDs below are historical; the runtime
-> DoDs (M5–M10) are now satisfied in production. Phase 2 not started.
+> **STATUS (2026-06-02): Phase 1 COMPLETE + LIVE. Phase 2 (outbound sequences) CODE COMPLETE.**
+> Milestones M0–M10 are built and Phase B (runtime bring-up) is done — the system is
+> deployed, hosted on Cloudflare + Supabase, and auto-deploying from `main`. See
+> **`HANDOFF.md`** for live URLs and **`docs/PHASE_2_OUTBOUND.md`** for the Phase 2
+> sequences. Phase 2 = the master spec's §8 proactive outbound sequences
+> (lease-renewal, inspection scheduling, owner updates, arrears) — all four drafted-and-
+> queued into the existing review queue, still human-sent. Code + tests green; runtime
+> DoD (real tenancies/owners + a live send) pending the same data bring-up as Phase 1.
+> See the **Phase 2** section below.
 
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
 
@@ -327,16 +331,69 @@ Make it usable for the pilot agency.
 
 ---
 
-## Future milestones (Phase 2+)
+## Phase 2 — Proactive outbound sequences `[DONE — code complete, runtime DoD pending live data]`
 
-Listed here for planning — do not start without explicit direction.
+Master spec §8. Automate the recurring *outbound* work — detected on a schedule, drafted
+into the SAME review queue as inbound replies (`ai_drafts.draft_source='sequence'`), still
+human-sent (§13). Built on Cloudflare Cron Triggers + Supabase state tables (NOT Inngest —
+per the committed stack), reusing the existing queue → edit → send → audit → realtime stack.
+All four scanners run under **one daily cron** (`0 22 * * *`) via `cron/sequences.ts`, to stay
+under Cloudflare's cron-trigger cap. Full handoff: **`docs/PHASE_2_OUTBOUND.md`**.
 
-- Maintenance job tracker (drafts → jobs → tradie dispatch)
-- Tradie portal (accept/complete/invoice)
-- Owner portal (read-only)
-- Tenant portal (log requests, view tenancy details)
-- Form generation (Form 9, 11, 12, 13, 22, 23, R12 — PDF, prefilled)
-- Inspection scheduling + report templates
-- Listings & leasing pipeline
-- Lease lifecycle (Form 18a, renewals, rent reviews, end-of-tenancy)
-- Trust accounting (only after design review + compliance plan)
+**Status:** All code is written and `pnpm exec biome check .` + `pnpm -r typecheck` +
+`pnpm -r test` pass (rules 68, prompts 42, shared 1, web 43, worker 257; db 3 skipped).
+
+**Tasks (done):**
+- **Foundation** — migration `0012`: `ai_drafts.email_message_id` made nullable + a
+  `draft_source` enum (`inbound_reply`|`sequence`), `sequence_run_id`, `recipient_email/name`,
+  `tenancy_id`, `property_id` on `ai_drafts`; new `sequences` (per-agency enablement/config)
+  + `sequence_runs` (one idempotent run per cycle, unique on `dedupe_key`) + enums + RLS.
+  `@pm/shared` sequence enums/contracts; `@pm/db` types hand-edited.
+- **Template engine** (`@pm/prompts/templates`, spec §5b) — deterministic `{{slot}}` merge
+  that refuses to emit a half-merged message; one vetted template per sequence. No LLM →
+  no hallucination, encodes compliant language.
+- **Lease-renewal** — `cron/lease-renewal.ts` (daily): fixed-term tenancies within the lead
+  window → compliant rent-review window from `@pm/rules` (never a rent figure) → renewal-offer
+  draft. Outbound drafts made reviewable (queue/detail null-inbound handling) and sendable
+  (`/api/drafts/:id/send` outbound branch: new email, new thread, no In-Reply-To).
+- **Inspection scheduling** — `cron/inspection.ts` (daily): routine inspections falling due →
+  compliant proposed entry date from `@pm/rules` (7-day Form 9 notice + 3-month frequency cap)
+  → scheduling draft. Migration `0013` adds `tenancies.last_routine_inspection_date`. New
+  `@pm/rules` `earliestRoutineInspectionDate` / `entryNoticeRequirements`.
+- **Owner month-end updates** — `cron/owner-update.ts` (monthly): one summary draft per owner
+  from last month's activity on their properties.
+- **Arrears** — `cron/arrears.ts` (daily): one courtesy reminder per manually-flagged arrears
+  episode (migration `0014` adds `tenancies.arrears_since`). Escalation to the PM is an
+  operational policy threshold (configurable), NOT a statutory assertion — the Form 11 call
+  stays with the PM (the threshold isn't in the rules seed; we never invent a regulatory fact).
+
+**Deferred (intentional, surfaced now):**
+- Multi-step chasers (follow-up reminders / response tracking) per sequence — v1 drafts one
+  message per cycle; `sequence_runs.next_action_at` + state machine are in place for this.
+- CRM payment feed for arrears (manual `arrears_since` flag for v1; CRM adapter is later).
+- Seeding the statutory arrears threshold (Form 11, 7-day) into `@pm/rules` so arrears can
+  compute the eligibility date instead of deferring entirely to the PM.
+- Per-agency sequence config UI (sequences are enabled-by-default; `sequences.config` is
+  DB-edited for now — `lead_days`, `interval_months`, `escalate_after_days`).
+
+**Definition of done:** (runtime pending live data)
+- A real upcoming expiry / due inspection / flagged arrears / month-end produces a correctly
+  timed, compliant draft in the queue, idempotently (re-scans are no-ops).
+- An outbound sequence draft sends as a new email from the agency mailbox and is recorded.
+
+---
+
+## Future milestones (Phase 3+)
+
+Listed here for planning — do not start without explicit direction. (Phase 2 = outbound
+sequences, above, is done.)
+
+- **Phase 3 — Maintenance coordination** (spec §9): request → triage (s214) → tradie quote
+  requests → owner approval (spending authority) → scheduling → close-out. Tradie portal.
+- **Phase 4 — Document + compliance engine** (spec §10): generate QLD statutory PDFs
+  (Form 9, 11, 12, 13, R12) from data + rules engine, stored with the rule version used.
+- **Phase 5 — Voice/SMS front door** (spec §11): SMS/voice auto-responder for routine status
+  queries; everything else captured + queued.
+- Owner portal (read-only) / Tenant portal (log requests, view tenancy details).
+- Listings & leasing pipeline; lease lifecycle (Form 18a, renewals, rent reviews, EOT).
+- Trust accounting (only after design review + compliance plan).

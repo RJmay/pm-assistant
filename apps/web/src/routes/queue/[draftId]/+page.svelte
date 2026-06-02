@@ -26,6 +26,8 @@
 
   let { data }: { data: PageData } = $props();
 
+  const isSequence = $derived(data.draft.draft_source === "sequence");
+
   // Editable copy, resynced when navigating to a different draft. The
   // initializers intentionally seed from the loaded draft (for correct SSR
   // values); the $effect below handles re-syncing on client-side nav.
@@ -87,7 +89,7 @@
   }
 </script>
 
-<svelte:head><title>{data.message?.subject ?? "Draft"} · PM Assistant</title></svelte:head>
+<svelte:head><title>{data.message?.subject ?? data.draft.draft_subject ?? "Draft"} · PM Assistant</title></svelte:head>
 
 <div class="space-y-4">
   <a href="/queue" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -105,41 +107,71 @@
     {#if data.draft.safety_critical}<Badge variant="destructive">Safety critical</Badge>{/if}
     {#if data.draft.emergency_landlord_alert}<Badge variant="destructive">Landlord alert</Badge>{/if}
     {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
+    {#if isSequence}<Badge variant="secondary">Outbound sequence</Badge>{/if}
     <Badge variant="secondary">Status: {data.draft.status}</Badge>
   </div>
 
   <div class="grid gap-4 lg:grid-cols-2">
-    <!-- Inbound email -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">Inbound email</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        {#if data.message}
+    {#if isSequence}
+      <!-- Outbound (sequence) context — no inbound email to show -->
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-base">Outbound message</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
           <div class="space-y-1 text-sm">
             <p>
-              <span class="text-muted-foreground">From:</span>
-              {senderName(data.message.from_name, data.message.from_address)}
+              <span class="text-muted-foreground">To:</span>
+              {senderName(data.draft.recipient_name, data.draft.recipient_email ?? "(no recipient)")}
             </p>
-            <p><span class="text-muted-foreground">Subject:</span> {data.message.subject ?? "(none)"}</p>
-            <p>
-              <span class="text-muted-foreground">Received:</span>
-              {relativeTime(data.message.received_at)}
-            </p>
+            {#if data.outboundContext?.propertyAddress}
+              <p>
+                <span class="text-muted-foreground">Property:</span>
+                {data.outboundContext.propertyAddress}
+              </p>
+            {/if}
           </div>
           <hr class="border-border" />
-          {#if data.message.body_plain}
-            <p class="whitespace-pre-wrap text-sm leading-relaxed">{data.message.body_plain}</p>
+          <p class="text-sm leading-relaxed text-muted-foreground">
+            This is a proactive {categoryLabel(data.draft.category).toLowerCase()} message generated
+            by an outbound sequence — there's no inbound email to reply to. Review the draft on the
+            right and send it when you're happy. As always, nothing sends automatically.
+          </p>
+        </CardContent>
+      </Card>
+    {:else}
+      <!-- Inbound email -->
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-base">Inbound email</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-3">
+          {#if data.message}
+            <div class="space-y-1 text-sm">
+              <p>
+                <span class="text-muted-foreground">From:</span>
+                {senderName(data.message.from_name, data.message.from_address)}
+              </p>
+              <p><span class="text-muted-foreground">Subject:</span> {data.message.subject ?? "(none)"}</p>
+              <p>
+                <span class="text-muted-foreground">Received:</span>
+                {relativeTime(data.message.received_at)}
+              </p>
+            </div>
+            <hr class="border-border" />
+            {#if data.message.body_plain}
+              <p class="whitespace-pre-wrap text-sm leading-relaxed">{data.message.body_plain}</p>
+            {:else}
+              <p class="text-sm italic text-muted-foreground">
+                This email has no plain-text body. Open it in Gmail to view the HTML content.
+              </p>
+            {/if}
           {:else}
-            <p class="text-sm italic text-muted-foreground">
-              This email has no plain-text body. Open it in Gmail to view the HTML content.
-            </p>
+            <p class="text-sm italic text-muted-foreground">Inbound email not found.</p>
           {/if}
-        {:else}
-          <p class="text-sm italic text-muted-foreground">Inbound email not found.</p>
-        {/if}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    {/if}
 
     <!-- Draft editor -->
     <Card>

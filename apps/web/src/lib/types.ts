@@ -19,6 +19,7 @@ export type DraftStatus = Database["public"]["Enums"]["draft_status"];
 export type EscalationFlag = Database["public"]["Enums"]["escalation_flag"];
 export type ConfidenceLevel = Database["public"]["Enums"]["confidence_level"];
 export type MatchConfidence = Database["public"]["Enums"]["match_confidence"];
+export type DraftSource = Database["public"]["Enums"]["draft_source"];
 
 // --- agency_config jsonb shapes (mirrors @pm/prompts render types) ----------
 
@@ -48,6 +49,8 @@ export interface QuoteException {
  */
 export interface QueueItem {
   id: string;
+  /** Whether this is a reply to an inbound email or an outbound sequence draft. */
+  draft_source: DraftSource;
   category: DraftCategory;
   priority: DraftPriority;
   escalation_flag: EscalationFlag;

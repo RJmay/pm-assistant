@@ -6,6 +6,7 @@ import DraftRow from "./DraftRow.svelte";
 function item(overrides: Partial<QueueItem> = {}): QueueItem {
   return {
     id: "draft-1",
+    draft_source: "inbound_reply",
     category: "MAINTENANCE",
     priority: "STANDARD",
     escalation_flag: "NONE",

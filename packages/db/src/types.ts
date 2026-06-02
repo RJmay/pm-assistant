@@ -255,8 +255,9 @@ export type Database = {
           do_not_send: boolean;
           draft_body: string | null;
           draft_confidence: Database["public"]["Enums"]["confidence_level"];
+          draft_source: Database["public"]["Enums"]["draft_source"];
           draft_subject: string | null;
-          email_message_id: string;
+          email_message_id: string | null;
           emergency_landlord_alert: boolean;
           escalation_flag: Database["public"]["Enums"]["escalation_flag"];
           id: string;
@@ -266,11 +267,16 @@ export type Database = {
           pm_review_notes: Json;
           priority: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id: string | null;
+          property_id: string | null;
           raw_response: Json | null;
+          recipient_email: string | null;
+          recipient_name: string | null;
           safety_critical: boolean;
           sent_at: string | null;
           sent_gmail_message_id: string | null;
+          sequence_run_id: string | null;
           status: Database["public"]["Enums"]["draft_status"];
+          tenancy_id: string | null;
           updated_at: string;
         };
         Insert: {
@@ -284,8 +290,9 @@ export type Database = {
           do_not_send?: boolean;
           draft_body?: string | null;
           draft_confidence: Database["public"]["Enums"]["confidence_level"];
+          draft_source?: Database["public"]["Enums"]["draft_source"];
           draft_subject?: string | null;
-          email_message_id: string;
+          email_message_id?: string | null;
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
@@ -295,11 +302,16 @@ export type Database = {
           pm_review_notes?: Json;
           priority: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id?: string | null;
+          property_id?: string | null;
           raw_response?: Json | null;
+          recipient_email?: string | null;
+          recipient_name?: string | null;
           safety_critical?: boolean;
           sent_at?: string | null;
           sent_gmail_message_id?: string | null;
+          sequence_run_id?: string | null;
           status?: Database["public"]["Enums"]["draft_status"];
+          tenancy_id?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -313,8 +325,9 @@ export type Database = {
           do_not_send?: boolean;
           draft_body?: string | null;
           draft_confidence?: Database["public"]["Enums"]["confidence_level"];
+          draft_source?: Database["public"]["Enums"]["draft_source"];
           draft_subject?: string | null;
-          email_message_id?: string;
+          email_message_id?: string | null;
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
@@ -324,11 +337,16 @@ export type Database = {
           pm_review_notes?: Json;
           priority?: Database["public"]["Enums"]["draft_priority"];
           prompt_version_id?: string | null;
+          property_id?: string | null;
           raw_response?: Json | null;
+          recipient_email?: string | null;
+          recipient_name?: string | null;
           safety_critical?: boolean;
           sent_at?: string | null;
           sent_gmail_message_id?: string | null;
+          sequence_run_id?: string | null;
           status?: Database["public"]["Enums"]["draft_status"];
+          tenancy_id?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -358,6 +376,27 @@ export type Database = {
             columns: ["prompt_version_id"];
             isOneToOne: false;
             referencedRelation: "prompt_versions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_drafts_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_drafts_sequence_run_id_fkey";
+            columns: ["sequence_run_id"];
+            isOneToOne: false;
+            referencedRelation: "sequence_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_drafts_tenancy_id_fkey";
+            columns: ["tenancy_id"];
+            isOneToOne: false;
+            referencedRelation: "tenancies";
             referencedColumns: ["id"];
           },
         ];
@@ -1086,16 +1125,143 @@ export type Database = {
         };
         Relationships: [];
       };
+      sequence_runs: {
+        Row: {
+          agency_id: string;
+          created_at: string;
+          dedupe_key: string;
+          history: Json;
+          id: string;
+          next_action_at: string | null;
+          owner_id: string | null;
+          property_id: string | null;
+          sequence_id: string | null;
+          state: Database["public"]["Enums"]["sequence_run_state"];
+          step: number;
+          tenancy_id: string | null;
+          type: Database["public"]["Enums"]["sequence_type"];
+          updated_at: string;
+        };
+        Insert: {
+          agency_id: string;
+          created_at?: string;
+          dedupe_key: string;
+          history?: Json;
+          id?: string;
+          next_action_at?: string | null;
+          owner_id?: string | null;
+          property_id?: string | null;
+          sequence_id?: string | null;
+          state?: Database["public"]["Enums"]["sequence_run_state"];
+          step?: number;
+          tenancy_id?: string | null;
+          type: Database["public"]["Enums"]["sequence_type"];
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string;
+          created_at?: string;
+          dedupe_key?: string;
+          history?: Json;
+          id?: string;
+          next_action_at?: string | null;
+          owner_id?: string | null;
+          property_id?: string | null;
+          sequence_id?: string | null;
+          state?: Database["public"]["Enums"]["sequence_run_state"];
+          step?: number;
+          tenancy_id?: string | null;
+          type?: Database["public"]["Enums"]["sequence_type"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sequence_runs_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sequence_runs_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "owners";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sequence_runs_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sequence_runs_sequence_id_fkey";
+            columns: ["sequence_id"];
+            isOneToOne: false;
+            referencedRelation: "sequences";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sequence_runs_tenancy_id_fkey";
+            columns: ["tenancy_id"];
+            isOneToOne: false;
+            referencedRelation: "tenancies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sequences: {
+        Row: {
+          agency_id: string;
+          config: Json;
+          created_at: string;
+          id: string;
+          is_active: boolean;
+          type: Database["public"]["Enums"]["sequence_type"];
+          updated_at: string;
+        };
+        Insert: {
+          agency_id: string;
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          type: Database["public"]["Enums"]["sequence_type"];
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string;
+          config?: Json;
+          created_at?: string;
+          id?: string;
+          is_active?: boolean;
+          type?: Database["public"]["Enums"]["sequence_type"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sequences_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenancies: {
         Row: {
           agency_id: string;
           agreement_type: Database["public"]["Enums"]["agreement_type"] | null;
+          arrears_since: string | null;
           bond_amount_cents: number | null;
           bond_rta_reference: string | null;
           created_at: string;
           end_date: string | null;
           id: string;
           last_rent_increase_date: string | null;
+          last_routine_inspection_date: string | null;
           property_id: string;
           rent_amount_cents: number | null;
           rent_frequency: Database["public"]["Enums"]["rent_frequency"] | null;
@@ -1105,12 +1271,14 @@ export type Database = {
         Insert: {
           agency_id: string;
           agreement_type?: Database["public"]["Enums"]["agreement_type"] | null;
+          arrears_since?: string | null;
           bond_amount_cents?: number | null;
           bond_rta_reference?: string | null;
           created_at?: string;
           end_date?: string | null;
           id?: string;
           last_rent_increase_date?: string | null;
+          last_routine_inspection_date?: string | null;
           property_id: string;
           rent_amount_cents?: number | null;
           rent_frequency?: Database["public"]["Enums"]["rent_frequency"] | null;
@@ -1120,12 +1288,14 @@ export type Database = {
         Update: {
           agency_id?: string;
           agreement_type?: Database["public"]["Enums"]["agreement_type"] | null;
+          arrears_since?: string | null;
           bond_amount_cents?: number | null;
           bond_rta_reference?: string | null;
           created_at?: string;
           end_date?: string | null;
           id?: string;
           last_rent_increase_date?: string | null;
+          last_routine_inspection_date?: string | null;
           property_id?: string;
           rent_amount_cents?: number | null;
           rent_frequency?: Database["public"]["Enums"]["rent_frequency"] | null;
@@ -1277,6 +1447,7 @@ export type Database = {
       confidence_level: "HIGH" | "MEDIUM" | "LOW";
       draft_category: "MAINTENANCE" | "RENT" | "LEASE" | "COMPLAINT" | "ADMIN" | "OTHER";
       draft_priority: "STANDARD" | "PRIORITY" | "EMERGENCY_ALERT";
+      draft_source: "inbound_reply" | "sequence";
       draft_status: "pending" | "edited" | "sent" | "discarded" | "do_not_send";
       email_direction: "inbound" | "outbound";
       escalation_flag: "NONE" | "WELFARE" | "LEGAL" | "REPUTATIONAL" | "INCIDENT";
@@ -1297,6 +1468,14 @@ export type Database = {
         | "pm_proxy";
       regulatory_alert_state: "open" | "approved" | "dismissed";
       rent_frequency: "weekly" | "fortnightly" | "monthly";
+      sequence_run_state:
+        | "pending"
+        | "active"
+        | "awaiting_response"
+        | "completed"
+        | "cancelled"
+        | "escalated";
+      sequence_type: "arrears" | "lease_renewal" | "inspection" | "owner_update";
       tenancy_status: "draft" | "active" | "ending" | "ended";
       weekly_digest_status: "open" | "acted" | "dismissed";
     };
@@ -1434,6 +1613,7 @@ export const Constants = {
       confidence_level: ["HIGH", "MEDIUM", "LOW"],
       draft_category: ["MAINTENANCE", "RENT", "LEASE", "COMPLAINT", "ADMIN", "OTHER"],
       draft_priority: ["STANDARD", "PRIORITY", "EMERGENCY_ALERT"],
+      draft_source: ["inbound_reply", "sequence"],
       draft_status: ["pending", "edited", "sent", "discarded", "do_not_send"],
       email_direction: ["inbound", "outbound"],
       escalation_flag: ["NONE", "WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"],
@@ -1450,6 +1630,15 @@ export const Constants = {
       ],
       regulatory_alert_state: ["open", "approved", "dismissed"],
       rent_frequency: ["weekly", "fortnightly", "monthly"],
+      sequence_run_state: [
+        "pending",
+        "active",
+        "awaiting_response",
+        "completed",
+        "cancelled",
+        "escalated",
+      ],
+      sequence_type: ["arrears", "lease_renewal", "inspection", "owner_update"],
       tenancy_status: ["draft", "active", "ending", "ended"],
       weekly_digest_status: ["open", "acted", "dismissed"],
     },

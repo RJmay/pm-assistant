@@ -20,7 +20,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   const { data: draft, error: draftErr } = await locals.supabase
     .from("ai_drafts")
     .select(
-      "id, email_message_id, category, category_confidence, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, draft_subject, draft_body, pm_review_notes, model_used, match_confidence, matched_via, status, bounced_at, bounce_detail, created_at",
+      "id, email_message_id, draft_source, recipient_email, recipient_name, tenancy_id, property_id, category, category_confidence, priority, escalation_flag, emergency_landlord_alert, safety_critical, do_not_send, draft_confidence, draft_subject, draft_body, pm_review_notes, model_used, match_confidence, matched_via, status, bounced_at, bounce_detail, created_at",
     )
     .eq("agency_id", agencyId)
     .eq("id", params.draftId)
@@ -28,14 +28,40 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   if (draftErr) error(500, draftErr.message);
   if (!draft) error(404, "Draft not found");
 
-  const { data: message } = await locals.supabase
-    .from("email_messages")
-    .select(
-      "id, from_name, from_address, to_addresses, subject, body_plain, body_html, received_at",
-    )
-    .eq("agency_id", agencyId)
-    .eq("id", draft.email_message_id)
-    .maybeSingle();
+  // Inbound-reply drafts have a source email; sequence (outbound) drafts don't.
+  const message = draft.email_message_id
+    ? (
+        await locals.supabase
+          .from("email_messages")
+          .select(
+            "id, from_name, from_address, to_addresses, subject, body_plain, body_html, received_at",
+          )
+          .eq("agency_id", agencyId)
+          .eq("id", draft.email_message_id)
+          .maybeSingle()
+      ).data
+    : null;
+
+  // For a sequence draft, resolve the property address to show the PM the
+  // context (who/where this proactive message is going to).
+  let outboundContext: { propertyAddress: string | null } | null = null;
+  if (draft.draft_source === "sequence") {
+    let propertyAddress: string | null = null;
+    if (draft.property_id) {
+      const { data: property } = await locals.supabase
+        .from("properties")
+        .select("address_line1, suburb")
+        .eq("agency_id", agencyId)
+        .eq("id", draft.property_id)
+        .maybeSingle();
+      if (property) {
+        propertyAddress = [property.address_line1, property.suburb]
+          .filter((p) => p && p.trim() !== "")
+          .join(", ");
+      }
+    }
+    outboundContext = { propertyAddress };
+  }
 
   const { data: edits } = await locals.supabase
     .from("draft_edits")
@@ -54,6 +80,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
   return {
     draft: { ...draft, pm_review_notes: reviewNotes },
     message: message ?? null,
+    outboundContext,
     edits: edits ?? [],
   };
 };
