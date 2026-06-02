@@ -5,6 +5,15 @@ on:
     branches: ["**"]
   pull_request:
 
+# PUBLIC_* are non-secret by design (the anon/publishable key ships in the client
+# bundle; the URLs are public). They're needed so the web app's
+# `$env/static/public` resolves during typecheck and the production build.
+env:
+  PUBLIC_SUPABASE_URL: https://deisxzmquxjaovubosil.supabase.co
+  PUBLIC_SUPABASE_ANON_KEY: sb_publishable_IqHklOQ33cHInvn3dK0AFQ_--HhLwuU
+  PUBLIC_WORKER_URL: https://pm-assistant-worker.ryanmay065.workers.dev
+  PUBLIC_ENVIRONMENT: production
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -42,3 +51,37 @@ jobs:
       - name: Stop Supabase
         if: always()
         run: pnpm exec supabase stop --no-backup
+
+  # Auto-deploy on pushes to main, only after CI passes. Worker secrets persist
+  # on the deployed Worker (set via `wrangler secret put`), so deploy only ships
+  # code + bindings — it never touches them.
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy Worker
+        run: pnpm --filter worker exec wrangler deploy
+
+      - name: Build dashboard
+        run: pnpm --filter web build
+
+      - name: Deploy dashboard (Cloudflare Pages)
+        run: pnpm --filter worker exec wrangler pages deploy ../web/.svelte-kit/cloudflare --project-name pm-assistant-web --branch main
