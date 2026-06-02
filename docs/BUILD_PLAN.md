@@ -1,5 +1,11 @@
 # BUILD_PLAN.md
 
+> **STATUS (2026-06-02): Phase 1 COMPLETE + LIVE.** Milestones M0–M10 are built and
+> Phase B (runtime bring-up) is done — the system is deployed, hosted on Cloudflare +
+> Supabase, and auto-deploying from `main`. See **`HANDOFF.md`** for live URLs, wiring,
+> and real-pilot follow-ups. The per-milestone DoDs below are historical; the runtime
+> DoDs (M5–M10) are now satisfied in production. Phase 2 not started.
+
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
 
 ---

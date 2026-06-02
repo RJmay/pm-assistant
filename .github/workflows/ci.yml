@@ -3,6 +3,10 @@ name: CI
 on:
   push:
     branches: ["**"]
+    # Docs-only changes don't need CI or a redeploy.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   pull_request:
 
 # PUBLIC_* are non-secret by design (the anon/publishable key ships in the client

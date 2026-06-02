@@ -1,174 +1,131 @@
-# HANDOFF — current state (2026-06-01)
+# HANDOFF — current state (2026-06-02)
 
-Paste-ready primer for starting a fresh code chat. `CLAUDE.md` (stack, conventions,
-rules) and `MEMORY.md` auto-load, so this file only records **state**: what's built,
-what's green, and what's blocked on you. Read it top to bottom.
-
----
-
-## 0. TL;DR
-
-- **Phase 1 (email-drafting MVP) is code-complete** and **Phase B runtime bring-up
-  is underway** (started 2026-06-01). Stages **1–3 are verified against a hosted
-  Supabase project**: (1) DB + RLS, (2) Auth + dashboard login, (3) Anthropic
-  drafting. Stages 4–8 (Worker deploy/KV, Gmail+Pub/Sub, Twilio, Resend, CF Pages,
-  GitHub CI) need live credentials — see §4.
-- **Work is on branch `phase-b/recalibration` (NOT pushed).** `main` is unchanged at
-  `e9419fe`. Commits: stage-1 types regen, drafter recalibration, this handoff.
-- **Everything is green.** `pnpm -r typecheck` 0 errors; `pnpm exec biome check .`
-  clean; tests: **worker 227, web 43, rules 64, prompts 21 unit, shared 1**; the
-  12-fixture **live LLM drafter suite is 12/12 green** (2 consecutive real-API runs)
-  — see §7. db 3 skipped behind `RUN_DB_TESTS`.
-
-**Hosted project:** Supabase ref `deisxzmquxjaovubosil` (Singapore, dev/staging).
-Schema + seed applied, RLS isolation verified, one admin login wired
-(`ryanmay065@gmail.com` → Jess Bowman, role `principal`), and **3 demo drafts seeded
-into the queue** (routine / emergency / welfare) so the dashboard shows real data.
-Local connection string + keys live in gitignored `.env.local` files (see §7).
-
-**To verify on a fresh checkout:** `pnpm install && pnpm -r typecheck && pnpm -r test && pnpm exec biome check .`
+Paste-ready primer for a fresh code chat. `CLAUDE.md` (stack, conventions, rules)
+and `MEMORY.md` auto-load, so this file records **state**: what's live, how it's
+wired, and what's left. Read top to bottom.
 
 ---
 
-## 1. Decisions already made (do not relitigate)
+## 0. TL;DR — Phase 1 is BUILT, DEPLOYED, and LIVE
 
-- **Stack stays committed** — SvelteKit + Cloudflare Workers + Supabase + Anthropic.
-  **Cloudflare, not Vercel. Inngest deferred** (CF cron covers v1; raise first if a
-  Phase-2 sequence shows a critical drawback). The `PM-Manager_Build_Spec.md` is
-  **product direction only**, not a stack mandate. See `[[stack-conflict-spec-vs-committed]]`.
-- **Settings editing is admin/principal-only** (security review). Regular PMs get a
-  read-only settings view. *Loosen only if you explicitly want PMs to edit.*
-- **`do_not_send` is hard-enforced server-side** on the send route (was bypassable).
-  Editing a draft clears the flag.
-- **Operator-review writes to the global `regulatory_alerts` table go through the
-  Worker (service-role)**, not a loosened dashboard RLS policy.
-- **Never invent a regulatory fact** (spec §0.3). Withheld values are seeded
-  `value: null` + `needsHumanConfirmation: true` and the engine throws rather than guess.
+The whole product runs on hosted infrastructure and **auto-deploys from `main`**.
 
----
+| Thing | Value |
+|---|---|
+| Worker (ingest + AI draft + crons) | `https://pm-assistant-worker.ryanmay065.workers.dev` |
+| Dashboard (review queue) | `https://pm-assistant-web.pages.dev` |
+| Supabase project | `deisxzmquxjaovubosil` (region **Singapore**, treated as dev/staging) |
+| Cloudflare account id | `9d5299d5a1bcad11da7b2c7133359e6b` |
+| Dashboard login | `ryanmay065@gmail.com` (password set in Supabase Auth; role `principal`) |
+| Git | `main == origin/main`, GitHub `RJmay/pm-assistant`. CI auto-deploys on push. |
 
-## 2. What's built (by area)
+**Verified end-to-end:** real email → Gmail watch → Pub/Sub → Worker → matcher →
+Claude draft → queue; hosted dashboard login + queue; owner email alert via Resend;
+CI → auto-deploy.
 
-**`apps/worker`** (Hono on CF Workers, service-role key, bypasses RLS, filters `agency_id`):
-- Gmail ingestion: Pub/Sub webhook → history fetch → parse → persist `email_messages`/`email_threads` (M4/M5).
-- Draft pipeline: matcher (5-step cascade) → assemble prompt → Anthropic tool-use drafter → `ai_drafts` + `model_calls` + `audit_log` (M6).
-- **Compliance floor** (`services/compliance-floor.ts`): deterministic safety-net over LLM output — raises escalation to the *more severe* of LLM/detector (never downgrades), forces `do_not_send` on WELFARE, s214 emergency triage bumps STANDARD→PRIORITY (never auto-sets owner alert).
-- Owner notifications: Twilio SMS + Resend email routing by owner prefs + business-hours; daily owner-digest cron (M7).
-- **Send path** (`routes/send.ts`, M9): dashboard-JWT auth → assigned-PM authz → state guard → Gmail send in-thread → outbound row written *before* status flip (fail-safe) → audit. **`do_not_send` gate returns 409 before send.** Bounce/DSN ingestion links bounces back to the draft.
-- **§12 regulatory monitoring bot** (`services/monitoring/` + `cron/regulatory-scan.ts`): hash-and-diff QLD sources → on change, Sonnet summarises + proposes rule diffs → inserts `regulatory_alerts` → never auto-updates live rules.
-- **Operator review** (`routes/regulatory-review.ts`): `POST /api/regulatory-alerts/:id/review` — verify JWT + admin/principal gate + service-role update of `operator_review_state`.
-- Crons (dispatched by pattern in `src/index.ts`): daily watch-refresh `0 13 * * *`, daily regulatory-scan `0 15 * * *`, daily owner-digest `0 21 * * *`, weekly drift `0 23 * * 0`.
-
-**`packages/rules`** (`@pm/rules`) — deterministic QLD compliance engine (spec §6).
-RTA values **all confirmed/seeded**: 7-day routine-entry notice, once-/-3-months
-frequency cap, rent-increase rules, emergency-repairs s214 list, Forms 18a/18b/9/R18.
-No remaining `needsHumanConfirmation`. 63 tests. See `[[rules-engine-foundation]]`.
-
-**`apps/web`** (SvelteKit dashboard, anon key + user JWT, RLS-enforced):
-- Auth (login/Google OAuth/callback/logout, route guards), `/queue`, `/queue/[draftId]` (edit → `draft_edits`, discard, Approve & Send), `/alerts` (incl. Bounced badge), `/settings` (admin-gated editor), `/settings/prompts` (versioned prompt activation), `/settings/regulatory` (operator approve/dismiss → Worker), `/audit`, `/help`. Realtime via Supabase.
-
-**`packages/db`** — Supabase migrations `0001`–`0011`; `docs/schema.sql` reconciled;
-`packages/db/src/types.ts` **hand-edited** for the newer tables (regen with
-`pnpm db:types` once a DB exists).
-
-**`packages/shared`** — zod schemas, enums, typed error classes.
-**`packages/prompts`** — base prompt (`pm-drafting-v2.3.md`) + assemble + Anthropic drafter.
+**Verify green on a fresh checkout:** `pnpm install && pnpm -r typecheck && pnpm exec biome check .`
+(tests need the `.env.local` files below + Docker for the DB suite — see §3.)
 
 ---
 
-## 3. Milestone status (see `docs/BUILD_PLAN.md` for full DoDs)
+## 1. What's live (Phase B — all 8 stages done 2026-06-02)
 
-- **M0–M9** — `[DONE]` (code complete; M5–M9 runtime DoDs pending Phase B).
-- **M10** — `[CURRENT]`; buildable slice done (audit viewer, prompt-version mgmt,
-  PM guide, RBAC fix). Remaining M10 tasks (onboarding flow, 30-day backfill) need
-  hosted Supabase + live Gmail → Phase B.
-- **§12 monitoring + operator review** — built beyond the original M-list.
-- **Phase 2+** — listed in BUILD_PLAN §"Future milestones"; do **not** start without
-  explicit direction (maintenance jobs, portals, **form generation**, inspections,
-  lease lifecycle, trust accounting).
+1. **DB + RLS** — 11 migrations + seed applied to hosted Supabase; `packages/db/src/types.ts`
+   regenerated from the live schema; RLS isolation 3/3 green vs remote.
+2. **Auth** — `ryanmay065@gmail.com` Auth user, `app_metadata.agency_id` set, linked to seeded
+   PM "Jess Bowman" as `principal`. (#1 gotcha: `agency_id` MUST be in `app_metadata` or RLS shows zero rows.)
+3. **Anthropic drafting** — live 12-fixture suite green; drafter recalibrated (see §5).
+4. **Worker** — deployed; **16/16 secrets** set via `wrangler secret put`.
+5. **Gmail + Pub/Sub** — live email→draft verified.
+6. **Twilio + Resend** — owner **email** alert verified (Resend delivered). SMS wired; Twilio trial
+   blocks unverified numbers.
+7. **Cloudflare Pages** — dashboard live + login verified.
+8. **CI/CD** — `.github/workflows/ci.yml`: push to `main` → `ci` (typecheck/lint/test+Supabase) →
+   `deploy` (wrangler deploy + pages deploy). Docs-only pushes skip via `paths-ignore`.
 
----
-
-## 4. Phase B — runtime bring-up (status)
-
-**DONE — stages 1–3, verified 2026-06-01 against hosted project `deisxzmquxjaovubosil`:**
-1. ✅ **DB + RLS.** All 11 migrations + seed applied (`supabase db push --include-seed`);
-   `packages/db/src/types.ts` regenerated from the live schema (typechecks clean);
-   **RLS isolation 3/3 green** against the remote DB (`RUN_DB_TESTS=1`).
-2. ✅ **Auth + dashboard login.** `ryanmay065@gmail.com` created in Supabase Auth,
-   `app_metadata.agency_id` set, linked to seeded PM **Jess Bowman** as `principal`.
-   Login → `/queue` works; `/settings` shows the admin editor. **#1 gotcha honoured:**
-   `agency_id` MUST be in `app_metadata` or the user sees zero rows.
-3. ✅ **Anthropic drafting.** 12-fixture live suite green (§7); **3 demo drafts seeded**
-   into the queue (routine / emergency / welfare) and confirmed visible via RLS.
-
-**STILL BLOCKED ON YOU — stages 4–8 (accounts/credentials only you can create):**
-4. **Worker secrets + KV + deploy.** `wrangler secret put` for `SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, Gmail OAuth, `OAUTH_STATE_SECRET`;
-   create real `JWKS_CACHE` + `MONITORING_CACHE` KV namespaces → paste ids into
-   `wrangler.toml`; `wrangler deploy`. *(The service-role key was deliberately never
-   pasted into chat — it's first needed here. `ANTHROPIC_API_KEY` is already in
-   `apps/worker/.dev.vars` for local dev.)*
-5. **Gmail + Pub/Sub.** Google Cloud project, OAuth creds, topic/subscription; run the
-   `/oauth/gmail/start` connect flow → real inbound email lands in `email_messages`.
-6. **Twilio + Resend.** Accounts + `TWILIO_*` / `RESEND_*` secrets for owner alerts.
-7. **Cloudflare Pages.** Deploy the web app with the `PUBLIC_*` env vars.
-8. **GitHub Actions secrets** (CI/CD). Full list in `docs/ENV.md`.
-
-Once stage 4 is up, the deferred runtime DoDs (M5–M10) can be exercised end-to-end.
+The Gmail **watch is currently STOPPED** — it had been pointed at a personal Gmail, which drafted
+all personal mail (API cost). The `agency_email_state` row was deleted. Reconnect a **dedicated**
+mailbox for a real pilot (see §4).
 
 ---
 
-## 5. Conventions that bite (full set in CLAUDE.md)
+## 2. How it's wired (where each secret/var lives)
 
-- Strict TS: `verbatimModuleSyntax`, `noUncheckedIndexedAccess`, extensionless
-  relative imports. Biome (double quotes, 2-space, 100-width, import sorting).
-- Migrations are **append-only**; reconcile each into `docs/schema.sql`.
-- **AI never auto-sends** — even in tests (Gmail send is mocked in dev).
-- `docs/system-prompt.md` is versioned — never edit casually; new prompt = new
-  `prompt_versions` row, close the old window.
-- Worker = service-role (filter `agency_id` explicitly). Dashboard = anon + RLS.
-
----
-
-## 6. Suggested next steps
-
-1. **You:** do Phase B **stage 4** (§4) — Worker secrets incl. the service-role key,
-   real KV ids, `wrangler deploy`. That unblocks Gmail ingestion → live drafts.
-2. **Review + merge** branch `phase-b/recalibration` into `main` (3 commits), then push.
-3. **Then:** walk the M5–M10 runtime DoDs in `docs/BUILD_PLAN.md` once the Worker is live.
-4. **Or, in parallel:** scope a Phase 2 item — **form generation** leans on `@pm/rules`.
+- **Worker runtime secrets (16):** on the Cloudflare Worker via `wrangler secret put`. Persist across
+  deploys (CI `wrangler deploy` does NOT touch them). Names in `docs/ENV.md` + `apps/worker/src/lib/env.ts`.
+  Local dev mirror: `apps/worker/.dev.vars` (gitignored).
+- **Web PUBLIC_\* :** read at build via `$env/static/public` (NOT `$env/dynamic/public` — that returns
+  empty on CF Pages). Baked into the bundle. Provided by `apps/web/.env.local` locally and the
+  `env:` block in `ci.yml` for builds. Non-secret (anon key + URLs).
+- **CI secrets (GitHub repo → Settings → Secrets → Actions):** `CLOUDFLARE_API_TOKEN` (Workers Scripts:Write
+  + Pages:Write + KV), `CLOUDFLARE_ACCOUNT_ID`.
+- **Gitignored local files (NOT in git):** `apps/web/.env.local`, `packages/db/.env.local`
+  (`DATABASE_URL`, Session pooler; DB password has an `@` → percent-encode `%40` in URLs),
+  `packages/prompts/.env.local` + `apps/worker/.dev.vars` (`ANTHROPIC_API_KEY`).
 
 ---
 
-## 7. Phase B session notes (2026-06-01)
+## 3. Local dev / re-verify
 
-**Drafter recalibration (committed on the branch).** The live LLM drafter suite
-(`packages/prompts/test/drafter.live.test.ts`, `RUN_LLM_TESTS=1`) had 7/12 fixtures
-failing against the real API. Root-caused and fixed:
-- **YES/NO booleans (was a hard crash):** the model echoes the prompt's documented
-  `[YES | NO]` format for `emergency_landlord_alert` / `safety_critical` / `do_not_send`,
-  emitting strings that fail `z.boolean()`. Fixed by coercing YES/NO → boolean at the
-  drafter parse boundary (`drafter.ts`) + a bounded retry. The versioned prompt is untouched.
-- **Welfare detector recall gap (a real safety bug):** `detectEscalations` matched
-  `"hurt myself"` but NOT the gerund `"hurting myself"`, so the deterministic compliance
-  floor would NOT force `do_not_send` on a self-harm email phrased that way. Added gerund
-  + ideation phrases in `packages/rules/src/escalation.ts` (+ regression test).
-- **Over-pinned fixtures (02/04/06/07/10/11):** single-value expectations on genuinely
-  borderline classifications; value-set to defensible alternatives per the fixtures' own
-  stated intent. The live test now asserts `do_not_send` at the SYSTEM level (LLM ∨ floor).
-- Result: **12/12 green, twice.** Standard suites unaffected (rules 64, prompts 21, worker 227).
+```
+pnpm install
+pnpm -r typecheck
+pnpm exec biome check .
+pnpm --filter web dev              # dashboard on localhost:5173 (uses apps/web/.env.local → hosted Supabase)
+# Live LLM drafter suite (real API, ~12 calls):
+#   $env:ANTHROPIC_API_KEY=<key>; $env:RUN_LLM_TESTS='1'; pnpm --filter ./packages/prompts test
+# RLS test vs remote (needs packages/db/.env.local DATABASE_URL):
+#   $env:RUN_DB_TESTS='1'; pnpm --filter @pm/db test
+```
+Deploy is automatic on push to `main`. Manual: `pnpm --filter worker exec wrangler deploy` and
+`pnpm --filter web build` then `pnpm --filter worker exec wrangler pages deploy ../web/.svelte-kit/cloudflare --project-name pm-assistant-web`.
 
-**Demo drafts.** 3 rows seeded directly into the hosted DB (bypassing Gmail) for the
-seeded agency, tagged `gmail_thread_id = phaseb-demo-{01-routine-maintenance,
-03-emergency-s214, 08-welfare-self-harm}`. Safe to delete. They populate queue + alerts
-and demonstrate the welfare floor (`do_not_send=true`).
+---
 
-**Local secrets (gitignored `.env.local`, NOT in git):**
-- `apps/web/.env.local` — `PUBLIC_SUPABASE_URL` + anon (publishable) key + worker URL.
-- `packages/db/.env.local` — `DATABASE_URL` (Session-pooler conn string). The DB password
-  contains an `@`; percent-encode as `%40` in any raw URL. Used by the RLS test.
-- `packages/prompts/.env.local` — `ANTHROPIC_API_KEY` (same key as `apps/worker/.dev.vars`).
+## 4. Before a REAL pilot (follow-ups — none done, none urgent)
 
-**Re-run the live drafter suite:**
-`$env:ANTHROPIC_API_KEY=<key>; $env:RUN_LLM_TESTS='1'; pnpm --filter ./packages/prompts test`
+- **Dedicated agency mailbox** (never a personal Gmail). Reconnect: visit
+  `https://pm-assistant-worker.ryanmay065.workers.dev/oauth/gmail/start?agency_id=<agency-uuid>`.
+- **Publish the Google OAuth consent screen** (it's in Testing → refresh tokens expire after 7 days).
+- **Verify a Resend domain** so alerts reach real owners (the `onboarding@resend.dev` test sender only
+  delivers to your own Resend account email). Then update the `RESEND_FROM_EMAIL` secret.
+- **Real Twilio number + A2P** for SMS (trial blocks unverified numbers).
+- **Recreate Supabase in Sydney** for the prod project (this one is Singapore/dev) + a clean (unseeded) DB.
+- **Confirm the send route's JWT check** (`SUPABASE_JWT_SECRET`, HS256) verifies the dashboard token when
+  you first test Approve & Send — the project may use asymmetric signing keys (then switch to JWKS).
+
+---
+
+## 5. Gotchas already fixed (don't re-trip these)
+
+- **Webhook drafts in `executionCtx.waitUntil`** — drafting synchronously blew the Pub/Sub 10s push ACK
+  deadline → request canceled → lost draft. ACK first, draft in background.
+- **Self-alert loop guard** — the webhook skips drafting emails from our own `RESEND_FROM_EMAIL` (an owner
+  alert landing back in the monitored inbox would otherwise loop).
+- **`nodejs_compat`** flag required in `wrangler.toml` (Anthropic SDK imports node builtins). Worker + Pages both.
+- **Cron DOW** — Cloudflare rejects `0` for Sunday; use `SUN` (`0 23 * * SUN`).
+- **Web PUBLIC_\* via `$env/static/public`** — `$env/dynamic/public` is empty on CF Pages.
+- **Drafter coerces `YES`/`NO` → boolean** — the model echoes the prompt's `[YES|NO]` format; was a hard crash.
+- **Welfare detector** matches the gerund "hurting myself" (was a real safety gap; floor now forces do_not_send).
+- **`account_id` pinned** in `wrangler.toml` (the OAuth login token lacked account-list permission).
+
+---
+
+## 6. Decisions locked (do not relitigate)
+
+- **Stack stays committed** — SvelteKit + Cloudflare Workers/Pages + Supabase + Anthropic. The
+  `PM-Manager_Build_Spec.md` is product direction, not a stack mandate. See `[[stack-conflict-spec-vs-committed]]`.
+- **Direction:** build ALL phases 1–5 on Supabase first, THEN consider a Postgres migration. Bare Postgres
+  is NOT a drop-in (loses Auth/Vault/Realtime/PostgREST); self-hosting the OSS Supabase stack is the
+  compatible cheaper route. Revisit at migration time.
+- **Never invent a regulatory fact** (spec §0.3) — `@pm/rules` throws rather than guess. See `[[rules-engine-foundation]]`.
+- **AI never auto-sends.** Settings editing is admin/principal-only. `do_not_send` hard-enforced on the send route.
+
+---
+
+## 7. Next options
+
+- **Phase 2** (do not start without direction): maintenance jobs, **form generation** (leans on the
+  complete `@pm/rules` form metadata — natural next build), tradie/owner/tenant portals, inspections,
+  lease lifecycle.
+- Or work the **§4 real-pilot follow-ups** when onboarding an actual agency.
