@@ -575,4 +575,41 @@ describe("POST /webhook/gmail", () => {
     expect(res.status).toBe(400);
     expect(writeAuditLogMock).not.toHaveBeenCalled();
   });
+
+  it("skips drafting our own alert email landing back in the inbox (loop guard)", async () => {
+    usersMessagesGetMock.mockReset();
+    usersMessagesGetMock.mockResolvedValue({
+      id: "msg-1",
+      threadId: "thread-gmail-1",
+      internalDate: String(Date.parse("2026-05-28T09:00:00Z")),
+      payload: {
+        mimeType: "text/plain",
+        headers: [
+          // RESEND_FROM_EMAIL in the test env is noreply@scta-test.example
+          { name: "From", value: "PM Assistant <noreply@scta-test.example>" },
+          { name: "To", value: "agency@example.com" },
+          { name: "Subject", value: "URGENT: MAINTENANCE at 12 Beach Parade" },
+        ],
+        body: { data: btoa("emergency alert body"), size: 20 },
+      },
+    });
+    const token = await makeToken();
+    const res = await post(
+      makeEnvelope({ emailAddress: "agency@example.com", historyId: "12345" }),
+      {
+        Authorization: `Bearer ${token}`,
+      },
+    );
+    expect(res.status).toBe(200);
+    // We must not draft a reply to our own outbound alert.
+    expect(runDraftPipelineMock).not.toHaveBeenCalled();
+    const entry = writeAuditLogMock.mock.calls.find(
+      (c) => c[1]?.action === "gmail.pubsub.processed",
+    )?.[1];
+    expect(entry?.metadata).toMatchObject({
+      messages_processed: 1,
+      self_skipped: 1,
+      drafts_ok: 0,
+    });
+  });
 });

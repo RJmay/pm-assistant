@@ -187,8 +187,19 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
       let draftsOk = 0;
       let draftsSkipped = 0;
       let draftsFailed = 0;
+      let selfSkipped = 0;
+      // The notifier sends owner alerts from RESEND_FROM_EMAIL. If one ever lands
+      // back in the monitored mailbox (e.g. an owner's address equals the agency
+      // inbox), we must NOT draft a reply to our own outbound — that's a feedback
+      // loop. Skip anything from our own alert sender.
+      const selfSender = extractSenderEmail(c.env.RESEND_FROM_EMAIL);
       try {
         for (const row of persisted) {
+          if (selfSender && row.parsed.from.trim().toLowerCase() === selfSender) {
+            selfSkipped += 1;
+            log.info("skipping draft for our own alert email", { from: row.parsed.from });
+            continue;
+          }
           const result = await runDraftPipeline(
             supabase,
             {
@@ -224,6 +235,7 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
             drafts_ok: draftsOk,
             drafts_skipped: draftsSkipped,
             drafts_failed: draftsFailed,
+            self_skipped: selfSkipped,
             bounces_detected: bounceDetected,
             bounces_matched: bounceMatched,
           },
@@ -235,6 +247,7 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
           drafts_ok: draftsOk,
           drafts_skipped: draftsSkipped,
           drafts_failed: draftsFailed,
+          self_skipped: selfSkipped,
           bounces_detected: bounceDetected,
           bounces_matched: bounceMatched,
         });
@@ -257,6 +270,12 @@ gmailWebhook.post("/webhook/gmail", async (c) => {
 // ----------------------------------------------------------------------------
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
+
+/** Extract the bare, lower-cased email from a `Name <addr>` or bare-address value. */
+function extractSenderEmail(value: string): string {
+  const m = value.match(/<([^>]+)>/);
+  return (m?.[1] ?? value).trim().toLowerCase();
+}
 
 export interface PersistedMessage {
   emailMessageId: string;
