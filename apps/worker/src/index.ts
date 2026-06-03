@@ -6,6 +6,7 @@ import { handleDailySequences } from "./cron/sequences";
 import { handleWeeklyDrift } from "./cron/weekly-drift";
 import type { WorkerBindings } from "./lib/env";
 import { createLogger } from "./lib/log";
+import { documentsRoute } from "./routes/documents";
 import { gmailWebhook } from "./routes/gmail-webhook";
 import { health } from "./routes/health";
 import { maintenanceRoute } from "./routes/maintenance";
@@ -31,6 +32,7 @@ app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
 app.route("/", sendRoute);
 app.route("/", maintenanceRoute);
+app.route("/", documentsRoute);
 app.route("/", regulatoryReview);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";

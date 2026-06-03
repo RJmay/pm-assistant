@@ -1,14 +1,14 @@
 # BUILD_PLAN.md
 
-> **STATUS: Phase 1 COMPLETE + LIVE. Phase 2 (outbound sequences) CODE COMPLETE. Phase 3
-> (maintenance coordination) M1 CODE COMPLETE.** Milestones M0–M10 are built and Phase B
-> (runtime bring-up) is done — the system is deployed, hosted on Cloudflare + Supabase, and
-> auto-deploying from `main`. See **`HANDOFF.md`** for live URLs, **`docs/PHASE_2_OUTBOUND.md`**
-> for the §8 outbound sequences (lease-renewal, inspection, owner updates, arrears), and
-> **`docs/PHASE_3_MAINTENANCE.md`** for §9 maintenance coordination (M1: job foundation +
-> tradie quote requests). All drafted-and-queued into the existing review queue, still
-> human-sent. Code + tests green; runtime DoDs pending the same live-data bring-up as Phase 1.
-> See the **Phase 2** and **Phase 3** sections below.
+> **STATUS: Phase 1 COMPLETE + LIVE. Phases 2, 3 CODE COMPLETE. Phase 4 (documents) M1 CODE
+> COMPLETE.** Milestones M0–M10 are built and Phase B (runtime bring-up) is done — deployed,
+> hosted on Cloudflare + Supabase, auto-deploying from `main`. Handoffs:
+> **`HANDOFF.md`** (live URLs), **`docs/PHASE_2_OUTBOUND.md`** (§8 outbound sequences),
+> **`docs/PHASE_3_MAINTENANCE.md`** (§9 maintenance coordination, M1–M3), and
+> **`docs/PHASE_4_DOCUMENTS.md`** (§10 statutory documents, M1: Form 9 entry notice +
+> rent-increase notice). All rules-backed / human-in-the-loop. Code + tests green
+> (rules 68, documents 9, prompts 50, web 43, worker 286; db 3 skipped); runtime DoDs pending
+> the same live-data bring-up as Phase 1. See the Phase 2/3/4 sections below.
 
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
 
@@ -436,12 +436,34 @@ queued) and closed out.
 
 ---
 
-## Future milestones (Phase 4+)
+## Phase 4 — Document + compliance engine `[M1 DONE — code complete, runtime DoD pending live data]`
+
+Master spec §10. Generate QLD statutory documents from data + the rules engine — no statutory
+field/date is ever LLM-generated, and a document whose statutory basis the rules engine can't
+confirm isn't generated (anti-invention). Full handoff: **`docs/PHASE_4_DOCUMENTS.md`**.
+
+**Milestone 1 (DONE)** — the engine + two rules-backed document types.
+- New stack-agnostic **`@pm/documents`** package: `DocumentModel` builders + an HTML renderer.
+  **Entry Notice (Form 9)** (7-day notice + 3-month cap from `@pm/rules`) and **Rent-Increase
+  Notice** (`assessRentIncrease`: 2-month notice, property-based 12-month rule). Builders throw
+  `DocumentNotCompliantError` rather than emit a non-compliant document.
+- Migration `0017` (`documents` table: type, form_id, fields jsonb, content, rule_versions, RLS).
+  `@pm/shared` doc enums; `@pm/db` types hand-edited.
+- Worker `services/documents.ts` + `POST /api/documents` (resolve data → build → render → persist
+  with rule versions → audit). Dashboard `/documents` (generate form + list) + `/documents/[id]`
+  viewer with Print / Save-as-PDF.
+- v1 stores rendered **HTML inline** (print-to-PDF), not a binary PDF in Storage — compliance
+  core identical; binary PDF is a renderer-only follow-up.
+
+**Deferred:** Forms 11/12/13/R12 (need their notice periods seeded into `@pm/rules` first —
+anti-invention); binary-PDF + Storage; condition reports.
+
+---
+
+## Future milestones (Phase 5+)
 
 Listed here for planning — do not start without explicit direction.
 
-- **Phase 4 — Document + compliance engine** (spec §10): generate QLD statutory PDFs
-  (Form 9, 11, 12, 13, R12) from data + rules engine, stored with the rule version used.
 - **Phase 5 — Voice/SMS front door** (spec §11): SMS/voice auto-responder for routine status
   queries; everything else captured + queued.
 - Owner portal (read-only) / Tenant portal (log requests, view tenancy details).

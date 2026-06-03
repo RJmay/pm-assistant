@@ -1143,3 +1143,41 @@ alter table ai_drafts
   );
 
 alter publication supabase_realtime add table maintenance_jobs;
+
+-- ============================================================================
+-- DOCUMENTS (added in migration 0017) — Phase 4, spec §10
+-- ============================================================================
+-- Generated QLD statutory documents. Every statutory field/date is computed by
+-- the rules engine, never an LLM; the rule versions used are recorded. v1
+-- stores the rendered document inline (HTML) rather than a binary PDF.
+-- ============================================================================
+
+create type document_type as enum ('entry_notice', 'rent_increase_notice');
+create type document_status as enum ('generated', 'sent', 'void');
+
+create table documents (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  type document_type not null,
+  form_id text,
+  property_id uuid references properties(id) on delete set null,
+  tenancy_id uuid references tenancies(id) on delete set null,
+  title text not null,
+  fields jsonb not null default '{}'::jsonb,
+  content text not null,
+  content_type text not null default 'text/html',
+  rule_versions text[] not null default '{}',
+  status document_status not null default 'generated',
+  created_by uuid references agency_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index idx_documents_agency on documents(agency_id, created_at desc);
+create index idx_documents_tenancy on documents(agency_id, tenancy_id);
+
+alter table documents enable row level security;
+
+create policy tenant_isolation on documents
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());

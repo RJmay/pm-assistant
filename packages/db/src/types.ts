@@ -455,6 +455,86 @@ export type Database = {
           },
         ];
       };
+      documents: {
+        Row: {
+          agency_id: string;
+          content: string;
+          content_type: string;
+          created_at: string;
+          created_by: string | null;
+          fields: Json;
+          form_id: string | null;
+          id: string;
+          property_id: string | null;
+          rule_versions: string[];
+          status: Database["public"]["Enums"]["document_status"];
+          tenancy_id: string | null;
+          title: string;
+          type: Database["public"]["Enums"]["document_type"];
+        };
+        Insert: {
+          agency_id: string;
+          content: string;
+          content_type?: string;
+          created_at?: string;
+          created_by?: string | null;
+          fields?: Json;
+          form_id?: string | null;
+          id?: string;
+          property_id?: string | null;
+          rule_versions?: string[];
+          status?: Database["public"]["Enums"]["document_status"];
+          tenancy_id?: string | null;
+          title: string;
+          type: Database["public"]["Enums"]["document_type"];
+        };
+        Update: {
+          agency_id?: string;
+          content?: string;
+          content_type?: string;
+          created_at?: string;
+          created_by?: string | null;
+          fields?: Json;
+          form_id?: string | null;
+          id?: string;
+          property_id?: string | null;
+          rule_versions?: string[];
+          status?: Database["public"]["Enums"]["document_status"];
+          tenancy_id?: string | null;
+          title?: string;
+          type?: Database["public"]["Enums"]["document_type"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "documents_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "documents_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "agency_users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "documents_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "documents_tenancy_id_fkey";
+            columns: ["tenancy_id"];
+            isOneToOne: false;
+            referencedRelation: "tenancies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       draft_edits: {
         Row: {
           agency_id: string;
@@ -1561,6 +1641,8 @@ export type Database = {
       agreement_type: "fixed" | "periodic";
       audit_actor_type: "user" | "system" | "ai";
       confidence_level: "HIGH" | "MEDIUM" | "LOW";
+      document_status: "generated" | "sent" | "void";
+      document_type: "entry_notice" | "rent_increase_notice";
       draft_category: "MAINTENANCE" | "RENT" | "LEASE" | "COMPLAINT" | "ADMIN" | "OTHER";
       draft_priority: "STANDARD" | "PRIORITY" | "EMERGENCY_ALERT";
       draft_source: "inbound_reply" | "sequence" | "maintenance";
@@ -1738,6 +1820,8 @@ export const Constants = {
       agreement_type: ["fixed", "periodic"],
       audit_actor_type: ["user", "system", "ai"],
       confidence_level: ["HIGH", "MEDIUM", "LOW"],
+      document_status: ["generated", "sent", "void"],
+      document_type: ["entry_notice", "rent_increase_notice"],
       draft_category: ["MAINTENANCE", "RENT", "LEASE", "COMPLAINT", "ADMIN", "OTHER"],
       draft_priority: ["STANDARD", "PRIORITY", "EMERGENCY_ALERT"],
       draft_source: ["inbound_reply", "sequence", "maintenance"],

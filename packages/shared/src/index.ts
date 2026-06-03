@@ -107,6 +107,20 @@ export type MaintenanceOwnerApproval = z.infer<typeof maintenanceOwnerApprovalSc
  * amount is filled in once a quote comes back; `draft_id` links the outbound
  * quote-request draft that was queued for the PM.
  */
+// ----------------------------------------------------------------------------
+// Documents (Phase 4, spec §10) — shared enums
+// ----------------------------------------------------------------------------
+// Generated QLD statutory documents. Mirrors the Postgres enums in migration
+// 0017. Document content is rules-engine-driven, never LLM (spec §6/§10).
+
+export const DOCUMENT_TYPES = ["entry_notice", "rent_increase_notice"] as const;
+export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
+export type DocumentType = z.infer<typeof documentTypeSchema>;
+
+export const DOCUMENT_STATUSES = ["generated", "sent", "void"] as const;
+export const documentStatusSchema = z.enum(DOCUMENT_STATUSES);
+export type DocumentStatus = z.infer<typeof documentStatusSchema>;
+
 export const maintenanceQuoteSchema = z.object({
   id: z.string(),
   tradie_name: z.string(),

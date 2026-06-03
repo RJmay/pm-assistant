@@ -5,6 +5,7 @@
   import { cn } from "$lib/utils";
   import {
     AlertTriangle,
+    FileText,
     HelpCircle,
     Inbox,
     LogOut,
@@ -21,6 +22,7 @@
     { href: "/queue", label: "Queue", icon: Inbox },
     { href: "/alerts", label: "Alerts", icon: AlertTriangle },
     { href: "/maintenance", label: "Maintenance", icon: Wrench },
+    { href: "/documents", label: "Documents", icon: FileText },
     { href: "/audit", label: "Audit", icon: ScrollText },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
@@ -93,7 +95,7 @@
 
     <!-- Mobile bottom nav -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-background sm:hidden"
     >
       {#each navItems as item (item.href)}
         <a

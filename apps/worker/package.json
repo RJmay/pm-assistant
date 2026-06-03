@@ -12,6 +12,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
     "@pm/db": "workspace:*",
+    "@pm/documents": "workspace:*",
     "@pm/prompts": "workspace:*",
     "@pm/rules": "workspace:*",
     "@pm/shared": "workspace:*",
