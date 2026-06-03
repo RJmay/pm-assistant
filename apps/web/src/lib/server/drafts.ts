@@ -57,7 +57,9 @@ async function project(client: Client, agencyId: string, drafts: DraftRow[]): Pr
 
   return drafts.map((d) => {
     const m = d.email_message_id ? byId.get(d.email_message_id) : undefined;
-    const isSequence = d.draft_source === "sequence";
+    // Any non-inbound draft (sequence or maintenance) is outbound: the
+    // counterparty is the recipient and the subject is the draft's own.
+    const isOutbound = d.draft_source !== "inbound_reply";
     return {
       id: d.id,
       draft_source: d.draft_source,
@@ -74,13 +76,13 @@ async function project(client: Client, agencyId: string, drafts: DraftRow[]): Pr
       bounced_at: d.bounced_at,
       draft_subject: d.draft_subject,
       created_at: d.created_at,
-      // For sequence drafts the "counterparty" is the recipient we're writing to.
-      from_name: isSequence ? d.recipient_name : (m?.from_name ?? null),
-      from_address: isSequence
+      // For outbound drafts the "counterparty" is the recipient we're writing to.
+      from_name: isOutbound ? d.recipient_name : (m?.from_name ?? null),
+      from_address: isOutbound
         ? (d.recipient_email ?? "(no recipient)")
         : (m?.from_address ?? "(unknown sender)"),
-      subject: isSequence ? d.draft_subject : (m?.subject ?? null),
-      received_at: isSequence ? d.created_at : (m?.received_at ?? null),
+      subject: isOutbound ? d.draft_subject : (m?.subject ?? null),
+      received_at: isOutbound ? d.created_at : (m?.received_at ?? null),
     } satisfies QueueItem;
   });
 }

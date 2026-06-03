@@ -26,7 +26,12 @@
 
   let { data }: { data: PageData } = $props();
 
-  const isSequence = $derived(data.draft.draft_source === "sequence");
+  const isOutbound = $derived(data.draft.draft_source !== "inbound_reply");
+  const canCreateJob = $derived(
+    data.draft.draft_source === "inbound_reply" &&
+      data.draft.category === "MAINTENANCE" &&
+      !data.maintenanceJob,
+  );
 
   // Editable copy, resynced when navigating to a different draft. The
   // initializers intentionally seed from the loaded draft (for correct SSR
@@ -49,6 +54,52 @@
   let sending = $state(false);
   let discardOpen = $state(false);
   let discardReason = $state("");
+  let creatingJob = $state(false);
+  let jobTrade = $state("");
+
+  async function createMaintenanceJob() {
+    const workerUrl = env.PUBLIC_WORKER_URL;
+    if (!workerUrl) {
+      toast.error("PUBLIC_WORKER_URL is not configured.");
+      return;
+    }
+    creatingJob = true;
+    try {
+      const supabase = getBrowserClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const payload: { sourceDraftId: string; trade?: string } = { sourceDraftId: data.draft.id };
+      if (jobTrade.trim()) payload.trade = jobTrade.trim();
+      const res = await fetch(`${workerUrl}/api/maintenance/jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const detail = (await res.json().catch(() => null)) as {
+          classification?: string;
+          quoteRequests?: { drafted?: number } | null;
+        } | null;
+        const drafted = detail?.quoteRequests?.drafted ?? 0;
+        toast.success(
+          `Maintenance job created (${detail?.classification ?? "routine"})` +
+            (drafted > 0 ? ` — ${drafted} quote request${drafted === 1 ? "" : "s"} drafted.` : "."),
+        );
+        await invalidateAll();
+      } else {
+        const detail = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast.error(detail?.error ? `Couldn't create job: ${detail.error}` : `Failed (${res.status}).`);
+      }
+    } catch {
+      toast.error("Could not reach the Worker.");
+    } finally {
+      creatingJob = false;
+    }
+  }
 
   const dirty = $derived(
     subject !== (data.draft.draft_subject ?? "") || body !== (data.draft.draft_body ?? ""),
@@ -107,12 +158,12 @@
     {#if data.draft.safety_critical}<Badge variant="destructive">Safety critical</Badge>{/if}
     {#if data.draft.emergency_landlord_alert}<Badge variant="destructive">Landlord alert</Badge>{/if}
     {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
-    {#if isSequence}<Badge variant="secondary">Outbound sequence</Badge>{/if}
+    {#if isOutbound}<Badge variant="secondary">Outbound</Badge>{/if}
     <Badge variant="secondary">Status: {data.draft.status}</Badge>
   </div>
 
   <div class="grid gap-4 lg:grid-cols-2">
-    {#if isSequence}
+    {#if isOutbound}
       <!-- Outbound (sequence) context — no inbound email to show -->
       <Card>
         <CardHeader>
@@ -264,6 +315,43 @@
       </CardContent>
     </Card>
   </div>
+
+  <!-- Maintenance coordination (inbound MAINTENANCE drafts) -->
+  {#if data.maintenanceJob}
+    <Card>
+      <CardHeader><CardTitle class="text-base">Maintenance job</CardTitle></CardHeader>
+      <CardContent class="flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant={data.maintenanceJob.classification === "emergency" ? "destructive" : "secondary"}>
+          {data.maintenanceJob.classification}
+        </Badge>
+        <Badge variant="outline">{data.maintenanceJob.state}</Badge>
+        <a class="text-primary hover:underline" href={`/maintenance/${data.maintenanceJob.id}`}>
+          View job →
+        </a>
+      </CardContent>
+    </Card>
+  {:else if canCreateJob}
+    <Card>
+      <CardHeader>
+        <CardTitle class="text-base">Maintenance coordination</CardTitle>
+      </CardHeader>
+      <CardContent class="space-y-3">
+        <p class="text-sm text-muted-foreground">
+          Turn this request into a tracked job. It'll be triaged (emergency vs routine) and, if you
+          name a trade, we'll draft quote requests to your approved tradies for review.
+        </p>
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="space-y-1.5">
+            <Label for="trade">Trade (optional)</Label>
+            <Input id="trade" bind:value={jobTrade} placeholder="e.g. plumbing" class="w-48" />
+          </div>
+          <Button type="button" onclick={createMaintenanceJob} disabled={creatingJob}>
+            {creatingJob ? "Creating…" : "Create maintenance job"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  {/if}
 
   <!-- Edit history -->
   {#if data.edits.length > 0}

@@ -261,6 +261,7 @@ export type Database = {
           emergency_landlord_alert: boolean;
           escalation_flag: Database["public"]["Enums"]["escalation_flag"];
           id: string;
+          maintenance_job_id: string | null;
           match_confidence: Database["public"]["Enums"]["match_confidence"];
           matched_via: Database["public"]["Enums"]["match_source"] | null;
           model_used: string;
@@ -296,6 +297,7 @@ export type Database = {
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
+          maintenance_job_id?: string | null;
           match_confidence?: Database["public"]["Enums"]["match_confidence"];
           matched_via?: Database["public"]["Enums"]["match_source"] | null;
           model_used: string;
@@ -331,6 +333,7 @@ export type Database = {
           emergency_landlord_alert?: boolean;
           escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
           id?: string;
+          maintenance_job_id?: string | null;
           match_confidence?: Database["public"]["Enums"]["match_confidence"];
           matched_via?: Database["public"]["Enums"]["match_source"] | null;
           model_used?: string;
@@ -369,6 +372,13 @@ export type Database = {
             columns: ["email_message_id"];
             isOneToOne: true;
             referencedRelation: "email_messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ai_drafts_maintenance_job_id_fkey";
+            columns: ["maintenance_job_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_jobs";
             referencedColumns: ["id"];
           },
           {
@@ -650,6 +660,112 @@ export type Database = {
             columns: ["property_id"];
             isOneToOne: false;
             referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      maintenance_jobs: {
+        Row: {
+          agency_id: string;
+          approved_spend_cents: number | null;
+          classification: Database["public"]["Enums"]["maintenance_classification"];
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          issue: string;
+          notes: string | null;
+          owner_approval_state: Database["public"]["Enums"]["maintenance_owner_approval"];
+          property_id: string | null;
+          quotes: Json;
+          scheduled_for: string | null;
+          source_draft_id: string | null;
+          source_email_message_id: string | null;
+          state: Database["public"]["Enums"]["maintenance_job_state"];
+          tenancy_id: string | null;
+          trade: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          agency_id: string;
+          approved_spend_cents?: number | null;
+          classification?: Database["public"]["Enums"]["maintenance_classification"];
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          issue: string;
+          notes?: string | null;
+          owner_approval_state?: Database["public"]["Enums"]["maintenance_owner_approval"];
+          property_id?: string | null;
+          quotes?: Json;
+          scheduled_for?: string | null;
+          source_draft_id?: string | null;
+          source_email_message_id?: string | null;
+          state?: Database["public"]["Enums"]["maintenance_job_state"];
+          tenancy_id?: string | null;
+          trade?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string;
+          approved_spend_cents?: number | null;
+          classification?: Database["public"]["Enums"]["maintenance_classification"];
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          issue?: string;
+          notes?: string | null;
+          owner_approval_state?: Database["public"]["Enums"]["maintenance_owner_approval"];
+          property_id?: string | null;
+          quotes?: Json;
+          scheduled_for?: string | null;
+          source_draft_id?: string | null;
+          source_email_message_id?: string | null;
+          state?: Database["public"]["Enums"]["maintenance_job_state"];
+          tenancy_id?: string | null;
+          trade?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_jobs_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_jobs_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "agency_users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_jobs_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_jobs_source_draft_id_fkey";
+            columns: ["source_draft_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_drafts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_jobs_source_email_message_id_fkey";
+            columns: ["source_email_message_id"];
+            isOneToOne: false;
+            referencedRelation: "email_messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "maintenance_jobs_tenancy_id_fkey";
+            columns: ["tenancy_id"];
+            isOneToOne: false;
+            referencedRelation: "tenancies";
             referencedColumns: ["id"];
           },
         ];
@@ -1447,10 +1563,21 @@ export type Database = {
       confidence_level: "HIGH" | "MEDIUM" | "LOW";
       draft_category: "MAINTENANCE" | "RENT" | "LEASE" | "COMPLAINT" | "ADMIN" | "OTHER";
       draft_priority: "STANDARD" | "PRIORITY" | "EMERGENCY_ALERT";
-      draft_source: "inbound_reply" | "sequence";
+      draft_source: "inbound_reply" | "sequence" | "maintenance";
       draft_status: "pending" | "edited" | "sent" | "discarded" | "do_not_send";
       email_direction: "inbound" | "outbound";
       escalation_flag: "NONE" | "WELFARE" | "LEGAL" | "REPUTATIONAL" | "INCIDENT";
+      maintenance_classification: "emergency" | "routine" | "other";
+      maintenance_job_state:
+        | "new"
+        | "quoting"
+        | "awaiting_owner_approval"
+        | "approved"
+        | "scheduling"
+        | "scheduled"
+        | "completed"
+        | "cancelled";
+      maintenance_owner_approval: "not_required" | "pending" | "approved" | "declined";
       match_confidence: "high" | "medium" | "low" | "none";
       match_source:
         | "exact_email"
@@ -1613,10 +1740,22 @@ export const Constants = {
       confidence_level: ["HIGH", "MEDIUM", "LOW"],
       draft_category: ["MAINTENANCE", "RENT", "LEASE", "COMPLAINT", "ADMIN", "OTHER"],
       draft_priority: ["STANDARD", "PRIORITY", "EMERGENCY_ALERT"],
-      draft_source: ["inbound_reply", "sequence"],
+      draft_source: ["inbound_reply", "sequence", "maintenance"],
       draft_status: ["pending", "edited", "sent", "discarded", "do_not_send"],
       email_direction: ["inbound", "outbound"],
       escalation_flag: ["NONE", "WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"],
+      maintenance_classification: ["emergency", "routine", "other"],
+      maintenance_job_state: [
+        "new",
+        "quoting",
+        "awaiting_owner_approval",
+        "approved",
+        "scheduling",
+        "scheduled",
+        "completed",
+        "cancelled",
+      ],
+      maintenance_owner_approval: ["not_required", "pending", "approved", "declined"],
       match_confidence: ["high", "medium", "low", "none"],
       match_source: ["exact_email", "thread_continuity", "subject_fuzzy", "body_scan", "fallback"],
       notification_channel: ["sms", "email", "call", "digest"],

@@ -42,10 +42,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       ).data
     : null;
 
-  // For a sequence draft, resolve the property address to show the PM the
-  // context (who/where this proactive message is going to).
+  // For an outbound draft (sequence or maintenance), resolve the property
+  // address to show the PM the context (who/where this message is going to).
   let outboundContext: { propertyAddress: string | null } | null = null;
-  if (draft.draft_source === "sequence") {
+  if (draft.draft_source !== "inbound_reply") {
     let propertyAddress: string | null = null;
     if (draft.property_id) {
       const { data: property } = await locals.supabase
@@ -61,6 +61,19 @@ export const load: PageServerLoad = async ({ locals, params }) => {
       }
     }
     outboundContext = { propertyAddress };
+  }
+
+  // For an inbound MAINTENANCE draft, surface whether a maintenance job already
+  // exists for it (so the UI shows "View job" instead of "Create job").
+  let maintenanceJob: { id: string; state: string; classification: string } | null = null;
+  if (draft.draft_source === "inbound_reply" && draft.category === "MAINTENANCE") {
+    const { data: job } = await locals.supabase
+      .from("maintenance_jobs")
+      .select("id, state, classification")
+      .eq("agency_id", agencyId)
+      .eq("source_draft_id", draft.id)
+      .maybeSingle();
+    maintenanceJob = job ?? null;
   }
 
   const { data: edits } = await locals.supabase
@@ -81,6 +94,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     draft: { ...draft, pm_review_notes: reviewNotes },
     message: message ?? null,
     outboundContext,
+    maintenanceJob,
     edits: edits ?? [],
   };
 };

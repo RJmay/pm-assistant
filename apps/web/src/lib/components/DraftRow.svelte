@@ -17,7 +17,7 @@
   let { item }: { item: QueueItem } = $props();
 
   const subject = $derived(item.subject ?? item.draft_subject ?? "(no subject)");
-  const isSequence = $derived(item.draft_source === "sequence");
+  const isOutbound = $derived(item.draft_source !== "inbound_reply");
 </script>
 
 <a
@@ -29,7 +29,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <Badge variant={priorityVariant(item.priority)}>{priorityLabel(item.priority)}</Badge>
         <Badge variant="outline">{categoryLabel(item.category)}</Badge>
-        {#if isSequence}
+        {#if isOutbound}
           <Badge variant="secondary">Outbound</Badge>
         {/if}
         {#if item.escalation_flag !== "NONE"}
@@ -51,7 +51,7 @@
 
       <p class="mt-2 truncate font-medium">{subject}</p>
       <p class="truncate text-sm text-muted-foreground">
-        {isSequence ? "To: " : ""}{senderName(item.from_name, item.from_address)}
+        {isOutbound ? "To: " : ""}{senderName(item.from_name, item.from_address)}
       </p>
     </div>
 

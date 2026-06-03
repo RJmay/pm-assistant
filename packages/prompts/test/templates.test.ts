@@ -3,7 +3,9 @@ import {
   buildArrearsDraft,
   buildInspectionDraft,
   buildLeaseRenewalDraft,
+  buildOwnerApprovalRequest,
   buildOwnerUpdateDraft,
+  buildTradieQuoteRequest,
   humanDate,
   type LeaseRenewalInput,
   MissingTemplateVariableError,
@@ -256,5 +258,72 @@ describe("buildArrearsDraft", () => {
   it("omits the escalation note when not flagged", () => {
     const d = buildArrearsDraft({ ...base(), daysOverdue: 2, escalate: false });
     expect(d.reviewNotes.join("\n")).not.toContain("Form 11");
+  });
+});
+
+describe("buildTradieQuoteRequest", () => {
+  function base() {
+    return {
+      tradieName: "Coastline Plumbing",
+      trade: "plumbing",
+      propertyAddress: "12 Marine Parade, Maroochydore",
+      issueSummary: "Kitchen tap is leaking under the sink.",
+      isEmergency: false,
+      agencyName: "Sunshine Coast Test Agency",
+      pmName: "Jess Bowman",
+    };
+  }
+
+  it("requests a quote without promising a time or committing spend", () => {
+    const d = buildTradieQuoteRequest(base());
+    expect(d.subject).toBe("Quote request — plumbing at 12 Marine Parade, Maroochydore");
+    expect(d.body).toContain("Hi Coastline Plumbing,");
+    expect(d.body).toContain("Kitchen tap is leaking");
+    expect(d.body).toContain("earliest availability");
+    expect(d.body).not.toMatch(/\{\{|\}\}/);
+    // No urgency sentence for a routine job.
+    expect(d.body).not.toContain("urgent repair");
+  });
+
+  it("adds an urgency line + s214 note for an emergency", () => {
+    const d = buildTradieQuoteRequest({ ...base(), isEmergency: true });
+    expect(d.body).toContain("urgent repair");
+    expect(d.reviewNotes.join("\n")).toContain("EMERGENCY (RTRA s214)");
+  });
+});
+
+describe("buildOwnerApprovalRequest", () => {
+  function base() {
+    return {
+      ownerName: "Casey Brennan",
+      propertyAddress: "12 Marine Parade, Maroochydore",
+      issueSummary: "Hot water system needs replacing.",
+      thresholdCents: 25000,
+      agencyName: "Sunshine Coast Test Agency",
+      pmName: "Jess Bowman",
+    };
+  }
+
+  it("asks for approval, surfaces the estimate, and never authorises spend", () => {
+    const d = buildOwnerApprovalRequest({ ...base(), estimateCents: 180000 });
+    expect(d.subject).toBe("Approval needed — maintenance at 12 Marine Parade, Maroochydore");
+    expect(d.body).toContain("Hi Casey,");
+    expect(d.body).toContain("$1,800.00");
+    expect(d.body).toContain("approval to proceed");
+    expect(d.body).not.toMatch(/\{\{|\}\}/);
+    const notes = d.reviewNotes.join("\n");
+    expect(notes).toContain("routine approval threshold ($250.00)");
+    expect(notes).toContain("never authorises spend");
+  });
+
+  it("notes when quotes are still pending (no estimate)", () => {
+    const d = buildOwnerApprovalRequest(base());
+    expect(d.body).toContain("still gathering quotes");
+    expect(d.body).not.toMatch(/\$\d/);
+  });
+
+  it("flags when an estimate is actually within the threshold", () => {
+    const d = buildOwnerApprovalRequest({ ...base(), estimateCents: 20000 });
+    expect(d.reviewNotes.join("\n")).toContain("within the routine threshold");
   });
 });

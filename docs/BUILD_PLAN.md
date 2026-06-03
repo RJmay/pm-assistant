@@ -1,14 +1,14 @@
 # BUILD_PLAN.md
 
-> **STATUS (2026-06-02): Phase 1 COMPLETE + LIVE. Phase 2 (outbound sequences) CODE COMPLETE.**
-> Milestones M0–M10 are built and Phase B (runtime bring-up) is done — the system is
-> deployed, hosted on Cloudflare + Supabase, and auto-deploying from `main`. See
-> **`HANDOFF.md`** for live URLs and **`docs/PHASE_2_OUTBOUND.md`** for the Phase 2
-> sequences. Phase 2 = the master spec's §8 proactive outbound sequences
-> (lease-renewal, inspection scheduling, owner updates, arrears) — all four drafted-and-
-> queued into the existing review queue, still human-sent. Code + tests green; runtime
-> DoD (real tenancies/owners + a live send) pending the same data bring-up as Phase 1.
-> See the **Phase 2** section below.
+> **STATUS: Phase 1 COMPLETE + LIVE. Phase 2 (outbound sequences) CODE COMPLETE. Phase 3
+> (maintenance coordination) M1 CODE COMPLETE.** Milestones M0–M10 are built and Phase B
+> (runtime bring-up) is done — the system is deployed, hosted on Cloudflare + Supabase, and
+> auto-deploying from `main`. See **`HANDOFF.md`** for live URLs, **`docs/PHASE_2_OUTBOUND.md`**
+> for the §8 outbound sequences (lease-renewal, inspection, owner updates, arrears), and
+> **`docs/PHASE_3_MAINTENANCE.md`** for §9 maintenance coordination (M1: job foundation +
+> tradie quote requests). All drafted-and-queued into the existing review queue, still
+> human-sent. Code + tests green; runtime DoDs pending the same live-data bring-up as Phase 1.
+> See the **Phase 2** and **Phase 3** sections below.
 
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
 
@@ -383,13 +383,46 @@ under Cloudflare's cron-trigger cap. Full handoff: **`docs/PHASE_2_OUTBOUND.md`*
 
 ---
 
-## Future milestones (Phase 3+)
+## Phase 3 — Maintenance coordination `[M1 DONE — code complete, runtime DoD pending live data]`
 
-Listed here for planning — do not start without explicit direction. (Phase 2 = outbound
-sequences, above, is done.)
+Master spec §9. Automate the highest-effort-per-instance workflow: a maintenance request →
+triage (EMERGENCY vs routine via the rules-engine s214 list) → tradie quote requests → owner
+approval (spending-authority gated) → scheduling → close-out. The agent runs the coordination
+and drafts every message; the PM makes the judgement calls and approvals. Jobs are created
+**PM-initiated** from a MAINTENANCE draft. Full handoff: **`docs/PHASE_3_MAINTENANCE.md`**.
 
-- **Phase 3 — Maintenance coordination** (spec §9): request → triage (s214) → tradie quote
-  requests → owner approval (spending authority) → scheduling → close-out. Tradie portal.
+**Milestone 1 (DONE)** — job foundation + tradie quote requests. `pnpm exec biome check .` +
+`pnpm -r typecheck` + `pnpm -r test` pass (rules 68, prompts 47, web 43, worker 267; db 3 skipped).
+- Migrations `0015` (`draft_source += 'maintenance'`, separate so PG commits the enum value) +
+  `0016` (`maintenance_jobs` table: classification / state machine / quotes jsonb /
+  owner_approval_state / spend / schedule; `ai_drafts.maintenance_job_id`; widened source-shape
+  guard; RLS; realtime). `@pm/shared` job enums + `MaintenanceQuote`; `@pm/db` types hand-edited.
+- Templates (`@pm/prompts`): tradie quote-request + owner-approval-request (never commits the
+  owner, never promises a tradie time; surfaces the spending threshold).
+- Worker `services/maintenance.ts` + `POST /api/maintenance/jobs` (JWT-authed): create a job
+  (s214-triaged), then draft tradie quote-requests to the agency's approved tradies for the
+  trade — as outbound `ai_drafts` (`draft_source='maintenance'`) in the same review queue.
+  Idempotent per source draft.
+- Dashboard: "Create maintenance job" on a MAINTENANCE draft; `/maintenance` jobs list + job
+  detail (quotes + drafts); outbound rendering generalised to any `draft_source != inbound_reply`.
+
+**Deferred to later Phase 3 milestones (surfaced now):**
+- **M3.2** — owner-approval flow (auto-draft the approval request when an accepted quote exceeds
+  the spending threshold; record the owner's answer) + quote chasers/response tracking.
+- **M3.3** — scheduling messages + job close-out + the full state machine transitions.
+- Tradie email capture in `agency_config.approved_tradies` (quote requests currently use a
+  contact containing "@"; tradies with only a phone are skipped with a count). A tradie portal
+  (accept/complete/invoice) is later-phase.
+
+**Definition of done (M1):** (runtime pending live data) — a PM turns a real maintenance email
+into a job (correctly triaged) and tradie quote requests land in the queue to send.
+
+---
+
+## Future milestones (Phase 4+)
+
+Listed here for planning — do not start without explicit direction.
+
 - **Phase 4 — Document + compliance engine** (spec §10): generate QLD statutory PDFs
   (Form 9, 11, 12, 13, R12) from data + rules engine, stored with the rule version used.
 - **Phase 5 — Voice/SMS front door** (spec §11): SMS/voice auto-responder for routine status

@@ -71,6 +71,55 @@ export const sequenceHistoryEntrySchema = z.object({
 export type SequenceHistoryEntry = z.infer<typeof sequenceHistoryEntrySchema>;
 
 // ----------------------------------------------------------------------------
+// Maintenance coordination (Phase 3, spec §9) — shared enums + contracts
+// ----------------------------------------------------------------------------
+// A maintenance job is the durable workflow state for one maintenance request.
+// These mirror the Postgres enums in migration 0016 (and `@pm/db` types).
+
+export const MAINTENANCE_CLASSIFICATIONS = ["emergency", "routine", "other"] as const;
+export const maintenanceClassificationSchema = z.enum(MAINTENANCE_CLASSIFICATIONS);
+export type MaintenanceClassification = z.infer<typeof maintenanceClassificationSchema>;
+
+export const MAINTENANCE_JOB_STATES = [
+  "new",
+  "quoting",
+  "awaiting_owner_approval",
+  "approved",
+  "scheduling",
+  "scheduled",
+  "completed",
+  "cancelled",
+] as const;
+export const maintenanceJobStateSchema = z.enum(MAINTENANCE_JOB_STATES);
+export type MaintenanceJobState = z.infer<typeof maintenanceJobStateSchema>;
+
+export const MAINTENANCE_OWNER_APPROVAL_STATES = [
+  "not_required",
+  "pending",
+  "approved",
+  "declined",
+] as const;
+export const maintenanceOwnerApprovalSchema = z.enum(MAINTENANCE_OWNER_APPROVAL_STATES);
+export type MaintenanceOwnerApproval = z.infer<typeof maintenanceOwnerApprovalSchema>;
+
+/**
+ * One entry in `maintenance_jobs.quotes` — a tradie we've asked to quote. The
+ * amount is filled in once a quote comes back; `draft_id` links the outbound
+ * quote-request draft that was queued for the PM.
+ */
+export const maintenanceQuoteSchema = z.object({
+  id: z.string(),
+  tradie_name: z.string(),
+  trade: z.string(),
+  status: z.enum(["requested", "received", "declined", "accepted"]),
+  amount_cents: z.number().int().nonnegative().optional(),
+  requested_at: z.string(),
+  draft_id: z.string().optional(),
+  note: z.string().optional(),
+});
+export type MaintenanceQuote = z.infer<typeof maintenanceQuoteSchema>;
+
+// ----------------------------------------------------------------------------
 // Errors
 // ----------------------------------------------------------------------------
 

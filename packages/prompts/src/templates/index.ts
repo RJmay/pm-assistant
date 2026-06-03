@@ -25,6 +25,14 @@ export {
   type RentReviewWindow,
 } from "./lease-renewal";
 export {
+  buildOwnerApprovalRequest,
+  buildTradieQuoteRequest,
+  OWNER_APPROVAL_REQUEST_TEMPLATE,
+  type OwnerApprovalRequestInput,
+  TRADIE_QUOTE_REQUEST_TEMPLATE,
+  type TradieQuoteRequestInput,
+} from "./maintenance";
+export {
   buildOwnerUpdateDraft,
   OWNER_UPDATE_TEMPLATE,
   type OwnerUpdateInput,

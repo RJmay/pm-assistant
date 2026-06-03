@@ -8,6 +8,7 @@ import type { WorkerBindings } from "./lib/env";
 import { createLogger } from "./lib/log";
 import { gmailWebhook } from "./routes/gmail-webhook";
 import { health } from "./routes/health";
+import { maintenanceRoute } from "./routes/maintenance";
 import { oauthGmail } from "./routes/oauth-gmail";
 import { regulatoryReview } from "./routes/regulatory-review";
 import { sendRoute } from "./routes/send";
@@ -29,6 +30,7 @@ app.route("/", health);
 app.route("/", gmailWebhook);
 app.route("/", oauthGmail);
 app.route("/", sendRoute);
+app.route("/", maintenanceRoute);
 app.route("/", regulatoryReview);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";
