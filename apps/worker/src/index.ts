@@ -13,6 +13,7 @@ import { maintenanceRoute } from "./routes/maintenance";
 import { oauthGmail } from "./routes/oauth-gmail";
 import { regulatoryReview } from "./routes/regulatory-review";
 import { sendRoute } from "./routes/send";
+import { smsRoute } from "./routes/sms";
 
 type Vars = { requestId: string };
 
@@ -33,6 +34,7 @@ app.route("/", oauthGmail);
 app.route("/", sendRoute);
 app.route("/", maintenanceRoute);
 app.route("/", documentsRoute);
+app.route("/", smsRoute);
 app.route("/", regulatoryReview);
 
 const DAILY_REFRESH_CRON = "0 13 * * *";

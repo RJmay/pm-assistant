@@ -71,6 +71,30 @@ export const sequenceHistoryEntrySchema = z.object({
 export type SequenceHistoryEntry = z.infer<typeof sequenceHistoryEntrySchema>;
 
 // ----------------------------------------------------------------------------
+// SMS / voice front door (Phase 5, spec §11) — shared enums
+// ----------------------------------------------------------------------------
+// Mirrors the Postgres enums in migration 0019. Inbound SMS is captured,
+// classified, and a reply is drafted for PM review — never auto-sent (§13).
+
+export const SMS_DIRECTIONS = ["inbound", "outbound"] as const;
+export const smsDirectionSchema = z.enum(SMS_DIRECTIONS);
+export type SmsDirection = z.infer<typeof smsDirectionSchema>;
+
+export const SMS_STATUSES = ["received", "drafted", "sent", "escalated", "ignored"] as const;
+export const smsStatusSchema = z.enum(SMS_STATUSES);
+export type SmsStatus = z.infer<typeof smsStatusSchema>;
+
+export const SMS_INTENTS = [
+  "status_query",
+  "maintenance",
+  "general",
+  "escalation",
+  "unknown",
+] as const;
+export const smsIntentSchema = z.enum(SMS_INTENTS);
+export type SmsIntent = z.infer<typeof smsIntentSchema>;
+
+// ----------------------------------------------------------------------------
 // Maintenance coordination (Phase 3, spec §9) — shared enums + contracts
 // ----------------------------------------------------------------------------
 // A maintenance job is the durable workflow state for one maintenance request.

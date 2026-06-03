@@ -1446,6 +1446,112 @@ export type Database = {
           },
         ];
       };
+      sms_messages: {
+        Row: {
+          agency_id: string;
+          body: string;
+          created_at: string;
+          direction: Database["public"]["Enums"]["sms_direction"];
+          draft_reply: string | null;
+          escalation_flag: Database["public"]["Enums"]["escalation_flag"];
+          from_number: string;
+          id: string;
+          intent: Database["public"]["Enums"]["sms_intent"] | null;
+          maintenance_job_id: string | null;
+          property_id: string | null;
+          provider_sid: string | null;
+          reply_to_sms_id: string | null;
+          sent_at: string | null;
+          sent_by: string | null;
+          status: Database["public"]["Enums"]["sms_status"];
+          tenant_id: string | null;
+          to_number: string;
+        };
+        Insert: {
+          agency_id: string;
+          body: string;
+          created_at?: string;
+          direction: Database["public"]["Enums"]["sms_direction"];
+          draft_reply?: string | null;
+          escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
+          from_number: string;
+          id?: string;
+          intent?: Database["public"]["Enums"]["sms_intent"] | null;
+          maintenance_job_id?: string | null;
+          property_id?: string | null;
+          provider_sid?: string | null;
+          reply_to_sms_id?: string | null;
+          sent_at?: string | null;
+          sent_by?: string | null;
+          status?: Database["public"]["Enums"]["sms_status"];
+          tenant_id?: string | null;
+          to_number: string;
+        };
+        Update: {
+          agency_id?: string;
+          body?: string;
+          created_at?: string;
+          direction?: Database["public"]["Enums"]["sms_direction"];
+          draft_reply?: string | null;
+          escalation_flag?: Database["public"]["Enums"]["escalation_flag"];
+          from_number?: string;
+          id?: string;
+          intent?: Database["public"]["Enums"]["sms_intent"] | null;
+          maintenance_job_id?: string | null;
+          property_id?: string | null;
+          provider_sid?: string | null;
+          reply_to_sms_id?: string | null;
+          sent_at?: string | null;
+          sent_by?: string | null;
+          status?: Database["public"]["Enums"]["sms_status"];
+          tenant_id?: string | null;
+          to_number?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sms_messages_maintenance_job_id_fkey";
+            columns: ["maintenance_job_id"];
+            isOneToOne: false;
+            referencedRelation: "maintenance_jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sms_messages_property_id_fkey";
+            columns: ["property_id"];
+            isOneToOne: false;
+            referencedRelation: "properties";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sms_messages_reply_to_sms_id_fkey";
+            columns: ["reply_to_sms_id"];
+            isOneToOne: false;
+            referencedRelation: "sms_messages";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sms_messages_sent_by_fkey";
+            columns: ["sent_by"];
+            isOneToOne: false;
+            referencedRelation: "agency_users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sms_messages_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenancies: {
         Row: {
           agency_id: string;
@@ -1689,6 +1795,9 @@ export type Database = {
         | "cancelled"
         | "escalated";
       sequence_type: "arrears" | "lease_renewal" | "inspection" | "owner_update";
+      sms_direction: "inbound" | "outbound";
+      sms_intent: "status_query" | "maintenance" | "general" | "escalation" | "unknown";
+      sms_status: "received" | "drafted" | "sent" | "escalated" | "ignored";
       tenancy_status: "draft" | "active" | "ending" | "ended";
       weekly_digest_status: "open" | "acted" | "dismissed";
     };
@@ -1871,6 +1980,9 @@ export const Constants = {
         "escalated",
       ],
       sequence_type: ["arrears", "lease_renewal", "inspection", "owner_update"],
+      sms_direction: ["inbound", "outbound"],
+      sms_intent: ["status_query", "maintenance", "general", "escalation", "unknown"],
+      sms_status: ["received", "drafted", "sent", "escalated", "ignored"],
       tenancy_status: ["draft", "active", "ending", "ended"],
       weekly_digest_status: ["open", "acted", "dismissed"],
     },

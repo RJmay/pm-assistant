@@ -1,14 +1,15 @@
 # BUILD_PLAN.md
 
-> **STATUS: Phase 1 COMPLETE + LIVE. Phases 2, 3 CODE COMPLETE. Phase 4 (documents) M1 CODE
-> COMPLETE.** Milestones M0–M10 are built and Phase B (runtime bring-up) is done — deployed,
-> hosted on Cloudflare + Supabase, auto-deploying from `main`. Handoffs:
-> **`HANDOFF.md`** (live URLs), **`docs/PHASE_2_OUTBOUND.md`** (§8 outbound sequences),
-> **`docs/PHASE_3_MAINTENANCE.md`** (§9 maintenance coordination, M1–M3), and
-> **`docs/PHASE_4_DOCUMENTS.md`** (§10 statutory documents, M1: Form 9 entry notice +
-> rent-increase notice). All rules-backed / human-in-the-loop. Code + tests green
-> (rules 68, documents 9, prompts 50, web 43, worker 286; db 3 skipped); runtime DoDs pending
-> the same live-data bring-up as Phase 1. See the Phase 2/3/4 sections below.
+> **STATUS: Phase 1 COMPLETE + LIVE. Phases 2, 3 CODE COMPLETE. Phase 4 (documents) + Phase 5
+> (SMS front door) CODE COMPLETE — all five spec phases now built.** Milestones M0–M10 are built
+> and Phase B (runtime bring-up) is done — deployed on Cloudflare + Supabase, auto-deploying from
+> `main`. Handoffs: **`HANDOFF.md`** (live URLs), **`docs/PHASE_2_OUTBOUND.md`** (§8 outbound
+> sequences), **`docs/PHASE_3_MAINTENANCE.md`** (§9 maintenance, M1–M3),
+> **`docs/PHASE_4_DOCUMENTS.md`** (§10 documents — Form 9 + rent-increase live; Form 11/12 built
+> but dormant until their RTA periods are confirmed), and **`docs/PHASE_5_SMS.md`** (§11 SMS
+> front door). All rules-backed / human-in-the-loop (never auto-sent). Code + tests green
+> (rules 72, documents 11, prompts 50, web 43, worker 303; db 3 skipped); runtime DoDs pending
+> the same live-data / provider bring-up as Phase 1. See the Phase 2–5 sections below.
 
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
 
@@ -460,12 +461,31 @@ anti-invention); binary-PDF + Storage; condition reports.
 
 ---
 
-## Future milestones (Phase 5+)
+## Phase 5 — SMS front door `[DONE — code complete, runtime DoD pending Twilio config]`
+
+Master spec §11. Inbound SMS → capture + classify + draft a reply → queue for PM review/send.
+**Never auto-sent** (the §11-vs-§13 tension resolved in favour of the hard rule §13). Full handoff:
+**`docs/PHASE_5_SMS.md`**.
+
+- Migration `0019` (`sms_messages` + enums; RLS + realtime); `@pm/shared` SMS enums; `@pm/db` types.
+- Worker: signature-verified Twilio webhook `POST /webhook/sms/:agencyId` (Web Crypto HMAC-SHA1) →
+  classify (escalation-first, §13) → resolve tenant/property/open-job → draft a status/holding
+  reply (escalations get none) → persist. `POST /api/sms/:id/send` (PM approves → Twilio send +
+  outbound row). Dashboard `/sms` review page + nav.
+- **Deferred:** voice layer (separate provider integration); per-agency SMS number in config.
+- **To RUN:** a Twilio number off-trial + its inbound webhook pointed at `/webhook/sms/<agency_id>`.
+
+**Definition of done:** (runtime pending Twilio config) — a real inbound status text is captured,
+classified, a correct status reply drafted, the PM sends it; escalations are flagged, never
+auto-handled.
+
+---
+
+## Future milestones (Phase 6+ / beyond the spec)
 
 Listed here for planning — do not start without explicit direction.
 
-- **Phase 5 — Voice/SMS front door** (spec §11): SMS/voice auto-responder for routine status
-  queries; everything else captured + queued.
+- **Voice** (the other half of §11) — AI voice front door (telephony provider).
 - Owner portal (read-only) / Tenant portal (log requests, view tenancy details).
 - Listings & leasing pipeline; lease lifecycle (Form 18a, renewals, rent reviews, EOT).
 - Trust accounting (only after design review + compliance plan).
