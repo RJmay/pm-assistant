@@ -115,6 +115,8 @@ export const maintenanceQuoteSchema = z.object({
   amount_cents: z.number().int().nonnegative().optional(),
   requested_at: z.string(),
   draft_id: z.string().optional(),
+  /** When a follow-up chaser was last drafted, so we don't chase twice. */
+  chased_at: z.string().optional(),
   note: z.string().optional(),
 });
 export type MaintenanceQuote = z.infer<typeof maintenanceQuoteSchema>;

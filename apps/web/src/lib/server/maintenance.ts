@@ -89,6 +89,7 @@ export async function fetchMaintenanceJobs(
 
 export interface MaintenanceJobDetail extends MaintenanceJobListItem {
   source_draft_id: string | null;
+  approved_spend_cents: number | null;
   quotes: MaintenanceQuote[];
   drafts: Array<{
     id: string;
@@ -107,7 +108,7 @@ export async function fetchMaintenanceJob(
   const { data: job, error } = await client
     .from("maintenance_jobs")
     .select(
-      "id, issue, classification, state, trade, owner_approval_state, scheduled_for, created_at, property_id, quotes, source_draft_id",
+      "id, issue, classification, state, trade, owner_approval_state, scheduled_for, created_at, property_id, quotes, source_draft_id, approved_spend_cents",
     )
     .eq("agency_id", agencyId)
     .eq("id", jobId)
@@ -135,6 +136,7 @@ export async function fetchMaintenanceJob(
     property_address: job.property_id ? (addrs.get(job.property_id) ?? null) : null,
     quote_count: quoteCount(job.quotes),
     source_draft_id: job.source_draft_id,
+    approved_spend_cents: job.approved_spend_cents,
     quotes: (Array.isArray(job.quotes) ? job.quotes : []) as unknown as MaintenanceQuote[],
     drafts: (drafts ?? []).map((d) => ({
       id: d.id,

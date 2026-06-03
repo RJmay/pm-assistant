@@ -38,12 +38,28 @@ job's quotes + drafts.
 - Triage classification is deterministic rules-engine output, never the LLM's call; a keyword hit
   is a recall-oriented flag, the PM decides.
 
+## Milestone 2 (done): owner-approval flow + quote chasers
+
+**Owner approval.** From a job's detail page the PM:
+1. **records a returned quote** (enters the tradie's amount) → `POST .../quotes/:quoteId`;
+2. **requests owner approval** → `POST .../owner-approval` — drafts an owner-approval request to
+   the owner (outbound, in the queue) using the lowest recorded quote as the estimate, resolving
+   the **spending-authority threshold** (per-owner exception in `agency_config.per_owner_quote_exceptions`,
+   else `routine_approval_threshold_cents`); job → `awaiting_owner_approval`, owner approval `pending`;
+3. **records the owner's decision** → `POST .../decision` (approved → `approved` + `approved_spend_cents`;
+   declined → `declined`).
+
+The owner-approval template asks for approval and never authorises spend.
+
+**Quote chasers.** A `quote_chaser` scan in the daily sequence sweep (`cron/maintenance-chasers.ts`)
+finds jobs in `quoting` with quotes that have been `requested` for more than 3 days and not yet
+chased, and drafts a follow-up to the tradie. Idempotent via `quotes[].chased_at` (never chases the
+same quote twice).
+
 ## Deferred (later Phase 3 milestones)
 
-- **M3.2** — owner-approval flow: auto-draft the owner-approval request when an accepted quote
-  exceeds the spending threshold (the `buildOwnerApprovalRequest` template is already built +
-  tested), record the owner's answer, quote chasers / response tracking.
-- **M3.3** — scheduling messages + close-out + full state-machine transitions.
+- **M3.3** — scheduling messages + close-out + the remaining state-machine transitions
+  (`approved` → `scheduling`/`scheduled` → `completed`).
 - Tradie email capture: quote requests use a contact containing "@" in `approved_tradies`;
   tradies with only a phone number are skipped (counted in `skippedNoEmail`). Add an explicit
   `email` field via the settings UI. A tradie portal (accept/complete/invoice) is later-phase.

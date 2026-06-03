@@ -1,7 +1,11 @@
 import type { Client, Json } from "@pm/db";
-import { buildTradieQuoteRequest } from "@pm/prompts";
+import { buildOwnerApprovalRequest, buildTradieQuoteRequest } from "@pm/prompts";
 import { RuleNotConfiguredError, RuleNotFoundError, triageEmergencyRepair } from "@pm/rules";
-import type { MaintenanceClassification, MaintenanceQuote } from "@pm/shared";
+import type {
+  MaintenanceClassification,
+  MaintenanceOwnerApproval,
+  MaintenanceQuote,
+} from "@pm/shared";
 import type { Logger } from "../lib/log";
 import { resolvePmName, resolvePropertyAddress } from "./sequences/resolve";
 import { writeAuditLog } from "./supabase";
@@ -31,7 +35,7 @@ interface ConfigTradie {
 /** First email-looking contact for a tradie, or null. */
 function tradieEmail(t: ConfigTradie): string | null {
   for (const c of [t.email, t.business_hours_contact, t.after_hours_contact]) {
-    if (c && c.includes("@")) return c.trim();
+    if (c?.includes("@")) return c.trim();
   }
   return null;
 }
@@ -330,9 +334,328 @@ export async function draftTradieQuoteRequests(
 /** Typed error so the route can map a known cause to the right HTTP status. */
 export class MaintenanceError extends Error {
   override readonly name = "MaintenanceError";
-  readonly code: "draft_not_found" | "not_inbound" | "job_not_found";
+  readonly code:
+    | "draft_not_found"
+    | "not_inbound"
+    | "job_not_found"
+    | "quote_not_found"
+    | "no_owner_email";
   constructor(code: MaintenanceError["code"], message: string) {
     super(message);
     this.code = code;
   }
+}
+
+// ----------------------------------------------------------------------------
+// M3.2 — record a returned quote
+// ----------------------------------------------------------------------------
+
+export interface RecordQuoteInput {
+  agencyId: string;
+  jobId: string;
+  quoteId: string;
+  amountCents?: number;
+  status?: MaintenanceQuote["status"];
+  createdByPmId: string;
+}
+
+/** Record a tradie's returned quote (amount + status) on a job's quote entry. */
+export async function recordQuote(
+  client: Client,
+  input: RecordQuoteInput,
+  deps: { logger: Logger },
+): Promise<void> {
+  const { data: job, error } = await client
+    .from("maintenance_jobs")
+    .select("id, quotes")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (error) throw new Error(`maintenance_jobs lookup failed: ${error.message}`);
+  if (!job) throw new MaintenanceError("job_not_found", "job not found");
+
+  const quotes = (job.quotes ?? []) as unknown as MaintenanceQuote[];
+  const idx = quotes.findIndex((q) => q.id === input.quoteId);
+  if (idx === -1) throw new MaintenanceError("quote_not_found", "quote not found");
+
+  const existing = quotes[idx];
+  if (!existing) throw new MaintenanceError("quote_not_found", "quote not found");
+  const updated: MaintenanceQuote = {
+    ...existing,
+    status: input.status ?? (input.amountCents != null ? "received" : existing.status),
+  };
+  if (input.amountCents != null) updated.amount_cents = input.amountCents;
+  const nextQuotes = quotes.map((q, i) => (i === idx ? updated : q));
+
+  const { error: updErr } = await client
+    .from("maintenance_jobs")
+    .update({ quotes: nextQuotes as unknown as Json })
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId);
+  if (updErr) throw new Error(`maintenance_jobs update failed: ${updErr.message}`);
+
+  await writeAuditLog(client, {
+    agency_id: input.agencyId,
+    actor_type: "user",
+    actor_id: input.createdByPmId,
+    action: "maintenance.quote_recorded",
+    entity_type: "maintenance_jobs",
+    entity_id: input.jobId,
+    metadata: {
+      quote_id: input.quoteId,
+      tradie: existing.tradie_name,
+      amount_cents: updated.amount_cents ?? null,
+      status: updated.status,
+    },
+  });
+  deps.logger.info("maintenance quote recorded", {
+    job_id: input.jobId,
+    quote_id: input.quoteId,
+    amount_cents: updated.amount_cents ?? null,
+  });
+}
+
+// ----------------------------------------------------------------------------
+// M3.2 — owner-approval request (spending-authority gated)
+// ----------------------------------------------------------------------------
+
+interface ResolvedOwner {
+  ownerId: string;
+  name: string;
+  email: string;
+}
+
+async function resolveOwner(
+  client: Client,
+  agencyId: string,
+  propertyId: string | null,
+): Promise<ResolvedOwner | null> {
+  if (!propertyId) return null;
+  const { data: property } = await client
+    .from("properties")
+    .select("owner_id")
+    .eq("agency_id", agencyId)
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (!property?.owner_id) return null;
+  const { data: owner } = await client
+    .from("owners")
+    .select("id, full_name, email")
+    .eq("agency_id", agencyId)
+    .eq("id", property.owner_id)
+    .maybeSingle();
+  if (!owner?.email || owner.email.trim() === "") return null;
+  return { ownerId: owner.id, name: owner.full_name, email: owner.email };
+}
+
+interface OwnerException {
+  owner_id: string;
+  threshold_cents: number;
+}
+
+/** Effective routine-approval threshold for the property's owner, in cents. */
+async function resolveThreshold(
+  client: Client,
+  agencyId: string,
+  ownerId: string | null,
+): Promise<number> {
+  const { data: config } = await client
+    .from("agency_config")
+    .select("routine_approval_threshold_cents, per_owner_quote_exceptions")
+    .eq("agency_id", agencyId)
+    .maybeSingle();
+  const routine = config?.routine_approval_threshold_cents ?? 25000;
+  if (!ownerId) return routine;
+  const exceptions = (config?.per_owner_quote_exceptions ?? []) as unknown as OwnerException[];
+  const match = exceptions.find((e) => e.owner_id === ownerId);
+  return typeof match?.threshold_cents === "number" ? match.threshold_cents : routine;
+}
+
+export interface OwnerApprovalInput {
+  agencyId: string;
+  jobId: string;
+  /** Estimate in cents; defaults to the lowest received quote. */
+  estimateCents?: number;
+  createdByPmId: string;
+}
+
+export interface OwnerApprovalResult {
+  draftId: string;
+  thresholdCents: number;
+  estimateCents: number | null;
+}
+
+/**
+ * Draft an owner-approval request for a job (outbound to the owner) and move the
+ * job to awaiting_owner_approval. Resolves the spending-authority threshold
+ * (per-owner exception, else the agency routine threshold) and uses the lowest
+ * received quote as the estimate when one isn't supplied. Never authorises spend.
+ */
+export async function draftOwnerApprovalRequest(
+  client: Client,
+  input: OwnerApprovalInput,
+  deps: { logger: Logger },
+): Promise<OwnerApprovalResult> {
+  const { data: job, error } = await client
+    .from("maintenance_jobs")
+    .select("id, property_id, issue, quotes")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (error) throw new Error(`maintenance_jobs lookup failed: ${error.message}`);
+  if (!job) throw new MaintenanceError("job_not_found", "job not found");
+
+  const owner = await resolveOwner(client, input.agencyId, job.property_id);
+  if (!owner) {
+    throw new MaintenanceError("no_owner_email", "the property's owner has no email on file");
+  }
+  const thresholdCents = await resolveThreshold(client, input.agencyId, owner.ownerId);
+
+  const quotes = (job.quotes ?? []) as unknown as MaintenanceQuote[];
+  const lowestReceived = quotes
+    .map((q) => q.amount_cents)
+    .filter((c): c is number => typeof c === "number")
+    .sort((a, b) => a - b)[0];
+  const estimateCents = input.estimateCents ?? lowestReceived ?? null;
+
+  const [{ data: agency }, { data: config }] = await Promise.all([
+    client.from("agencies").select("name").eq("id", input.agencyId).maybeSingle(),
+    client
+      .from("agency_config")
+      .select("pm_signoff_default")
+      .eq("agency_id", input.agencyId)
+      .maybeSingle(),
+  ]);
+  const propertyAddress = await resolvePropertyAddress(client, input.agencyId, job.property_id);
+  const pmName = await resolvePmName(client, input.agencyId, job.property_id);
+
+  const built = buildOwnerApprovalRequest({
+    ownerName: owner.name,
+    propertyAddress,
+    issueSummary: job.issue,
+    estimateCents: estimateCents ?? undefined,
+    thresholdCents,
+    agencyName: agency?.name ?? "",
+    pmName,
+    pmSignoff: config?.pm_signoff_default ?? undefined,
+  });
+
+  const { data: draft, error: draftErr } = await client
+    .from("ai_drafts")
+    .insert({
+      agency_id: input.agencyId,
+      draft_source: "maintenance",
+      maintenance_job_id: input.jobId,
+      property_id: job.property_id,
+      recipient_email: owner.email,
+      recipient_name: owner.name,
+      category: "MAINTENANCE",
+      category_confidence: "HIGH",
+      priority: "STANDARD",
+      escalation_flag: "NONE",
+      emergency_landlord_alert: false,
+      safety_critical: false,
+      do_not_send: false,
+      draft_confidence: "HIGH",
+      draft_subject: built.subject,
+      draft_body: built.body,
+      pm_review_notes: built.reviewNotes as unknown as Json,
+      model_used: "template:owner_approval_request_v1",
+      match_confidence: "high",
+      status: "pending",
+    })
+    .select("id")
+    .single();
+  if (draftErr || !draft) {
+    throw new Error(`owner-approval ai_drafts insert failed: ${draftErr?.message ?? "no row"}`);
+  }
+
+  const { error: updErr } = await client
+    .from("maintenance_jobs")
+    .update({ owner_approval_state: "pending", state: "awaiting_owner_approval" })
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId);
+  if (updErr) throw new Error(`maintenance_jobs update failed: ${updErr.message}`);
+
+  await writeAuditLog(client, {
+    agency_id: input.agencyId,
+    actor_type: "user",
+    actor_id: input.createdByPmId,
+    action: "maintenance.owner_approval_requested",
+    entity_type: "maintenance_jobs",
+    entity_id: input.jobId,
+    metadata: {
+      draft_id: draft.id,
+      recipient: owner.email,
+      threshold_cents: thresholdCents,
+      estimate_cents: estimateCents,
+    },
+  });
+  deps.logger.info("maintenance owner-approval requested", {
+    job_id: input.jobId,
+    draft_id: draft.id,
+    threshold_cents: thresholdCents,
+    estimate_cents: estimateCents,
+  });
+  return { draftId: draft.id, thresholdCents, estimateCents };
+}
+
+// ----------------------------------------------------------------------------
+// M3.2 — record the owner's decision
+// ----------------------------------------------------------------------------
+
+export interface DecisionInput {
+  agencyId: string;
+  jobId: string;
+  decision: "approved" | "declined";
+  approvedSpendCents?: number;
+  createdByPmId: string;
+}
+
+/** Record the owner's approval decision and advance the job state. */
+export async function recordOwnerDecision(
+  client: Client,
+  input: DecisionInput,
+  deps: { logger: Logger },
+): Promise<void> {
+  const { data: job, error } = await client
+    .from("maintenance_jobs")
+    .select("id, state")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (error) throw new Error(`maintenance_jobs lookup failed: ${error.message}`);
+  if (!job) throw new MaintenanceError("job_not_found", "job not found");
+
+  const ownerApproval: MaintenanceOwnerApproval = input.decision;
+  const update: {
+    owner_approval_state: MaintenanceOwnerApproval;
+    state?: "approved";
+    approved_spend_cents?: number;
+  } = { owner_approval_state: ownerApproval };
+  if (input.decision === "approved") {
+    update.state = "approved";
+    if (input.approvedSpendCents != null) update.approved_spend_cents = input.approvedSpendCents;
+  }
+
+  const { error: updErr } = await client
+    .from("maintenance_jobs")
+    .update(update)
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId);
+  if (updErr) throw new Error(`maintenance_jobs update failed: ${updErr.message}`);
+
+  await writeAuditLog(client, {
+    agency_id: input.agencyId,
+    actor_type: "user",
+    actor_id: input.createdByPmId,
+    action: "maintenance.owner_decision_recorded",
+    entity_type: "maintenance_jobs",
+    entity_id: input.jobId,
+    metadata: { decision: input.decision, approved_spend_cents: input.approvedSpendCents ?? null },
+  });
+  deps.logger.info("maintenance owner decision recorded", {
+    job_id: input.jobId,
+    decision: input.decision,
+  });
 }

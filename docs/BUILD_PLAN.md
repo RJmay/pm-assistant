@@ -383,7 +383,7 @@ under Cloudflare's cron-trigger cap. Full handoff: **`docs/PHASE_2_OUTBOUND.md`*
 
 ---
 
-## Phase 3 — Maintenance coordination `[M1 DONE — code complete, runtime DoD pending live data]`
+## Phase 3 — Maintenance coordination `[M1+M2 DONE — code complete, runtime DoD pending live data]`
 
 Master spec §9. Automate the highest-effort-per-instance workflow: a maintenance request →
 triage (EMERGENCY vs routine via the rules-engine s214 list) → tradie quote requests → owner
@@ -406,16 +406,26 @@ and drafts every message; the PM makes the judgement calls and approvals. Jobs a
 - Dashboard: "Create maintenance job" on a MAINTENANCE draft; `/maintenance` jobs list + job
   detail (quotes + drafts); outbound rendering generalised to any `draft_source != inbound_reply`.
 
+**Milestone 2 (DONE)** — owner-approval flow + quote chasers.
+- Worker service + routes: `recordQuote`, `draftOwnerApprovalRequest` (resolves the spending
+  threshold — per-owner exception, else the agency routine threshold — and uses the lowest quote
+  as the estimate; drafts the owner-approval request; moves the job to awaiting_owner_approval),
+  `recordOwnerDecision` (approved/declined + approved spend). Routes
+  `POST /api/maintenance/jobs/:id/{quotes/:quoteId,owner-approval,decision}`.
+- Quote chasers: `cron/maintenance-chasers.ts` runs in the daily sequence sweep; chases stale
+  `requested` quotes (idempotent via `quotes[].chased_at`).
+- Dashboard: job-detail actions (record quote amount, request owner approval, record decision).
+
 **Deferred to later Phase 3 milestones (surfaced now):**
-- **M3.2** — owner-approval flow (auto-draft the approval request when an accepted quote exceeds
-  the spending threshold; record the owner's answer) + quote chasers/response tracking.
-- **M3.3** — scheduling messages + job close-out + the full state machine transitions.
+- **M3.3** — scheduling messages + job close-out + the remaining state transitions
+  (approved → scheduling/scheduled → completed).
 - Tradie email capture in `agency_config.approved_tradies` (quote requests currently use a
   contact containing "@"; tradies with only a phone are skipped with a count). A tradie portal
   (accept/complete/invoice) is later-phase.
 
-**Definition of done (M1):** (runtime pending live data) — a PM turns a real maintenance email
-into a job (correctly triaged) and tradie quote requests land in the queue to send.
+**Definition of done (M1+M2):** (runtime pending live data) — a PM turns a real maintenance email
+into a triaged job, tradie quote requests land in the queue, the spending-authority gate drafts an
+owner-approval request, and the owner's decision is recorded.
 
 ---
 

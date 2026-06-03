@@ -13,23 +13,32 @@ import { createLogger } from "../src/lib/log";
 import { maintenanceRoute } from "../src/routes/maintenance";
 import {
   createMaintenanceJob,
+  draftOwnerApprovalRequest,
   draftTradieQuoteRequests,
   MaintenanceError,
+  recordOwnerDecision,
+  recordQuote,
 } from "../src/services/maintenance";
 import { type Db, makeFakeClient, type Row } from "./helpers/fake-supabase";
 
 const AGENCY = "11111111-1111-1111-1111-111111111111";
 const PROPERTY = "44444444-4444-4444-4444-444444444401";
 const PM = "22222222-2222-2222-2222-222222222201";
+const OWNER = "33333333-3333-3333-3333-333333333301";
 const NOW = new Date("2026-06-03T00:00:00Z");
 
 function baseDb(draftBody = "The kitchen cupboard door is loose and won't close"): Db {
   return {
     agencies: [{ id: AGENCY, name: "Sunshine Coast Test Agency", status: "active" }],
+    owners: [
+      { id: OWNER, agency_id: AGENCY, full_name: "Casey Brennan", email: "casey@example.com" },
+    ],
     agency_config: [
       {
         agency_id: AGENCY,
         pm_signoff_default: "Kind regards,",
+        routine_approval_threshold_cents: 25000,
+        per_owner_quote_exceptions: [],
         approved_tradies: [
           {
             trade: "plumbing",
@@ -64,6 +73,7 @@ function baseDb(draftBody = "The kitchen cupboard door is loose and won't close"
       {
         id: PROPERTY,
         agency_id: AGENCY,
+        owner_id: OWNER,
         address_line1: "12 Marine Parade",
         suburb: "Maroochydore",
         managing_pm_id: PM,
@@ -223,6 +233,111 @@ describe("draftTradieQuoteRequests", () => {
     const qd = rows("ai_drafts").find((d) => d.draft_source === "maintenance");
     expect(qd?.priority).toBe("PRIORITY");
     expect(qd?.draft_body).toContain("urgent repair");
+  });
+});
+
+describe("owner-approval flow (M3.2)", () => {
+  async function makeJobWithQuote(): Promise<{ jobId: string; quoteId: string }> {
+    const job = await createMaintenanceJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, draftId: "draft-1", createdByPmId: PM },
+      deps,
+    );
+    await draftTradieQuoteRequests(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId: job.jobId, trade: "plumbing", createdByPmId: PM },
+      deps,
+    );
+    const jobRow = rows("maintenance_jobs").find((j) => j.id === job.jobId);
+    const quoteId = (jobRow?.quotes as Array<{ id: string }>)[0]?.id as string;
+    return { jobId: job.jobId, quoteId };
+  }
+
+  it("records a returned quote amount + status", async () => {
+    const { jobId, quoteId } = await makeJobWithQuote();
+    await recordQuote(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, quoteId, amountCents: 180000, createdByPmId: PM },
+      deps,
+    );
+    const job = rows("maintenance_jobs").find((j) => j.id === jobId);
+    const quote = (job?.quotes as Array<{ id: string; amount_cents?: number; status: string }>)[0];
+    expect(quote?.amount_cents).toBe(180000);
+    expect(quote?.status).toBe("received");
+    expect(rows("audit_log").some((r) => r.action === "maintenance.quote_recorded")).toBe(true);
+  });
+
+  it("drafts an owner-approval request to the owner, using the lowest quote + the threshold", async () => {
+    const { jobId, quoteId } = await makeJobWithQuote();
+    await recordQuote(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, quoteId, amountCents: 180000, createdByPmId: PM },
+      deps,
+    );
+    const res = await draftOwnerApprovalRequest(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, createdByPmId: PM },
+      deps,
+    );
+    expect(res.thresholdCents).toBe(25000);
+    expect(res.estimateCents).toBe(180000);
+
+    const approvalDraft = rows("ai_drafts").find(
+      (d) => d.model_used === "template:owner_approval_request_v1",
+    );
+    expect(approvalDraft?.recipient_email).toBe("casey@example.com");
+    expect(approvalDraft?.draft_body).toContain("$1,800.00");
+    expect(approvalDraft?.draft_body).not.toMatch(/\{\{|\}\}/);
+
+    const job = rows("maintenance_jobs").find((j) => j.id === jobId);
+    expect(job?.state).toBe("awaiting_owner_approval");
+    expect(job?.owner_approval_state).toBe("pending");
+  });
+
+  it("honours a per-owner threshold exception", async () => {
+    first("agency_config").per_owner_quote_exceptions = [
+      { owner_id: OWNER, threshold_cents: 100000 },
+    ];
+    setClient();
+    const { jobId } = await makeJobWithQuote();
+    const res = await draftOwnerApprovalRequest(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, estimateCents: 50000, createdByPmId: PM },
+      deps,
+    );
+    expect(res.thresholdCents).toBe(100000);
+  });
+
+  it("refuses to draft owner approval when the owner has no email", async () => {
+    first("owners").email = null;
+    setClient();
+    const { jobId } = await makeJobWithQuote();
+    await expect(
+      draftOwnerApprovalRequest(
+        fakeClientRef.current as Client,
+        { agencyId: AGENCY, jobId, createdByPmId: PM },
+        deps,
+      ),
+    ).rejects.toBeInstanceOf(MaintenanceError);
+  });
+
+  it("records the owner's approval decision + spend and advances the job", async () => {
+    const { jobId } = await makeJobWithQuote();
+    await recordOwnerDecision(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        jobId,
+        decision: "approved",
+        approvedSpendCents: 180000,
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    const job = rows("maintenance_jobs").find((j) => j.id === jobId);
+    expect(job?.owner_approval_state).toBe("approved");
+    expect(job?.state).toBe("approved");
+    expect(job?.approved_spend_cents).toBe(180000);
   });
 });
 

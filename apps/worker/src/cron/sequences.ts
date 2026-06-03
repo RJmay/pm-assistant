@@ -3,6 +3,7 @@ import { createLogger } from "../lib/log";
 import { runArrearsScan } from "./arrears";
 import { runInspectionScan } from "./inspection";
 import { runLeaseRenewalScan } from "./lease-renewal";
+import { runQuoteChaserScan } from "./maintenance-chasers";
 import { runOwnerUpdateScan } from "./owner-update";
 
 // ============================================================================
@@ -33,6 +34,7 @@ export async function handleDailySequences(
     ["inspection", () => runInspectionScan(env, log, now)],
     ["arrears", () => runArrearsScan(env, log, now)],
     ["owner_update", () => runOwnerUpdateScan(env, log, now)],
+    ["quote_chaser", () => runQuoteChaserScan(env, log, now)],
   ];
 
   for (const [name, run] of scanners) {

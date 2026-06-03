@@ -88,6 +88,57 @@ export function buildTradieQuoteRequest(input: TradieQuoteRequestInput): BuiltDr
 }
 
 // ----------------------------------------------------------------------------
+// Tradie quote-request chaser (follow-up)
+// ----------------------------------------------------------------------------
+
+export const TRADIE_QUOTE_CHASER_TEMPLATE: Template = {
+  key: "tradie_quote_chaser_v1",
+  category: "MAINTENANCE",
+  subject: "Following up — quote for {{trade}} at {{property_address}}",
+  body: `Hi {{tradie_name}},
+
+Just following up on our quote request for the {{trade}} job at {{property_address}} — have you had a chance to take a look?
+
+{{issue_line}}No rush if you're flat out, but if you're not able to take it on, a quick note back would help us line someone else up.
+
+{{pm_signoff}}
+{{pm_name}}
+{{agency_name}}`,
+  requiredVariables: ["tradie_name", "trade", "property_address", "pm_name", "agency_name"],
+};
+
+export interface TradieQuoteChaserInput {
+  tradieName: string;
+  trade: string;
+  propertyAddress: string;
+  issueSummary?: string;
+  agencyName: string;
+  pmName: string;
+  pmSignoff?: string;
+}
+
+export function buildTradieQuoteChaser(input: TradieQuoteChaserInput): BuiltDraft {
+  const { subject, body } = renderTemplate(TRADIE_QUOTE_CHASER_TEMPLATE, {
+    tradie_name: input.tradieName,
+    trade: input.trade,
+    property_address: input.propertyAddress,
+    pm_name: input.pmName,
+    agency_name: input.agencyName,
+    pm_signoff: input.pmSignoff?.trim() || "Kind regards,",
+    issue_line: input.issueSummary?.trim()
+      ? `Just to recap, the issue was: ${input.issueSummary.trim()}. `
+      : "",
+  });
+  return {
+    subject,
+    body,
+    reviewNotes: [
+      "Outbound quote-request chaser (no response yet). Review and edit before sending — nothing sends automatically.",
+    ],
+  };
+}
+
+// ----------------------------------------------------------------------------
 // Owner-approval request
 // ----------------------------------------------------------------------------
 

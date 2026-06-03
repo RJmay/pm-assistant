@@ -5,6 +5,7 @@ import {
   buildLeaseRenewalDraft,
   buildOwnerApprovalRequest,
   buildOwnerUpdateDraft,
+  buildTradieQuoteChaser,
   buildTradieQuoteRequest,
   humanDate,
   type LeaseRenewalInput,
@@ -289,6 +290,35 @@ describe("buildTradieQuoteRequest", () => {
     const d = buildTradieQuoteRequest({ ...base(), isEmergency: true });
     expect(d.body).toContain("urgent repair");
     expect(d.reviewNotes.join("\n")).toContain("EMERGENCY (RTRA s214)");
+  });
+});
+
+describe("buildTradieQuoteChaser", () => {
+  it("follows up politely, recapping the issue, with no leftover slots", () => {
+    const d = buildTradieQuoteChaser({
+      tradieName: "Coastline Plumbing",
+      trade: "plumbing",
+      propertyAddress: "12 Marine Parade, Maroochydore",
+      issueSummary: "Kitchen tap is leaking",
+      agencyName: "Sunshine Coast Test Agency",
+      pmName: "Jess Bowman",
+    });
+    expect(d.subject).toBe("Following up — quote for plumbing at 12 Marine Parade, Maroochydore");
+    expect(d.body).toContain("Just following up");
+    expect(d.body).toContain("Kitchen tap is leaking");
+    expect(d.body).not.toMatch(/\{\{|\}\}/);
+  });
+
+  it("omits the recap line when no issue summary is supplied", () => {
+    const d = buildTradieQuoteChaser({
+      tradieName: "X",
+      trade: "plumbing",
+      propertyAddress: "1 St",
+      agencyName: "A",
+      pmName: "PM",
+    });
+    expect(d.body).not.toContain("Just to recap");
+    expect(d.body).not.toMatch(/\{\{|\}\}/);
   });
 });
 

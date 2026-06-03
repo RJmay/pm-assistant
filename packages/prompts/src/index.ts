@@ -34,6 +34,7 @@ export {
   buildLeaseRenewalDraft,
   buildOwnerApprovalRequest,
   buildOwnerUpdateDraft,
+  buildTradieQuoteChaser,
   buildTradieQuoteRequest,
   humanDate,
   INSPECTION_TEMPLATE,
@@ -50,7 +51,9 @@ export {
   renderTemplate,
   type Template,
   type TemplateVars,
+  TRADIE_QUOTE_CHASER_TEMPLATE,
   TRADIE_QUOTE_REQUEST_TEMPLATE,
+  type TradieQuoteChaserInput,
   type TradieQuoteRequestInput,
   UnresolvedTemplateSlotError,
 } from "./templates";
