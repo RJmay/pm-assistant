@@ -12,12 +12,15 @@ import type { WorkerBindings } from "../src/lib/env";
 import { createLogger } from "../src/lib/log";
 import { maintenanceRoute } from "../src/routes/maintenance";
 import {
+  cancelJob,
+  closeOutJob,
   createMaintenanceJob,
   draftOwnerApprovalRequest,
   draftTradieQuoteRequests,
   MaintenanceError,
   recordOwnerDecision,
   recordQuote,
+  scheduleJob,
 } from "../src/services/maintenance";
 import { type Db, makeFakeClient, type Row } from "./helpers/fake-supabase";
 
@@ -69,6 +72,17 @@ function baseDb(draftBody = "The kitchen cupboard door is loose and won't close"
       },
     ],
     email_threads: [{ id: "thread-1", agency_id: AGENCY, property_id: PROPERTY }],
+    tenancies: [{ id: "tenancy-1", agency_id: AGENCY, property_id: PROPERTY, status: "active" }],
+    tenants: [
+      {
+        id: "tenant-1",
+        agency_id: AGENCY,
+        tenancy_id: "tenancy-1",
+        full_name: "Alex Tan",
+        email: "alex.tan@example.com",
+        is_primary: true,
+      },
+    ],
     properties: [
       {
         id: PROPERTY,
@@ -338,6 +352,88 @@ describe("owner-approval flow (M3.2)", () => {
     expect(job?.owner_approval_state).toBe("approved");
     expect(job?.state).toBe("approved");
     expect(job?.approved_spend_cents).toBe(180000);
+  });
+});
+
+describe("scheduling + close-out (M3.3)", () => {
+  async function makeJob(): Promise<{ jobId: string; quoteId: string }> {
+    const job = await createMaintenanceJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, draftId: "draft-1", createdByPmId: PM },
+      deps,
+    );
+    await draftTradieQuoteRequests(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId: job.jobId, trade: "plumbing", createdByPmId: PM },
+      deps,
+    );
+    const jobRow = rows("maintenance_jobs").find((j) => j.id === job.jobId);
+    const quoteId = (jobRow?.quotes as Array<{ id: string }>)[0]?.id as string;
+    return { jobId: job.jobId, quoteId };
+  }
+
+  it("schedules a job: accepts the quote, drafts a tenant message, sets scheduled_for + state", async () => {
+    const { jobId, quoteId } = await makeJob();
+    const res = await scheduleJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, scheduledFor: "2026-06-12", quoteId, createdByPmId: PM },
+      deps,
+    );
+    expect(res.draftId).toBeTruthy();
+    expect(res.scheduledFor).toBe("2026-06-12");
+
+    const schedDraft = rows("ai_drafts").find(
+      (d) => d.model_used === "template:maintenance_scheduling_v1",
+    );
+    expect(schedDraft?.recipient_email).toBe("alex.tan@example.com");
+    expect(schedDraft?.draft_body).toContain("12 June 2026");
+    expect(schedDraft?.draft_body).not.toMatch(/\{\{|\}\}/);
+
+    const job = rows("maintenance_jobs").find((j) => j.id === jobId);
+    expect(job?.state).toBe("scheduled");
+    expect(job?.scheduled_for).toBe("2026-06-12");
+    const quote = (job?.quotes as Array<{ id: string; status: string }>).find(
+      (q) => q.id === quoteId,
+    );
+    expect(quote?.status).toBe("accepted");
+    expect(rows("audit_log").some((r) => r.action === "maintenance.job_scheduled")).toBe(true);
+  });
+
+  it("schedules without a tenant message when there's no contactable tenant", async () => {
+    db.tenants = [];
+    setClient();
+    const { jobId } = await makeJob();
+    const res = await scheduleJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, scheduledFor: "2026-06-12", createdByPmId: PM },
+      deps,
+    );
+    expect(res.draftId).toBeNull();
+    expect(rows("maintenance_jobs").find((j) => j.id === jobId)?.state).toBe("scheduled");
+  });
+
+  it("closes out a job", async () => {
+    const { jobId } = await makeJob();
+    await closeOutJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, createdByPmId: PM },
+      deps,
+    );
+    expect(rows("maintenance_jobs").find((j) => j.id === jobId)?.state).toBe("completed");
+    expect(rows("audit_log").some((r) => r.action === "maintenance.job_completed")).toBe(true);
+  });
+
+  it("cancels a job with a reason", async () => {
+    const { jobId } = await makeJob();
+    await cancelJob(
+      fakeClientRef.current as Client,
+      { agencyId: AGENCY, jobId, reason: "tenant resolved it themselves", createdByPmId: PM },
+      deps,
+    );
+    const job = rows("maintenance_jobs").find((j) => j.id === jobId);
+    expect(job?.state).toBe("cancelled");
+    expect(job?.notes).toBe("tenant resolved it themselves");
+    expect(rows("audit_log").some((r) => r.action === "maintenance.job_cancelled")).toBe(true);
   });
 });
 

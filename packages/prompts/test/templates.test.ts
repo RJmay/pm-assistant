@@ -3,6 +3,7 @@ import {
   buildArrearsDraft,
   buildInspectionDraft,
   buildLeaseRenewalDraft,
+  buildMaintenanceSchedulingMessage,
   buildOwnerApprovalRequest,
   buildOwnerUpdateDraft,
   buildTradieQuoteChaser,
@@ -319,6 +320,26 @@ describe("buildTradieQuoteChaser", () => {
     });
     expect(d.body).not.toContain("Just to recap");
     expect(d.body).not.toMatch(/\{\{|\}\}/);
+  });
+});
+
+describe("buildMaintenanceSchedulingMessage", () => {
+  it("tells the tenant the arranged date without promising an exact time", () => {
+    const d = buildMaintenanceSchedulingMessage({
+      tenantName: "Alex Tan",
+      trade: "plumber",
+      propertyAddress: "12 Marine Parade, Maroochydore",
+      scheduledDate: "2026-06-12",
+      issueSummary: "Leaking tap",
+      agencyName: "Sunshine Coast Test Agency",
+      pmName: "Jess Bowman",
+    });
+    expect(d.subject).toBe("Maintenance visit arranged — 12 Marine Parade, Maroochydore");
+    expect(d.body).toContain("Hi Alex Tan,");
+    expect(d.body).toContain("12 June 2026");
+    expect(d.body).toContain("plumber");
+    expect(d.body).not.toMatch(/\{\{|\}\}/);
+    expect(d.reviewNotes.join("\n")).toContain("don't promise an exact attendance time");
   });
 });
 

@@ -1,5 +1,9 @@
 import type { Client, Json } from "@pm/db";
-import { buildOwnerApprovalRequest, buildTradieQuoteRequest } from "@pm/prompts";
+import {
+  buildMaintenanceSchedulingMessage,
+  buildOwnerApprovalRequest,
+  buildTradieQuoteRequest,
+} from "@pm/prompts";
 import { RuleNotConfiguredError, RuleNotFoundError, triageEmergencyRepair } from "@pm/rules";
 import type {
   MaintenanceClassification,
@@ -7,7 +11,7 @@ import type {
   MaintenanceQuote,
 } from "@pm/shared";
 import type { Logger } from "../lib/log";
-import { resolvePmName, resolvePropertyAddress } from "./sequences/resolve";
+import { resolvePmName, resolvePrimaryTenant, resolvePropertyAddress } from "./sequences/resolve";
 import { writeAuditLog } from "./supabase";
 
 // ============================================================================
@@ -658,4 +662,221 @@ export async function recordOwnerDecision(
     job_id: input.jobId,
     decision: input.decision,
   });
+}
+
+// ----------------------------------------------------------------------------
+// M3.3 — scheduling + close-out
+// ----------------------------------------------------------------------------
+
+async function resolveTenantByProperty(
+  client: Client,
+  agencyId: string,
+  propertyId: string | null,
+): Promise<{ name: string; email: string } | null> {
+  if (!propertyId) return null;
+  const { data: tenancy } = await client
+    .from("tenancies")
+    .select("id")
+    .eq("agency_id", agencyId)
+    .eq("property_id", propertyId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+  if (!tenancy) return null;
+  return resolvePrimaryTenant(client, agencyId, tenancy.id);
+}
+
+export interface ScheduleJobInput {
+  agencyId: string;
+  jobId: string;
+  /** Arranged date, ISO `YYYY-MM-DD` (stored on the job, shown to the tenant). */
+  scheduledFor: string;
+  /** The accepted quote to mark, if any. */
+  quoteId?: string;
+  createdByPmId: string;
+}
+
+export interface ScheduleJobResult {
+  /** Tenant scheduling draft id, or null when the tenant has no email. */
+  draftId: string | null;
+  scheduledFor: string;
+}
+
+/**
+ * Schedule a job: optionally accept a quote, draft a tenant access-arrangement
+ * message, record `scheduled_for`, and move the job to `scheduled`. Never
+ * promises an exact attendance time.
+ */
+export async function scheduleJob(
+  client: Client,
+  input: ScheduleJobInput,
+  deps: { logger: Logger },
+): Promise<ScheduleJobResult> {
+  const { data: job, error } = await client
+    .from("maintenance_jobs")
+    .select("id, property_id, issue, trade, quotes")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (error) throw new Error(`maintenance_jobs lookup failed: ${error.message}`);
+  if (!job) throw new MaintenanceError("job_not_found", "job not found");
+
+  const quotes = (job.quotes ?? []) as unknown as MaintenanceQuote[];
+  const nextQuotes = input.quoteId
+    ? quotes.map((q) => (q.id === input.quoteId ? { ...q, status: "accepted" as const } : q))
+    : quotes;
+
+  const tenant = await resolveTenantByProperty(client, input.agencyId, job.property_id);
+  let draftId: string | null = null;
+  if (tenant) {
+    const [{ data: agency }, { data: config }] = await Promise.all([
+      client.from("agencies").select("name").eq("id", input.agencyId).maybeSingle(),
+      client
+        .from("agency_config")
+        .select("pm_signoff_default")
+        .eq("agency_id", input.agencyId)
+        .maybeSingle(),
+    ]);
+    const propertyAddress = await resolvePropertyAddress(client, input.agencyId, job.property_id);
+    const pmName = await resolvePmName(client, input.agencyId, job.property_id);
+    const built = buildMaintenanceSchedulingMessage({
+      tenantName: tenant.name,
+      trade: job.trade ?? "tradesperson",
+      propertyAddress,
+      scheduledDate: input.scheduledFor.slice(0, 10),
+      issueSummary: job.issue,
+      agencyName: agency?.name ?? "",
+      pmName,
+      pmSignoff: config?.pm_signoff_default ?? undefined,
+    });
+    const { data: draft, error: draftErr } = await client
+      .from("ai_drafts")
+      .insert({
+        agency_id: input.agencyId,
+        draft_source: "maintenance",
+        maintenance_job_id: input.jobId,
+        property_id: job.property_id,
+        recipient_email: tenant.email,
+        recipient_name: tenant.name,
+        category: "MAINTENANCE",
+        category_confidence: "HIGH",
+        priority: "STANDARD",
+        escalation_flag: "NONE",
+        emergency_landlord_alert: false,
+        safety_critical: false,
+        do_not_send: false,
+        draft_confidence: "HIGH",
+        draft_subject: built.subject,
+        draft_body: built.body,
+        pm_review_notes: built.reviewNotes as unknown as Json,
+        model_used: "template:maintenance_scheduling_v1",
+        match_confidence: "high",
+        status: "pending",
+      })
+      .select("id")
+      .single();
+    if (draftErr || !draft) {
+      throw new Error(`scheduling ai_drafts insert failed: ${draftErr?.message ?? "no row"}`);
+    }
+    draftId = draft.id;
+  } else {
+    deps.logger.warn("maintenance: no contactable tenant for scheduling message", {
+      job_id: input.jobId,
+    });
+  }
+
+  const { error: updErr } = await client
+    .from("maintenance_jobs")
+    .update({
+      state: "scheduled",
+      scheduled_for: input.scheduledFor,
+      quotes: nextQuotes as unknown as Json,
+    })
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId);
+  if (updErr) throw new Error(`maintenance_jobs update failed: ${updErr.message}`);
+
+  await writeAuditLog(client, {
+    agency_id: input.agencyId,
+    actor_type: "user",
+    actor_id: input.createdByPmId,
+    action: "maintenance.job_scheduled",
+    entity_type: "maintenance_jobs",
+    entity_id: input.jobId,
+    metadata: {
+      scheduled_for: input.scheduledFor,
+      draft_id: draftId,
+      quote_id: input.quoteId ?? null,
+    },
+  });
+  deps.logger.info("maintenance job scheduled", {
+    job_id: input.jobId,
+    scheduled_for: input.scheduledFor,
+    draft_id: draftId,
+  });
+  return { draftId, scheduledFor: input.scheduledFor };
+}
+
+/** Advance a job to a terminal state (completed/cancelled). */
+async function setTerminalState(
+  client: Client,
+  input: { agencyId: string; jobId: string; createdByPmId: string; note?: string },
+  state: "completed" | "cancelled",
+  deps: { logger: Logger },
+): Promise<void> {
+  const { data: job, error } = await client
+    .from("maintenance_jobs")
+    .select("id")
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId)
+    .maybeSingle();
+  if (error) throw new Error(`maintenance_jobs lookup failed: ${error.message}`);
+  if (!job) throw new MaintenanceError("job_not_found", "job not found");
+
+  const update: { state: "completed" | "cancelled"; notes?: string } = { state };
+  if (input.note?.trim()) update.notes = input.note.trim();
+
+  const { error: updErr } = await client
+    .from("maintenance_jobs")
+    .update(update)
+    .eq("agency_id", input.agencyId)
+    .eq("id", input.jobId);
+  if (updErr) throw new Error(`maintenance_jobs update failed: ${updErr.message}`);
+
+  await writeAuditLog(client, {
+    agency_id: input.agencyId,
+    actor_type: "user",
+    actor_id: input.createdByPmId,
+    action: state === "completed" ? "maintenance.job_completed" : "maintenance.job_cancelled",
+    entity_type: "maintenance_jobs",
+    entity_id: input.jobId,
+    metadata: { note: input.note ?? null },
+  });
+  deps.logger.info(`maintenance job ${state}`, { job_id: input.jobId });
+}
+
+export function closeOutJob(
+  client: Client,
+  input: { agencyId: string; jobId: string; createdByPmId: string },
+  deps: { logger: Logger },
+): Promise<void> {
+  return setTerminalState(client, input, "completed", deps);
+}
+
+export function cancelJob(
+  client: Client,
+  input: { agencyId: string; jobId: string; reason?: string; createdByPmId: string },
+  deps: { logger: Logger },
+): Promise<void> {
+  return setTerminalState(
+    client,
+    {
+      agencyId: input.agencyId,
+      jobId: input.jobId,
+      createdByPmId: input.createdByPmId,
+      note: input.reason,
+    },
+    "cancelled",
+    deps,
+  );
 }

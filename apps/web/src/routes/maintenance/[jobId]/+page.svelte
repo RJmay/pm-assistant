@@ -17,6 +17,13 @@
   let amounts = $state<Record<string, string>>({});
   let estimate = $state("");
   let busy = $state(false);
+  let scheduleDate = $state("");
+  let acceptQuoteId = $state("");
+  let cancelReason = $state("");
+
+  const isTerminal = $derived(
+    data.job.state === "completed" || data.job.state === "cancelled",
+  );
 
   function dollars(cents?: number): string {
     return cents == null ? "—" : `$${(cents / 100).toFixed(2)}`;
@@ -86,6 +93,32 @@
   async function decide(decision: "approved" | "declined") {
     if (await callWorker(`/api/maintenance/jobs/${data.job.id}/decision`, { decision })) {
       toast.success(`Marked ${decision}.`);
+    }
+  }
+
+  async function schedule() {
+    if (!scheduleDate) {
+      toast.error("Pick a date.");
+      return;
+    }
+    const body: { scheduledFor: string; quoteId?: string } = { scheduledFor: scheduleDate };
+    if (acceptQuoteId) body.quoteId = acceptQuoteId;
+    if (await callWorker(`/api/maintenance/jobs/${data.job.id}/schedule`, body)) {
+      toast.success("Scheduled — a message to the tenant is in the queue.");
+    }
+  }
+
+  async function complete() {
+    if (await callWorker(`/api/maintenance/jobs/${data.job.id}/complete`, {})) {
+      toast.success("Job completed.");
+    }
+  }
+
+  async function cancel() {
+    const body: { reason?: string } = {};
+    if (cancelReason.trim()) body.reason = cancelReason.trim();
+    if (await callWorker(`/api/maintenance/jobs/${data.job.id}/cancel`, body)) {
+      toast.success("Job cancelled.");
     }
   }
 </script>
@@ -198,6 +231,60 @@
       {/if}
     </CardContent>
   </Card>
+
+  {#if !isTerminal}
+    <Card>
+      <CardHeader><CardTitle class="text-base">Schedule &amp; close out</CardTitle></CardHeader>
+      <CardContent class="space-y-4">
+        {#if data.job.scheduled_for}
+          <p class="text-sm text-muted-foreground">
+            Scheduled for {relativeTime(data.job.scheduled_for)}. A tenant message is in the queue.
+          </p>
+        {/if}
+        <div class="space-y-2">
+          <p class="text-sm text-muted-foreground">
+            Arrange the visit. Optionally mark the accepted quote; we'll draft a message to the
+            tenant about access (it never promises an exact time).
+          </p>
+          {#if data.job.quotes.some((q) => q.amount_cents != null)}
+            <div class="space-y-1.5">
+              <Label>Accepted quote (optional)</Label>
+              <div class="flex flex-wrap gap-3 text-sm">
+                {#each data.job.quotes.filter((q) => q.amount_cents != null) as q (q.id)}
+                  <label class="flex items-center gap-1.5">
+                    <input type="radio" bind:group={acceptQuoteId} value={q.id} />
+                    {q.tradie_name} ({dollars(q.amount_cents)})
+                  </label>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          <div class="flex flex-wrap items-end gap-2">
+            <div class="space-y-1.5">
+              <Label for="scheddate">Date</Label>
+              <Input id="scheddate" type="date" bind:value={scheduleDate} class="w-44" />
+            </div>
+            <Button disabled={busy} onclick={schedule}>Schedule visit</Button>
+          </div>
+        </div>
+        <hr class="border-border" />
+        <div class="flex flex-wrap items-end gap-2">
+          <Button variant="outline" disabled={busy} onclick={complete}>Mark completed</Button>
+          <div class="space-y-1.5">
+            <Label for="cancelreason">Cancel reason (optional)</Label>
+            <Input id="cancelreason" bind:value={cancelReason} placeholder="why" class="w-48" />
+          </div>
+          <Button variant="destructive" disabled={busy} onclick={cancel}>Cancel job</Button>
+        </div>
+      </CardContent>
+    </Card>
+  {:else}
+    <Card>
+      <CardContent class="pt-6 text-sm text-muted-foreground">
+        This job is {data.job.state}.
+      </CardContent>
+    </Card>
+  {/if}
 </div>
 
 <style></style>

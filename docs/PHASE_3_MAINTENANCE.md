@@ -56,10 +56,20 @@ finds jobs in `quoting` with quotes that have been `requested` for more than 3 d
 chased, and drafts a follow-up to the tradie. Idempotent via `quotes[].chased_at` (never chases the
 same quote twice).
 
-## Deferred (later Phase 3 milestones)
+## Milestone 3 (done): scheduling + close-out
 
-- **M3.3** — scheduling messages + close-out + the remaining state-machine transitions
-  (`approved` → `scheduling`/`scheduled` → `completed`).
+From the job detail, once a job is workable the PM:
+- **schedules the visit** → `POST .../schedule` (body `{ scheduledFor, quoteId? }`) — optionally
+  marks the accepted quote, drafts a **tenant access-arrangement message** (never promises an exact
+  time), sets `scheduled_for`, and moves the job to `scheduled`;
+- **marks completed** → `POST .../complete` (`completed`); or
+- **cancels** → `POST .../cancel` (body `{ reason? }`, `cancelled`).
+
+This closes the state machine: `new → quoting → awaiting_owner_approval → approved → scheduled →
+completed` (cancellable from any non-terminal state).
+
+## Deferred (later phases)
+
 - Tradie email capture: quote requests use a contact containing "@" in `approved_tradies`;
   tradies with only a phone number are skipped (counted in `skippedNoEmail`). Add an explicit
   `email` field via the settings UI. A tradie portal (accept/complete/invoice) is later-phase.

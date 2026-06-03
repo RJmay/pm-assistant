@@ -6,12 +6,15 @@ import type { WorkerBindings } from "../lib/env";
 import type { Logger } from "../lib/log";
 import { createLogger } from "../lib/log";
 import {
+  cancelJob,
+  closeOutJob,
   createMaintenanceJob,
   draftOwnerApprovalRequest,
   draftTradieQuoteRequests,
   MaintenanceError,
   recordOwnerDecision,
   recordQuote,
+  scheduleJob,
 } from "../services/maintenance";
 import { createServiceClient } from "../services/supabase";
 
@@ -320,6 +323,106 @@ maintenanceRoute.post("/api/maintenance/jobs/:id/decision", async (c) => {
     return c.json({ ok: true }, 200);
   } catch (err) {
     log.error("maintenance decision error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "internal", request_id: c.get("requestId") }, 500);
+  }
+});
+
+// ============================================================================
+// Per-job actions (M3.3): schedule, complete, cancel
+// ============================================================================
+
+const scheduleBody = z.object({
+  scheduledFor: z.string().min(1),
+  quoteId: z.string().min(1).optional(),
+});
+
+maintenanceRoute.post("/api/maintenance/jobs/:id/schedule", async (c) => {
+  const log = createLogger({ base: { request_id: c.get("requestId") } });
+  try {
+    const caller = await resolveCaller(c, log);
+    if (caller instanceof Response) return caller;
+    const parsed = scheduleBody.safeParse(await jsonBody(c));
+    if (!parsed.success) return c.json({ error: "scheduledFor is required" }, 400);
+    try {
+      const result = await scheduleJob(
+        caller.supabase,
+        {
+          agencyId: caller.agencyId,
+          jobId: c.req.param("id"),
+          scheduledFor: parsed.data.scheduledFor,
+          quoteId: parsed.data.quoteId,
+          createdByPmId: caller.pmId,
+        },
+        { logger: log },
+      );
+      return c.json(result, 200);
+    } catch (err) {
+      const mapped = mapMaintenanceError(c, err);
+      if (mapped) return mapped;
+      throw err;
+    }
+  } catch (err) {
+    log.error("maintenance schedule error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "internal", request_id: c.get("requestId") }, 500);
+  }
+});
+
+maintenanceRoute.post("/api/maintenance/jobs/:id/complete", async (c) => {
+  const log = createLogger({ base: { request_id: c.get("requestId") } });
+  try {
+    const caller = await resolveCaller(c, log);
+    if (caller instanceof Response) return caller;
+    try {
+      await closeOutJob(
+        caller.supabase,
+        { agencyId: caller.agencyId, jobId: c.req.param("id"), createdByPmId: caller.pmId },
+        { logger: log },
+      );
+    } catch (err) {
+      const mapped = mapMaintenanceError(c, err);
+      if (mapped) return mapped;
+      throw err;
+    }
+    return c.json({ ok: true }, 200);
+  } catch (err) {
+    log.error("maintenance complete error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return c.json({ error: "internal", request_id: c.get("requestId") }, 500);
+  }
+});
+
+const cancelBody = z.object({ reason: z.string().trim().min(1).optional() });
+
+maintenanceRoute.post("/api/maintenance/jobs/:id/cancel", async (c) => {
+  const log = createLogger({ base: { request_id: c.get("requestId") } });
+  try {
+    const caller = await resolveCaller(c, log);
+    if (caller instanceof Response) return caller;
+    const parsed = cancelBody.safeParse(await jsonBody(c));
+    try {
+      await cancelJob(
+        caller.supabase,
+        {
+          agencyId: caller.agencyId,
+          jobId: c.req.param("id"),
+          reason: parsed.success ? parsed.data.reason : undefined,
+          createdByPmId: caller.pmId,
+        },
+        { logger: log },
+      );
+    } catch (err) {
+      const mapped = mapMaintenanceError(c, err);
+      if (mapped) return mapped;
+      throw err;
+    }
+    return c.json({ ok: true }, 200);
+  } catch (err) {
+    log.error("maintenance cancel error", {
       error: err instanceof Error ? err.message : String(err),
     });
     return c.json({ error: "internal", request_id: c.get("requestId") }, 500);

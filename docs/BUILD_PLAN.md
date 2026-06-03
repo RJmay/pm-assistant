@@ -383,7 +383,7 @@ under Cloudflare's cron-trigger cap. Full handoff: **`docs/PHASE_2_OUTBOUND.md`*
 
 ---
 
-## Phase 3 — Maintenance coordination `[M1+M2 DONE — code complete, runtime DoD pending live data]`
+## Phase 3 — Maintenance coordination `[DONE (M1–M3) — code complete, runtime DoD pending live data]`
 
 Master spec §9. Automate the highest-effort-per-instance workflow: a maintenance request →
 triage (EMERGENCY vs routine via the rules-engine s214 list) → tradie quote requests → owner
@@ -416,16 +416,23 @@ and drafts every message; the PM makes the judgement calls and approvals. Jobs a
   `requested` quotes (idempotent via `quotes[].chased_at`).
 - Dashboard: job-detail actions (record quote amount, request owner approval, record decision).
 
-**Deferred to later Phase 3 milestones (surfaced now):**
-- **M3.3** — scheduling messages + job close-out + the remaining state transitions
-  (approved → scheduling/scheduled → completed).
+**Milestone 3 (DONE)** — scheduling + close-out.
+- Worker service + routes: `scheduleJob` (optionally accept a quote, draft a tenant
+  access-arrangement message, set `scheduled_for`, move to `scheduled`), `closeOutJob`
+  (`completed`), `cancelJob` (`cancelled`). Routes
+  `POST /api/maintenance/jobs/:id/{schedule,complete,cancel}`. Scheduling template in `@pm/prompts`.
+- Dashboard: job-detail schedule/complete/cancel controls. Closes the state machine
+  (new → quoting → awaiting_owner_approval → approved → scheduled → completed; cancellable).
+
+**Deferred (later phases):**
 - Tradie email capture in `agency_config.approved_tradies` (quote requests currently use a
   contact containing "@"; tradies with only a phone are skipped with a count). A tradie portal
   (accept/complete/invoice) is later-phase.
 
-**Definition of done (M1+M2):** (runtime pending live data) — a PM turns a real maintenance email
+**Definition of done (M1–M3):** (runtime pending live data) — a PM turns a real maintenance email
 into a triaged job, tradie quote requests land in the queue, the spending-authority gate drafts an
-owner-approval request, and the owner's decision is recorded.
+owner-approval request, the owner's decision is recorded, and the job is scheduled (tenant message
+queued) and closed out.
 
 ---
 

@@ -25,9 +25,12 @@ export {
   type RentReviewWindow,
 } from "./lease-renewal";
 export {
+  buildMaintenanceSchedulingMessage,
   buildOwnerApprovalRequest,
   buildTradieQuoteChaser,
   buildTradieQuoteRequest,
+  MAINTENANCE_SCHEDULING_TEMPLATE,
+  type MaintenanceSchedulingInput,
   OWNER_APPROVAL_REQUEST_TEMPLATE,
   type OwnerApprovalRequestInput,
   TRADIE_QUOTE_CHASER_TEMPLATE,

@@ -10,7 +10,7 @@
 // attendance time, never disclose third-party personal details.
 // ============================================================================
 
-import { type BuiltDraft, renderTemplate, type Template } from "./engine";
+import { type BuiltDraft, humanDate, renderTemplate, type Template } from "./engine";
 
 function formatDollars(cents: number): string {
   return `$${(cents / 100).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -134,6 +134,68 @@ export function buildTradieQuoteChaser(input: TradieQuoteChaserInput): BuiltDraf
     body,
     reviewNotes: [
       "Outbound quote-request chaser (no response yet). Review and edit before sending — nothing sends automatically.",
+    ],
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Maintenance scheduling (tenant access arrangement)
+// ----------------------------------------------------------------------------
+
+export const MAINTENANCE_SCHEDULING_TEMPLATE: Template = {
+  key: "maintenance_scheduling_v1",
+  category: "MAINTENANCE",
+  subject: "Maintenance visit arranged — {{property_address}}",
+  body: `Hi {{tenant_name}},
+
+Good news — we've arranged for a {{trade}} to attend {{property_address}} on {{scheduled_date}} to sort out the issue you reported.
+
+{{issue_line}}They'll be in touch to confirm a time on the day. Please make sure they're able to access the property, and let us know if {{scheduled_date}} doesn't suit so we can rearrange.
+
+{{pm_signoff}}
+{{pm_name}}
+{{agency_name}}`,
+  requiredVariables: [
+    "tenant_name",
+    "trade",
+    "property_address",
+    "scheduled_date",
+    "pm_name",
+    "agency_name",
+  ],
+};
+
+export interface MaintenanceSchedulingInput {
+  tenantName: string;
+  trade: string;
+  propertyAddress: string;
+  /** Arranged date, ISO `YYYY-MM-DD`. */
+  scheduledDate: string;
+  issueSummary?: string;
+  agencyName: string;
+  pmName: string;
+  pmSignoff?: string;
+}
+
+export function buildMaintenanceSchedulingMessage(input: MaintenanceSchedulingInput): BuiltDraft {
+  const { subject, body } = renderTemplate(MAINTENANCE_SCHEDULING_TEMPLATE, {
+    tenant_name: input.tenantName,
+    trade: input.trade,
+    property_address: input.propertyAddress,
+    scheduled_date: humanDate(input.scheduledDate),
+    pm_name: input.pmName,
+    agency_name: input.agencyName,
+    pm_signoff: input.pmSignoff?.trim() || "Kind regards,",
+    issue_line: input.issueSummary?.trim()
+      ? `Just to recap, the issue was: ${input.issueSummary.trim()}. `
+      : "",
+  });
+  return {
+    subject,
+    body,
+    reviewNotes: [
+      "Outbound maintenance-scheduling message to the tenant. Review and edit before sending — nothing sends automatically.",
+      "Confirm the date with the tradie before sending. We arrange access but don't promise an exact attendance time.",
     ],
   };
 }
