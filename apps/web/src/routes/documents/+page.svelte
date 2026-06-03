@@ -13,17 +13,26 @@
 
   let { data }: { data: PageData } = $props();
 
-  let docType = $state<"entry_notice" | "rent_increase_notice">("entry_notice");
+  type DocType =
+    | "entry_notice"
+    | "rent_increase_notice"
+    | "notice_to_remedy_breach"
+    | "notice_to_leave";
+  let docType = $state<DocType>("entry_notice");
   let tenancyId = $state("");
   let entryDate = $state("");
   let entryWindow = $state("");
   let newRent = $state("");
   let effectiveDate = $state("");
+  let amountOwed = $state("");
+  let ground = $state<"unremedied_breach" | "end_of_fixed_term">("end_of_fixed_term");
   let busy = $state(false);
 
   const typeLabels: Record<string, string> = {
     entry_notice: "Entry notice (Form 9)",
     rent_increase_notice: "Rent-increase notice",
+    notice_to_remedy_breach: "Notice to remedy breach (Form 11)",
+    notice_to_leave: "Notice to leave (Form 12)",
   };
 
   async function generate() {
@@ -41,7 +50,7 @@
     if (docType === "entry_notice") {
       if (entryDate) body.entryDate = entryDate;
       if (entryWindow.trim()) body.entryWindow = entryWindow.trim();
-    } else {
+    } else if (docType === "rent_increase_notice") {
       const cents = Math.round(Number.parseFloat(newRent) * 100);
       if (!Number.isFinite(cents) || cents <= 0) {
         toast.error("Enter the new rent.");
@@ -49,6 +58,15 @@
       }
       body.newRentCents = cents;
       if (effectiveDate) body.effectiveDate = effectiveDate;
+    } else if (docType === "notice_to_remedy_breach") {
+      const cents = Math.round(Number.parseFloat(amountOwed) * 100);
+      if (!Number.isFinite(cents) || cents <= 0) {
+        toast.error("Enter the amount owing.");
+        return;
+      }
+      body.amountOwedCents = cents;
+    } else {
+      body.ground = ground;
     }
 
     busy = true;
@@ -107,6 +125,8 @@
             >
               <option value="entry_notice">Entry notice (Form 9)</option>
               <option value="rent_increase_notice">Rent-increase notice</option>
+              <option value="notice_to_remedy_breach">Notice to remedy breach (Form 11)</option>
+              <option value="notice_to_leave">Notice to leave (Form 12)</option>
             </select>
           </div>
           <div class="space-y-1.5">
@@ -132,7 +152,7 @@
               <Label for="entrywindow">Entry window (optional)</Label>
               <Input id="entrywindow" bind:value={entryWindow} placeholder="e.g. 9:00am–11:00am" />
             </div>
-          {:else}
+          {:else if docType === "rent_increase_notice"}
             <div class="space-y-1.5">
               <Label for="newrent">New rent ($)</Label>
               <Input id="newrent" bind:value={newRent} placeholder="e.g. 620" />
@@ -140,6 +160,23 @@
             <div class="space-y-1.5">
               <Label for="effdate">Effective date (optional — earliest compliant if blank)</Label>
               <Input id="effdate" type="date" bind:value={effectiveDate} />
+            </div>
+          {:else if docType === "notice_to_remedy_breach"}
+            <div class="space-y-1.5">
+              <Label for="owed">Amount owing ($)</Label>
+              <Input id="owed" bind:value={amountOwed} placeholder="e.g. 1160" />
+            </div>
+          {:else}
+            <div class="space-y-1.5">
+              <Label for="ground">Ground</Label>
+              <select
+                id="ground"
+                bind:value={ground}
+                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="end_of_fixed_term">End of fixed term</option>
+                <option value="unremedied_breach">Breach not remedied</option>
+              </select>
             </div>
           {/if}
         </div>

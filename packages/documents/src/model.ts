@@ -110,3 +110,12 @@ export function frequencyLabel(frequency: "weekly" | "fortnightly" | "monthly"):
       ? "per fortnight"
       : "per month";
 }
+
+/** Join tenant names naturally ("Alex", "Alex and Sam", "A, B and C"). */
+export function formatNames(names: string[]): string {
+  const cleaned = names.map((n) => n.trim()).filter((n) => n !== "");
+  if (cleaned.length === 0) return "The tenant(s)";
+  if (cleaned.length === 1) return cleaned[0] as string;
+  if (cleaned.length === 2) return `${cleaned[0]} and ${cleaned[1]}`;
+  return `${cleaned.slice(0, -1).join(", ")} and ${cleaned[cleaned.length - 1]}`;
+}

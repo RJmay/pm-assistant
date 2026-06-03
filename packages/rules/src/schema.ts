@@ -32,6 +32,11 @@ export const RULE_KEYS = [
   "emergency_repairs_s214",
   "forms",
   "house_rules_transition",
+  // Notice periods for Forms 11/12 — seeded unconfirmed (value null) until a
+  // human supplies the current RTA values; the engine refuses to guess (§0.3).
+  "notice_remedy_breach_rent_arrears",
+  "notice_to_leave_unremedied_breach",
+  "notice_to_leave_end_of_fixed_term",
 ] as const;
 
 export const ruleKeySchema = z.enum(RULE_KEYS);
@@ -72,6 +77,9 @@ export const rentIncreaseFrequencyValueSchema = z.object({
 export type RentIncreaseFrequencyValue = z.infer<typeof rentIncreaseFrequencyValueSchema>;
 
 export const monthsValueSchema = z.object({ months: z.number().int().positive() });
+
+/** A notice/remedy period expressed in days (Forms 11/12). */
+export const daysValueSchema = z.object({ days: z.number().int().positive() });
 
 export const banValueSchema = z.object({
   banned: z.boolean(),

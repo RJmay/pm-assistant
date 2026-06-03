@@ -319,6 +319,53 @@ const RAW: RegulatoryRule[] = [
       "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 (rooming accommodation agreement) confirmed from the official RTA form; rooming accommodation is out of v1 residential scope but the metadata is recorded.",
   },
 
+  // --- Notice periods for Forms 11/12 (UNCONFIRMED — never invented) --------
+  // The spec did not state these periods, and the 2024/2025 reforms changed
+  // several of them. They are seeded with value null + needsHumanConfirmation
+  // so the engine THROWS until a human confirms the current RTA value (§0.3).
+  {
+    jurisdiction: "QLD",
+    key: "notice_remedy_breach_rent_arrears",
+    version: "qld-unconfirmed",
+    value: null,
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: RTA,
+    sourceNote:
+      "Form 11 (Notice to Remedy Breach) remedy period for unpaid rent — NOT stated in the spec; confirm the current value from the RTA before use.",
+    needsHumanConfirmation: true,
+    notes:
+      "To activate: confirm the rent-arrears remedy period (days) for a Notice to Remedy Breach (Form 11) from rta.qld.gov.au, set value {days: N}, set needsHumanConfirmation:false, and add any newly-asserted hard date to SPEC_ASSERTED_DATES.",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_to_leave_unremedied_breach",
+    version: "qld-unconfirmed",
+    value: null,
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: RTA,
+    sourceNote:
+      "Form 12 (Notice to Leave) notice period where a Form 11 breach is not remedied — NOT stated in the spec; confirm from the RTA before use.",
+    needsHumanConfirmation: true,
+    notes:
+      "To activate: confirm the notice period (days) for a Notice to Leave (Form 12) following an unremedied breach, set value {days: N}, set needsHumanConfirmation:false.",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_to_leave_end_of_fixed_term",
+    version: "qld-unconfirmed",
+    value: null,
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: RTA,
+    sourceNote:
+      "Form 12 (Notice to Leave) notice period at the end of a fixed-term agreement — NOT stated in the spec, and changed by the 2024 reforms; confirm from the RTA before use.",
+    needsHumanConfirmation: true,
+    notes:
+      "To activate: confirm the end-of-fixed-term notice period (days) for a Notice to Leave (Form 12) under the current rules, set value {days: N}, set needsHumanConfirmation:false.",
+  },
+
   // --- Prescribed house-rules transition (forward-dated) --------------------
   {
     jurisdiction: "QLD",

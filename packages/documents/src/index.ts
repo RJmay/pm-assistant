@@ -19,10 +19,15 @@ export type {
 export {
   DocumentNotCompliantError,
   formatDollars,
+  formatNames,
   frequencyLabel,
   humanDate,
   STANDARD_DISCLAIMER,
 } from "./model";
+export type { NoticeToLeaveInput } from "./notice-to-leave";
+export { buildNoticeToLeave } from "./notice-to-leave";
+export type { RemedyBreachNoticeInput } from "./remedy-breach";
+export { buildRemedyBreachNotice } from "./remedy-breach";
 export { renderDocumentHtml } from "./render";
 export type { RentIncreaseNoticeInput } from "./rent-increase";
 export { buildRentIncreaseNoticeDocument } from "./rent-increase";

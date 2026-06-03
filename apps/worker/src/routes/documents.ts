@@ -28,6 +28,16 @@ const bodySchema = z.discriminatedUnion("type", [
     newRentCents: z.number().int().positive(),
     effectiveDate: z.string().optional(),
   }),
+  z.object({
+    type: z.literal("notice_to_remedy_breach"),
+    tenancyId: z.string().min(1),
+    amountOwedCents: z.number().int().positive(),
+  }),
+  z.object({
+    type: z.literal("notice_to_leave"),
+    tenancyId: z.string().min(1),
+    ground: z.enum(["unremedied_breach", "end_of_fixed_term"]),
+  }),
 ]);
 
 type Vars = { requestId: string };

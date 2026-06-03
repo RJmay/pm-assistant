@@ -35,12 +35,29 @@ computed dates, and the recorded `rule_versions` — is identical regardless of 
 prints to PDF from the viewer. Binary-PDF + Supabase Storage upload is a surfaced follow-up that
 swaps only the renderer.
 
-## Deliberate non-goals (v1) / deferred
+## Forms 11 & 12 — built, but DORMANT until the periods are confirmed
 
-- **Forms 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave),
-  R12 (disputed bond)** — their notice/remedy periods are **not yet in the `@pm/rules` seed**.
-  Per the anti-invention rule we won't hardcode them; seed + confirm those periods (with sources)
-  and the engine can add each form the same way Form 9 was added.
+The full machinery for **Form 11 (Notice to Remedy Breach — rent arrears)** and **Form 12 (Notice
+to Leave — end of fixed term / unremedied breach)** is built: rule keys, `@pm/rules` accessors,
+`@pm/documents` builders, the worker service/route, and the dashboard generate form. They're wired
+through migration `0018` (the `document_type` enum) and selectable in `/documents`.
+
+But their **statutory notice/remedy periods are seeded UNCONFIRMED** in `@pm/rules`
+(`value: null, needsHumanConfirmation: true`), so the builders **throw `RuleNotConfiguredError`** →
+the route returns **409 "the statutory rule needed for this document isn't confirmed yet."** They
+won't generate a document until a human confirms the values — anti-invention (§0.3).
+
+**To activate (confirm from rta.qld.gov.au, then edit `packages/rules/src/seed.ts`):**
+- `notice_remedy_breach_rent_arrears` → `{ days: N }` (Form 11 rent-arrears remedy period)
+- `notice_to_leave_unremedied_breach` → `{ days: N }` (Form 12 notice after an unremedied breach)
+- `notice_to_leave_end_of_fixed_term` → `{ days: N }` (Form 12 end-of-fixed-term notice)
+
+For each: set `value`, flip `needsHumanConfirmation: false`, add any new hard date to
+`SPEC_ASSERTED_DATES`, and add positive-path tests. **Form 13 (tenant's notice) and R12 (disputed
+bond)** follow the same pattern; not yet built (less PM-initiated).
+
+## Deferred
+
 - **Binary PDF + Storage** — render HTML→PDF (e.g. pdf-lib) and upload to a `documents` bucket.
 - **Condition reports** — larger structured form; later.
 

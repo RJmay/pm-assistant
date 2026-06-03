@@ -1152,7 +1152,12 @@ alter publication supabase_realtime add table maintenance_jobs;
 -- stores the rendered document inline (HTML) rather than a binary PDF.
 -- ============================================================================
 
-create type document_type as enum ('entry_notice', 'rent_increase_notice');
+create type document_type as enum (
+  'entry_notice',
+  'rent_increase_notice',
+  'notice_to_remedy_breach', -- added in 0018
+  'notice_to_leave' -- added in 0018
+);
 create type document_status as enum ('generated', 'sent', 'void');
 
 create table documents (

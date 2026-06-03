@@ -1642,7 +1642,11 @@ export type Database = {
       audit_actor_type: "user" | "system" | "ai";
       confidence_level: "HIGH" | "MEDIUM" | "LOW";
       document_status: "generated" | "sent" | "void";
-      document_type: "entry_notice" | "rent_increase_notice";
+      document_type:
+        | "entry_notice"
+        | "rent_increase_notice"
+        | "notice_to_remedy_breach"
+        | "notice_to_leave";
       draft_category: "MAINTENANCE" | "RENT" | "LEASE" | "COMPLAINT" | "ADMIN" | "OTHER";
       draft_priority: "STANDARD" | "PRIORITY" | "EMERGENCY_ALERT";
       draft_source: "inbound_reply" | "sequence" | "maintenance";
@@ -1821,7 +1825,12 @@ export const Constants = {
       audit_actor_type: ["user", "system", "ai"],
       confidence_level: ["HIGH", "MEDIUM", "LOW"],
       document_status: ["generated", "sent", "void"],
-      document_type: ["entry_notice", "rent_increase_notice"],
+      document_type: [
+        "entry_notice",
+        "rent_increase_notice",
+        "notice_to_remedy_breach",
+        "notice_to_leave",
+      ],
       draft_category: ["MAINTENANCE", "RENT", "LEASE", "COMPLAINT", "ADMIN", "OTHER"],
       draft_priority: ["STANDARD", "PRIORITY", "EMERGENCY_ALERT"],
       draft_source: ["inbound_reply", "sequence", "maintenance"],

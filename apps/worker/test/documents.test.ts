@@ -151,6 +151,36 @@ describe("generateDocument", () => {
       ),
     ).rejects.toMatchObject({ code: "tenancy_not_found" });
   });
+
+  it("refuses Form 11 / 12 while their notice periods are unconfirmed (rule_not_configured)", async () => {
+    await expect(
+      generateDocument(
+        fakeClientRef.current as Client,
+        {
+          agencyId: AGENCY,
+          type: "notice_to_remedy_breach",
+          tenancyId: TENANCY,
+          amountOwedCents: 58000,
+          createdByPmId: PM,
+        },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "rule_not_configured" });
+    await expect(
+      generateDocument(
+        fakeClientRef.current as Client,
+        {
+          agencyId: AGENCY,
+          type: "notice_to_leave",
+          tenancyId: TENANCY,
+          ground: "end_of_fixed_term",
+          createdByPmId: PM,
+        },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "rule_not_configured" });
+    expect(rows("documents")).toHaveLength(0);
+  });
 });
 
 // ---- Route ----------------------------------------------------------------

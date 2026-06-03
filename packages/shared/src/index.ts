@@ -113,7 +113,12 @@ export type MaintenanceOwnerApproval = z.infer<typeof maintenanceOwnerApprovalSc
 // Generated QLD statutory documents. Mirrors the Postgres enums in migration
 // 0017. Document content is rules-engine-driven, never LLM (spec §6/§10).
 
-export const DOCUMENT_TYPES = ["entry_notice", "rent_increase_notice"] as const;
+export const DOCUMENT_TYPES = [
+  "entry_notice",
+  "rent_increase_notice",
+  "notice_to_remedy_breach",
+  "notice_to_leave",
+] as const;
 export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
 export type DocumentType = z.infer<typeof documentTypeSchema>;
 

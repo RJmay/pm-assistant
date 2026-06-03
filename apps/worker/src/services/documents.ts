@@ -1,6 +1,8 @@
 import type { Client, Json } from "@pm/db";
 import {
   buildEntryNoticeDocument,
+  buildNoticeToLeave,
+  buildRemedyBreachNotice,
   buildRentIncreaseNoticeDocument,
   type DocumentModel,
   DocumentNotCompliantError,
@@ -43,6 +45,20 @@ export type GenerateDocumentInput =
       createdByPmId: string;
       newRentCents: number;
       effectiveDate?: string;
+    }
+  | {
+      agencyId: string;
+      type: "notice_to_remedy_breach";
+      tenancyId: string;
+      createdByPmId: string;
+      amountOwedCents: number;
+    }
+  | {
+      agencyId: string;
+      type: "notice_to_leave";
+      tenancyId: string;
+      createdByPmId: string;
+      ground: "unremedied_breach" | "end_of_fixed_term";
     };
 
 export interface GenerateDocumentResult {
@@ -100,19 +116,17 @@ export async function generateDocument(
   const agencyName = agency?.name ?? "";
 
   // ---- Build the document model (deterministic, rules-backed) ----
+  const common = { agencyName, tenantNames, propertyAddress, noticeDate };
   let model: DocumentModel;
   try {
     if (input.type === "entry_notice") {
       model = buildEntryNoticeDocument({
-        agencyName,
-        tenantNames,
-        propertyAddress,
-        noticeDate,
+        ...common,
         entryDate: input.entryDate,
         entryWindow: input.entryWindow,
         lastInspectionDate: tenancy.last_routine_inspection_date,
       });
-    } else {
+    } else if (input.type === "rent_increase_notice") {
       if (tenancy.rent_amount_cents == null || tenancy.rent_frequency == null) {
         throw new DocumentError(
           "missing_data",
@@ -120,16 +134,17 @@ export async function generateDocument(
         );
       }
       model = buildRentIncreaseNoticeDocument({
-        agencyName,
-        tenantNames,
-        propertyAddress,
-        noticeDate,
+        ...common,
         currentRentCents: tenancy.rent_amount_cents,
         newRentCents: input.newRentCents,
         rentFrequency: tenancy.rent_frequency,
         effectiveDate: input.effectiveDate,
         lastIncreaseDate: tenancy.last_rent_increase_date,
       });
+    } else if (input.type === "notice_to_remedy_breach") {
+      model = buildRemedyBreachNotice({ ...common, amountOwedCents: input.amountOwedCents });
+    } else {
+      model = buildNoticeToLeave({ ...common, ground: input.ground });
     }
   } catch (err) {
     if (err instanceof DocumentNotCompliantError) {
