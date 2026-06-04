@@ -141,9 +141,12 @@ apps/worker/
 - Don't reach for an ORM (Prisma, Drizzle). Use Supabase's typed client. The schema is small enough.
 - Don't build a generic AI chat interface anywhere in this product. The interaction model is structured drafts in a review queue, not chat.
 
-## Current milestone
+## Current status
 
-See `docs/BUILD_PLAN.md`. Work whatever is marked `[CURRENT]`. When done, mark it `[DONE]` and surface the next one.
+**All five spec phases are built, tested, deployed, and migrated (June 2026).** Start every session
+by reading **`docs/HANDOFF.md`** — it has the live state, what's left to finish, and the carry-forward
+gotchas. `docs/BUILD_PLAN.md` has the per-phase detail (no milestone is `[CURRENT]` anymore — the
+"What's LEFT" list in `HANDOFF.md` is the live backlog). When you finish a unit of work, stop and report.
 
 ## Commands
 

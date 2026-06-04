@@ -1,75 +1,107 @@
-# PM Assistant — Handoff Package
+# PM Assistant — Handoff (current state, June 2026)
 
-This folder is the starting point for building **PM Assistant**: a multi-tenant SaaS that drafts email replies to inbound tenant/landlord emails for Queensland residential property management agencies. Phase 1 builds the email drafting layer for one pilot agency on the Sunshine Coast, designed multi-tenant from day one. Phase 2+ extends into a full PMS companion.
+**TL;DR:** All five spec phases are **built, tested, deployed, and migrated**. Everything is
+human-in-the-loop (the system never auto-sends). This doc is the orientation for the next session;
+the goal there is to **verify runtime + finish the deferred items**.
 
-## Drop this into a fresh Claude Code session
+---
 
-1. Create a new git repository for the project (e.g., `gh repo create pm-assistant --private`)
-2. Copy everything in this folder into the repo root
-3. Open the repo in your editor / start Claude Code from the repo root
-4. Tell Claude Code: **"Read CLAUDE.md and start Milestone 0 from docs/BUILD_PLAN.md."**
+## Live environment
 
-That's it. Claude Code will read `CLAUDE.md`, follow the references, and start scaffolding.
+| Thing | Where |
+|---|---|
+| Worker | `https://pm-assistant-worker.ryanmay065.workers.dev` (`/health` → 200) |
+| Web dashboard | `https://pm-assistant-web.pages.dev` |
+| Supabase project | `deisxzmquxjaovubosil` (region **Singapore** — recreate in Sydney for the real pilot) |
+| CI/CD | push to `main` → CI (typecheck + lint + test) → deploy (`wrangler deploy` + `pages deploy`) |
+| Migrations | `0001`–`0019` **applied** to the hosted DB (via `supabase db push`, project is linked) |
+| Git | all work committed + pushed to `origin/main` |
 
-## What's in here
+Worker secrets (Wrangler) and the hosted DB connection string (gitignored `packages/db/.env.local`)
+are already set from Phase B. The web app reads `PUBLIC_*` from `$env/static/public` on Pages.
 
-```
-CLAUDE.md                     Primary instructions for Claude Code. Read first.
-README.md                     This file.
-docs/
-├── ARCHITECTURE.md           Stack, data flow, security model, key patterns
-├── BUILD_PLAN.md             10 ordered milestones with definitions of done
-├── ENV.md                    Every env var and where it lives
-├── schema.sql                Postgres schema with RLS — drop-in for Supabase
-└── system-prompt.md          The AI drafting prompt (v2.1) — agency-agnostic
-```
+---
 
-## What you (the human) need to set up before Milestone 5
+## What's built (by spec phase)
 
-Claude Code can do milestones 0–4 without external accounts. Before Milestone 5 (Gmail integration), have these ready:
+- **Phase 1 — inbound drafting + review queue** (LIVE): Gmail push → classify/escalate → draft →
+  `ai_drafts` → PM reviews/edits/sends. Owner alerts (Twilio/Resend). Compliance floor via
+  `@pm/rules`. Audit + model_calls.
+- **Phase 2 — outbound sequences** (`docs/PHASE_2_OUTBOUND.md`): lease-renewal, inspection, owner
+  updates, arrears. One daily cron (`cron/sequences.ts`) runs all scanners; drafts land in the same
+  queue (`draft_source='sequence'`). Idempotent per cycle.
+- **Phase 3 — maintenance coordination** (`docs/PHASE_3_MAINTENANCE.md`): PM-initiated jobs from a
+  MAINTENANCE draft → s214 triage → tradie quote requests + chasers → owner-approval (spending-
+  authority gated) → scheduling → close-out. `/maintenance` dashboard.
+- **Phase 4 — statutory documents** (`docs/PHASE_4_DOCUMENTS.md`): rules-backed **Form 9** (entry
+  notice), **rent-increase notice**, **Form 11** (remedy breach, 7d), **Form 12** (notice to leave:
+  unremedied rent 7d / end-of-term 2 months). Rendered as print-ready HTML. `/documents` dashboard.
+- **Phase 5 — SMS front door** (`docs/PHASE_5_SMS.md`): signature-verified Twilio inbound webhook →
+  classify (escalation-first) → draft a status reply → `/sms` review/send. Never auto-sent.
 
-- **Cloudflare account** with Workers + Pages enabled
-- **Supabase project** in Sydney region (create when starting Milestone 1)
-- **Anthropic API key** (you have one)
-- **Google Cloud project** with Gmail API and Pub/Sub enabled (Milestone 5)
-- **OAuth consent screen** configured for Gmail (Milestone 5)
-- **Twilio account** with one sending number (Milestone 7)
-- **Resend account** with verified domain (Milestone 7)
-- **Pilot agency's Gmail credentials and consent** to connect their mailbox (Milestone 10)
+Foundation also live: `@pm/rules` (QLD compliance engine + RTA-confirmed values) and the regulatory
+monitoring bot (`cron/regulatory-scan.ts`, spec §12).
 
-See `docs/ENV.md` for the full list and a setup-order checklist.
+**Test counts (all green):** rules 71, documents 11, prompts 50, shared 1, web 43, worker 304
+(`packages/db` RLS tests skip without `RUN_DB_TESTS=1`). `pnpm exec biome check .` + `pnpm -r typecheck` clean.
 
-## How to extend later
+---
 
-- New milestones go in `docs/BUILD_PLAN.md` under "Future milestones"
-- Prompt changes: insert a new row in `prompt_versions`, set `active_to` on the old. Never edit `docs/system-prompt.md` in place — version it.
-- Schema changes: append a new migration in `supabase/migrations/`. Update `docs/schema.sql` to reflect the cumulative state.
-- New agency onboarding: a runbook gets added in Milestone 10. Until then, onboarding is manual.
+## What's LEFT to finish (next-chat work list)
 
-## Decisions baked in
+1. **Verify the live deploy + runtime.** Confirm the latest CI run went green
+   (github.com/RJmay/pm-assistant/actions), then log into the dashboard and smoke-test the new
+   `/maintenance`, `/documents`, `/sms` pages + Approve & Send against the live (now-migrated) DB.
+2. **Phase 5 SMS runtime.** Needs a **Twilio number off-trial** with its inbound webhook set to
+   `https://pm-assistant-worker.ryanmay065.workers.dev/webhook/sms/<AGENCY_ID>` (A2P for production).
+   Then verify a real text → drafted reply → send. (Worker `TWILIO_*` secrets already exist.)
+3. **Deferred statutory forms/grounds** (same rules-backed pattern): the **general (non-rent)
+   unremedied breach** Form 12 ground (**14 days**, distinct from the 7-day rent ground); **Form 13**
+   (tenant's notice of intention to leave); **R12** (disputed bond); the 5-day moveable-dwelling
+   Form 11 variant. Confirm each period from rta.qld.gov.au, add to `packages/rules/src/seed.ts`.
+4. **Binary PDF for documents** — currently print-to-PDF HTML. Swap `@pm/documents`'
+   `renderDocumentHtml` for a PDF renderer (e.g. `pdf-lib`) + upload to a Supabase Storage bucket;
+   store the path instead of inline HTML.
+5. **Voice** (the other half of §11) — not built; a separate telephony integration.
+6. **Real-pilot follow-ups** (from Phase B): use a **dedicated agency mailbox** (not a personal
+   Gmail — reconnect via `/oauth/gmail/start?agency_id=…`); recreate **Supabase in Sydney**; verify a
+   **Resend domain** (test sender only reaches the account email); real **Twilio number + A2P**;
+   **publish the Google OAuth consent screen** (in Testing, refresh tokens expire after 7 days).
+7. **Beyond the spec** (only with direction): owner/tenant portals, listings & leasing, trust accounting.
 
-These are committed. Don't reopen without a reason.
+---
 
-- TypeScript + pnpm workspaces monorepo
-- SvelteKit on Cloudflare Workers (Static Assets) for the dashboard
-- Cloudflare Workers for the backend, Wrangler-managed
-- Supabase Postgres + Auth + Realtime + Vault
-- Anthropic API with tool use + JSON schema (no free-text parsing)
-- Trust accounting is out of scope for v1 (regulated, separate problem)
-- Gmail-only for v1 (Outlook support is a Phase 2 question)
+## How to continue (orientation for the next session)
 
-## The big picture
+1. Read `CLAUDE.md` (working agreement + committed stack), this file, then the **memory index**
+   (auto-loaded) and the relevant `docs/PHASE_*.md` for whatever you touch.
+2. `docs/RUNBOOK.md` — deploy + form-activation + Twilio steps. `docs/ARCHITECTURE.md` — data flow + RLS.
+3. Commands: `pnpm -r typecheck`, `pnpm exec biome check .`, `pnpm -r test`. Deploy: `git push origin main`.
+   Apply migrations: `supabase db push` (linked; or `--db-url` from `packages/db/.env.local`).
 
-The drafting layer is the wedge. The play is building a modern, AI-native PMS companion that sits alongside existing trust accounting systems (PropertyMe, Console Cloud, PropertyTree). Email drafting → maintenance jobs → tradie portal → owner/tenant portals → form generation → inspections. Trust accounting comes much later, after compliance design and probably after 20+ agencies on the platform.
+---
 
-QLD residential tenancy law changed substantially across 2024–2025. The system prompt (`docs/system-prompt.md`) reflects the current state as of v2.1. When the RTA publishes further changes, version the prompt — don't edit it.
+## Carry-forward gotchas (learned this build)
 
-## Open questions for the human to resolve
+- **Never auto-send** to a tenant/owner/third party (§13) — everything is drafted + queued. This
+  overrode §11's "automatic" SMS wording.
+- **Never invent a regulatory fact** (§0.3). All periods/dates live in `packages/rules/src/seed.ts`
+  with source URLs; unconfirmed values are seeded `needsHumanConfirmation: true` and the engine
+  THROWS. The `seed.test.ts` date-guard **forbids any ISO date (`YYYY-MM-DD`) in sourceNotes** — write
+  "June 2026", not "2026-06-04".
+- Cloudflare cron day-of-week: use `SUN`, not `0`. All Phase 2 scanners run under **one** daily cron.
+- Postgres: a **new enum value** needs its **own migration** (can't be used in the same transaction
+  it's added) — see `0015`/`0018`.
+- `packages/db/src/types.ts` is **hand-edited** to match each migration; run `pnpm db:types`
+  (regenerate from the live schema) when convenient.
+- Adding a **workspace package** needs `pnpm install --offline` to link it (worked offline this build).
+- The worker test suite uses an in-memory fake Supabase: `apps/worker/test/helpers/fake-supabase.ts`.
 
-These don't block Milestone 0 but should be answered by Milestone 8–10:
+---
 
-1. Branding for the pilot agency in the dashboard — colours, logo, agency name in nav?
-2. Which PM gets the test pilot? One or two seats for v1.
-3. Backfill policy — do we process 30 days of historical email on connect, or start fresh?
-4. Owner-facing communication — should owners get any direct contact from the system in v1 beyond emergency alerts (e.g., monthly digest)?
-5. Onboarding pricing model — per seat, per property under management, flat agency fee?
+## Committed decisions (don't reopen without reason)
+
+TypeScript + pnpm workspaces; SvelteKit on Cloudflare Pages; Cloudflare Workers backend; Supabase
+(Postgres + Auth + Realtime + Vault); Anthropic tool-use (no free-text parsing); deterministic rules
+engine for all compliance; **Inngest deferred** (CF cron + Supabase cover it); trust accounting out
+of v1.
