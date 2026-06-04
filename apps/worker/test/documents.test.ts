@@ -28,6 +28,7 @@ function baseDb(): Db {
         id: TENANCY,
         agency_id: AGENCY,
         property_id: PROPERTY,
+        end_date: "2026-10-31",
         rent_amount_cents: 58000,
         rent_frequency: "weekly",
         last_rent_increase_date: "2025-01-01",
@@ -152,34 +153,43 @@ describe("generateDocument", () => {
     ).rejects.toMatchObject({ code: "tenancy_not_found" });
   });
 
-  it("refuses Form 11 / 12 while their notice periods are unconfirmed (rule_not_configured)", async () => {
-    await expect(
-      generateDocument(
-        fakeClientRef.current as Client,
-        {
-          agencyId: AGENCY,
-          type: "notice_to_remedy_breach",
-          tenancyId: TENANCY,
-          amountOwedCents: 58000,
-          createdByPmId: PM,
-        },
-        deps,
-      ),
-    ).rejects.toMatchObject({ code: "rule_not_configured" });
-    await expect(
-      generateDocument(
-        fakeClientRef.current as Client,
-        {
-          agencyId: AGENCY,
-          type: "notice_to_leave",
-          tenancyId: TENANCY,
-          ground: "end_of_fixed_term",
-          createdByPmId: PM,
-        },
-        deps,
-      ),
-    ).rejects.toMatchObject({ code: "rule_not_configured" });
-    expect(rows("documents")).toHaveLength(0);
+  it("generates a Form 11 (remedy breach) with the RTA-confirmed 7-day period", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_to_remedy_breach",
+        tenancyId: TENANCY,
+        amountOwedCents: 116000,
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("11");
+    const doc = first("documents");
+    expect(doc.content).toContain("Notice to Remedy Breach (Form 11)");
+    expect(doc.content).toContain("10 June 2026"); // notice 2026-06-03 + 7 days
+    expect(doc.content).toContain("$1,160.00");
+  });
+
+  it("generates a Form 12 end-of-fixed-term notice (2 months, handover = later of notice+2mo / lease end)", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_to_leave",
+        tenancyId: TENANCY,
+        ground: "end_of_fixed_term",
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("12");
+    const doc = first("documents");
+    expect(doc.content).toContain("Notice to Leave (Form 12)");
+    expect(doc.content).toContain("2 months");
+    // lease ends 2026-10-31, later than notice+2mo (2026-08-03)
+    expect(doc.content).toContain("31 October 2026");
   });
 });
 

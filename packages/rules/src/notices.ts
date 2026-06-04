@@ -1,17 +1,16 @@
-import { addDays } from "./dates";
+import { addDays, addMonths } from "./dates";
 import { getConfiguredRule } from "./engine";
 import { selectForm } from "./forms";
-import { daysValueSchema, type RegulatoryRule } from "./schema";
+import { daysValueSchema, monthsValueSchema, type RegulatoryRule } from "./schema";
 import { QLD_RULES } from "./seed";
 
 // ============================================================================
 // Notice periods for Forms 11 & 12 — deterministic, rules-driven (spec §6/§10)
 // ============================================================================
-// The periods come from the rules engine. They're seeded UNCONFIRMED, so these
-// accessors THROW `RuleNotConfiguredError` until a human supplies the current
-// RTA value (§0.3 — never invent a regulatory fact). The Form numbers come from
-// the confirmed `forms` rule. `source` is injectable so a confirmed value can
-// be exercised in tests without changing the production seed.
+// The periods come from the rules engine (RTA-confirmed). `source` is injectable
+// so values can be exercised in tests without changing the production seed. Note
+// the end-of-fixed-term Form 12 period is in MONTHS, not days, and the handover
+// date is the later of (notice + period) and the lease end date.
 // ============================================================================
 
 export interface NoticeToRemedyBreachRequirements {
@@ -44,8 +43,10 @@ export function remedyByDate(noticeDate: string, remedyDays: number): string {
 export type NoticeToLeaveGround = "unremedied_breach" | "end_of_fixed_term";
 
 export interface NoticeToLeaveRequirements {
-  /** Days of notice before the handover day. */
-  noticeDays: number;
+  /** The notice period amount. */
+  period: number;
+  /** Whether `period` is in days (unremedied breach) or months (end of term). */
+  unit: "days" | "months";
   ground: NoticeToLeaveGround;
   formId: string;
   ruleVersions: string[];
@@ -57,22 +58,32 @@ export function noticeToLeaveRequirements(
   asOf: string,
   source: readonly RegulatoryRule[] = QLD_RULES,
 ): NoticeToLeaveRequirements {
-  const key =
-    ground === "unremedied_breach"
-      ? "notice_to_leave_unremedied_breach"
-      : "notice_to_leave_end_of_fixed_term";
-  const rule = getConfiguredRule(key, asOf, source);
-  const { days } = daysValueSchema.parse(rule.value);
   const form = selectForm("notice_to_leave", asOf);
+  if (ground === "end_of_fixed_term") {
+    const rule = getConfiguredRule("notice_to_leave_end_of_fixed_term", asOf, source);
+    const { months } = monthsValueSchema.parse(rule.value);
+    return {
+      period: months,
+      unit: "months",
+      ground,
+      formId: form.formId,
+      ruleVersions: [rule.version, `form-${form.formId}`],
+    };
+  }
+  const rule = getConfiguredRule("notice_to_leave_unremedied_breach", asOf, source);
+  const { days } = daysValueSchema.parse(rule.value);
   return {
-    noticeDays: days,
+    period: days,
+    unit: "days",
     ground,
     formId: form.formId,
     ruleVersions: [rule.version, `form-${form.formId}`],
   };
 }
 
-/** The earliest handover day for a Form 12 issued on `noticeDate`. */
-export function handoverDate(noticeDate: string, noticeDays: number): string {
-  return addDays(noticeDate, noticeDays);
+/** `noticeDate` + the requirement's period (respecting its days/months unit). */
+export function noticePeriodEnd(noticeDate: string, req: NoticeToLeaveRequirements): string {
+  return req.unit === "months"
+    ? addMonths(noticeDate, req.period)
+    : addDays(noticeDate, req.period);
 }

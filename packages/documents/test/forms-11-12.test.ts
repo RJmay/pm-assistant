@@ -1,6 +1,5 @@
-import { RuleNotConfiguredError } from "@pm/rules";
 import { describe, expect, it } from "vitest";
-import { buildNoticeToLeave, buildRemedyBreachNotice } from "../src";
+import { buildNoticeToLeave, buildRemedyBreachNotice, renderDocumentHtml } from "../src";
 
 const base = {
   agencyName: "Sunshine Coast Test Agency",
@@ -9,23 +8,51 @@ const base = {
   noticeDate: "2026-06-03",
 };
 
-// Forms 11 & 12 pull their statutory periods from @pm/rules, which seeds them
-// UNCONFIRMED — so the builders MUST refuse rather than guess. These tests pin
-// that anti-invention behaviour; once the periods are confirmed in the seed,
-// add positive-path assertions.
-describe("Form 11 / 12 builders refuse until the period is confirmed", () => {
-  it("buildRemedyBreachNotice throws RuleNotConfiguredError", () => {
-    expect(() => buildRemedyBreachNotice({ ...base, amountOwedCents: 58000 })).toThrow(
-      RuleNotConfiguredError,
+// Periods are RTA-confirmed in the seed, so the builders now produce documents.
+describe("buildRemedyBreachNotice (Form 11)", () => {
+  it("builds a rent-arrears remedy notice with the 7-day remedy date", () => {
+    const doc = buildRemedyBreachNotice({ ...base, amountOwedCents: 116000 });
+    expect(doc.formId).toBe("11");
+    expect(doc.title).toBe("Notice to Remedy Breach (Form 11)");
+    expect(doc.fields.find((f) => f.label === "Amount owing")?.value).toBe("$1,160.00");
+    expect(doc.fields.find((f) => f.label === "Remedy required by")?.value).toBe("10 June 2026");
+    expect(doc.fields.find((f) => f.label === "Remedy period")?.value).toBe("7 days");
+    const html = renderDocumentHtml(doc);
+    expect(html).toContain("Notice to Remedy Breach (Form 11)");
+    expect(html).not.toMatch(/\{\{|\}\}/);
+  });
+});
+
+describe("buildNoticeToLeave (Form 12)", () => {
+  it("unremedied rent breach → 7 days to hand over", () => {
+    const doc = buildNoticeToLeave({ ...base, ground: "unremedied_breach" });
+    expect(doc.formId).toBe("12");
+    expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe("7 days");
+    expect(doc.fields.find((f) => f.label === "Hand over the premises by")?.value).toBe(
+      "10 June 2026",
     );
   });
 
-  it("buildNoticeToLeave throws RuleNotConfiguredError for each ground", () => {
-    expect(() => buildNoticeToLeave({ ...base, ground: "unremedied_breach" })).toThrow(
-      RuleNotConfiguredError,
+  it("end of fixed term → 2 months, handover is the LATER of notice+2mo and lease end", () => {
+    // lease ends 2026-10-31, well after notice + 2 months (2026-08-03) → use the lease end
+    const late = buildNoticeToLeave({
+      ...base,
+      ground: "end_of_fixed_term",
+      leaseEndDate: "2026-10-31",
+    });
+    expect(late.fields.find((f) => f.label === "Minimum notice")?.value).toBe("2 months");
+    expect(late.fields.find((f) => f.label === "Hand over the premises by")?.value).toBe(
+      "31 October 2026",
     );
-    expect(() => buildNoticeToLeave({ ...base, ground: "end_of_fixed_term" })).toThrow(
-      RuleNotConfiguredError,
+
+    // notice given late (lease already near its end) → notice + 2 months governs
+    const soon = buildNoticeToLeave({
+      ...base,
+      ground: "end_of_fixed_term",
+      leaseEndDate: "2026-06-15",
+    });
+    expect(soon.fields.find((f) => f.label === "Hand over the premises by")?.value).toBe(
+      "3 August 2026",
     );
   });
 });

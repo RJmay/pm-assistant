@@ -1,17 +1,22 @@
-import { handoverDate, type NoticeToLeaveGround, noticeToLeaveRequirements } from "@pm/rules";
+import {
+  maxIso,
+  type NoticeToLeaveGround,
+  noticePeriodEnd,
+  noticeToLeaveRequirements,
+} from "@pm/rules";
 import { type DocumentModel, formatNames, humanDate, STANDARD_DISCLAIMER } from "./model";
 
 // ============================================================================
 // Notice to Leave (RTA Form 12)
 // ============================================================================
-// The notice period (per ground) + Form number come from @pm/rules. Those
-// periods are seeded UNCONFIRMED, so this builder THROWS until a human confirms
-// the current RTA value. Grounds supported in v1: an unremedied breach
-// (following a Form 11) and end of a fixed-term agreement.
+// The notice period (per ground) + Form number come from @pm/rules. Grounds
+// supported in v1: an unremedied RENT-arrears breach (following a Form 11), and
+// the end of a fixed-term agreement. For end of term the period is in MONTHS and
+// the handover date is the LATER of (notice + period) and the lease end date.
 // ============================================================================
 
 const GROUND_LABEL: Record<NoticeToLeaveGround, string> = {
-  unremedied_breach: "Breach of the tenancy agreement not remedied",
+  unremedied_breach: "Failure to pay rent — breach not remedied",
   end_of_fixed_term: "End of the fixed-term tenancy agreement",
 };
 
@@ -23,6 +28,8 @@ export interface NoticeToLeaveInput {
   /** Date the notice is issued, ISO `YYYY-MM-DD`. */
   noticeDate: string;
   ground: NoticeToLeaveGround;
+  /** Lease end date (ISO) — required for a correct end-of-fixed-term handover. */
+  leaseEndDate?: string | null;
 }
 
 export function buildNoticeToLeave(
@@ -30,8 +37,23 @@ export function buildNoticeToLeave(
   asOf: string = input.noticeDate,
 ): DocumentModel {
   const req = noticeToLeaveRequirements(input.ground, asOf);
-  const handover = handoverDate(input.noticeDate, req.noticeDays);
+  const periodEnd = noticePeriodEnd(input.noticeDate, req);
+  // End of fixed term: the tenancy ends on the later of the agreement end date
+  // or the notice period end (RTA).
+  const handover =
+    input.ground === "end_of_fixed_term" && input.leaseEndDate
+      ? maxIso(periodEnd, input.leaseEndDate)
+      : periodEnd;
   const tenantsLine = formatNames(input.tenantNames);
+  const unitWord =
+    req.unit === "months"
+      ? req.period === 1
+        ? "month"
+        : "months"
+      : req.period === 1
+        ? "day"
+        : "days";
+  const noticeLabel = `${req.period} ${unitWord}`;
 
   return {
     type: "notice_to_leave",
@@ -49,7 +71,7 @@ export function buildNoticeToLeave(
       { label: "Ground", value: GROUND_LABEL[input.ground] },
       { label: "Hand over the premises by", value: humanDate(handover) },
       { label: "Notice given", value: humanDate(input.noticeDate) },
-      { label: "Minimum notice", value: `${req.noticeDays} days` },
+      { label: "Minimum notice", value: noticeLabel },
     ],
     sections: [
       {

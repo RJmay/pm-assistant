@@ -319,51 +319,55 @@ const RAW: RegulatoryRule[] = [
       "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 (rooming accommodation agreement) confirmed from the official RTA form; rooming accommodation is out of v1 residential scope but the metadata is recorded.",
   },
 
-  // --- Notice periods for Forms 11/12 (UNCONFIRMED — never invented) --------
-  // The spec did not state these periods, and the 2024/2025 reforms changed
-  // several of them. They are seeded with value null + needsHumanConfirmation
-  // so the engine THROWS until a human confirms the current RTA value (§0.3).
+  // --- Notice periods for Forms 11/12 (RTA-confirmed June 2026) -------------
+  // Researched from rta.qld.gov.au for GENERAL tenancies (notice-periods page +
+  // non-payment-of-rent page), retrieved June 2026. effectiveFrom is left null
+  // (current value; no hard start date asserted) so no new SPEC_ASSERTED_DATES
+  // entry is needed. Agencies should still verify before issuing real notices —
+  // the generated documents carry a "not legal advice / check every detail"
+  // disclaimer.
   {
     jurisdiction: "QLD",
     key: "notice_remedy_breach_rent_arrears",
-    version: "qld-unconfirmed",
-    value: null,
+    version: "rta-2026-06",
+    value: { days: 7 },
     effectiveFrom: null,
     effectiveTo: null,
-    sourceUrl: RTA,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/during-a-tenancy/rent-and-other-bills/non-payment-of-rent",
     sourceNote:
-      "Form 11 (Notice to Remedy Breach) remedy period for unpaid rent — NOT stated in the spec; confirm the current value from the RTA before use.",
-    needsHumanConfirmation: true,
+      "RTA (general tenancies), retrieved June 2026: a Notice to Remedy Breach (Form 11) for rent arrears gives the tenant 7 days to pay (5 days for moveable dwellings, not modelled). Rent must be more than 7 days in arrears before the Form 11 is issued.",
+    needsHumanConfirmation: false,
     notes:
-      "To activate: confirm the rent-arrears remedy period (days) for a Notice to Remedy Breach (Form 11) from rta.qld.gov.au, set value {days: N}, set needsHumanConfirmation:false, and add any newly-asserted hard date to SPEC_ASSERTED_DATES.",
+      "General tenancies only. Caravan-park/moveable-dwelling remedy period (5 days) not modelled.",
   },
   {
     jurisdiction: "QLD",
     key: "notice_to_leave_unremedied_breach",
-    version: "qld-unconfirmed",
-    value: null,
+    version: "rta-2026-06",
+    value: { days: 7 },
     effectiveFrom: null,
     effectiveTo: null,
-    sourceUrl: RTA,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
     sourceNote:
-      "Form 12 (Notice to Leave) notice period where a Form 11 breach is not remedied — NOT stated in the spec; confirm from the RTA before use.",
-    needsHumanConfirmation: true,
+      "RTA (general tenancies), retrieved June 2026: a Notice to Leave (Form 12) for an unremedied RENT-ARREARS breach has a minimum notice period of 7 days. (A general non-rent unremedied breach is 14 days — a separate ground, not yet modelled.)",
+    needsHumanConfirmation: false,
     notes:
-      "To activate: confirm the notice period (days) for a Notice to Leave (Form 12) following an unremedied breach, set value {days: N}, set needsHumanConfirmation:false.",
+      "This rule is the RENT-arrears unremedied-breach period (7 days), following a rent Form 11. The general (non-rent) unremedied breach is 14 days — add as a separate ground when needed.",
   },
   {
     jurisdiction: "QLD",
     key: "notice_to_leave_end_of_fixed_term",
-    version: "qld-unconfirmed",
-    value: null,
+    version: "rta-2026-06",
+    value: { months: 2 },
     effectiveFrom: null,
     effectiveTo: null,
-    sourceUrl: RTA,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
     sourceNote:
-      "Form 12 (Notice to Leave) notice period at the end of a fixed-term agreement — NOT stated in the spec, and changed by the 2024 reforms; confirm from the RTA before use.",
-    needsHumanConfirmation: true,
+      "RTA (general tenancies), retrieved June 2026: a Notice to Leave (Form 12) at the end of a fixed-term agreement has a minimum notice period of 2 MONTHS; the tenancy ends on the later of the agreement end date or the notice period end date.",
+    needsHumanConfirmation: false,
     notes:
-      "To activate: confirm the end-of-fixed-term notice period (days) for a Notice to Leave (Form 12) under the current rules, set value {days: N}, set needsHumanConfirmation:false.",
+      "Period is MONTHS, not days. The handover date is max(noticeDate + 2 months, lease end date) — the builder computes this when given the lease end date.",
   },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------

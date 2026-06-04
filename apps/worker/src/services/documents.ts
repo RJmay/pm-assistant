@@ -80,7 +80,7 @@ export async function generateDocument(
   const { data: tenancy, error: tErr } = await client
     .from("tenancies")
     .select(
-      "id, property_id, rent_amount_cents, rent_frequency, last_rent_increase_date, last_routine_inspection_date",
+      "id, property_id, end_date, rent_amount_cents, rent_frequency, last_rent_increase_date, last_routine_inspection_date",
     )
     .eq("agency_id", input.agencyId)
     .eq("id", input.tenancyId)
@@ -144,7 +144,11 @@ export async function generateDocument(
     } else if (input.type === "notice_to_remedy_breach") {
       model = buildRemedyBreachNotice({ ...common, amountOwedCents: input.amountOwedCents });
     } else {
-      model = buildNoticeToLeave({ ...common, ground: input.ground });
+      model = buildNoticeToLeave({
+        ...common,
+        ground: input.ground,
+        leaseEndDate: tenancy.end_date,
+      });
     }
   } catch (err) {
     if (err instanceof DocumentNotCompliantError) {

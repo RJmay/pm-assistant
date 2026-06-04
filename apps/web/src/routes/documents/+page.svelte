@@ -175,7 +175,7 @@
                 class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
                 <option value="end_of_fixed_term">End of fixed term</option>
-                <option value="unremedied_breach">Breach not remedied</option>
+                <option value="unremedied_breach">Rent not paid (breach not remedied)</option>
               </select>
             </div>
           {/if}

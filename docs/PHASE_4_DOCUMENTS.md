@@ -35,26 +35,26 @@ computed dates, and the recorded `rule_versions` — is identical regardless of 
 prints to PDF from the viewer. Binary-PDF + Supabase Storage upload is a surfaced follow-up that
 swaps only the renderer.
 
-## Forms 11 & 12 — built, but DORMANT until the periods are confirmed
+## Forms 11 & 12 — ACTIVE (RTA-confirmed periods, June 2026)
 
-The full machinery for **Form 11 (Notice to Remedy Breach — rent arrears)** and **Form 12 (Notice
-to Leave — end of fixed term / unremedied breach)** is built: rule keys, `@pm/rules` accessors,
-`@pm/documents` builders, the worker service/route, and the dashboard generate form. They're wired
-through migration `0018` (the `document_type` enum) and selectable in `/documents`.
+Both generate. The statutory periods were researched from **rta.qld.gov.au** (general tenancies)
+and set in `packages/rules/src/seed.ts` with their source URLs (each row's `needsHumanConfirmation`
+is now `false`):
 
-But their **statutory notice/remedy periods are seeded UNCONFIRMED** in `@pm/rules`
-(`value: null, needsHumanConfirmation: true`), so the builders **throw `RuleNotConfiguredError`** →
-the route returns **409 "the statutory rule needed for this document isn't confirmed yet."** They
-won't generate a document until a human confirms the values — anti-invention (§0.3).
+| Document | Period | Source |
+|---|---|---|
+| **Form 11** — Notice to Remedy Breach (rent arrears) | **7 days** to remedy | RTA non-payment-of-rent page |
+| **Form 12** — Notice to Leave, unremedied **rent** breach | **7 days** | RTA notice-periods page |
+| **Form 12** — Notice to Leave, end of fixed term | **2 MONTHS**; handover = the later of (notice + 2 months) and the lease end date | RTA notice-periods page |
 
-**To activate (confirm from rta.qld.gov.au, then edit `packages/rules/src/seed.ts`):**
-- `notice_remedy_breach_rent_arrears` → `{ days: N }` (Form 11 rent-arrears remedy period)
-- `notice_to_leave_unremedied_breach` → `{ days: N }` (Form 12 notice after an unremedied breach)
-- `notice_to_leave_end_of_fixed_term` → `{ days: N }` (Form 12 end-of-fixed-term notice)
+The end-of-fixed-term period is **months** (not days), and the engine computes the handover as the
+later of the notice-period end and the lease end date. Generated documents carry the standard "not
+legal advice — check every detail" disclaimer; an agency should still verify before issuing.
 
-For each: set `value`, flip `needsHumanConfirmation: false`, add any new hard date to
-`SPEC_ASSERTED_DATES`, and add positive-path tests. **Form 13 (tenant's notice) and R12 (disputed
-bond)** follow the same pattern; not yet built (less PM-initiated).
+**Not yet modelled (additive follow-ups, same pattern):** the **general (non-rent) unremedied
+breach** Form 12 ground (**14 days** per the RTA — distinct from the 7-day rent ground);
+**Form 13** (tenant's notice of intention to leave); **R12** (disputed bond); the 5-day
+moveable-dwelling Form 11 remedy variant.
 
 ## Deferred
 

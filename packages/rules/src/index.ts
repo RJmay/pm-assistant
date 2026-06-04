@@ -56,7 +56,7 @@ export type {
   NoticeToRemedyBreachRequirements,
 } from "./notices";
 export {
-  handoverDate,
+  noticePeriodEnd,
   noticeToLeaveRequirements,
   noticeToRemedyBreachRequirements,
   remedyByDate,

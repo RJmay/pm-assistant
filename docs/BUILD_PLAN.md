@@ -5,10 +5,10 @@
 > and Phase B (runtime bring-up) is done — deployed on Cloudflare + Supabase, auto-deploying from
 > `main`. Handoffs: **`HANDOFF.md`** (live URLs), **`docs/PHASE_2_OUTBOUND.md`** (§8 outbound
 > sequences), **`docs/PHASE_3_MAINTENANCE.md`** (§9 maintenance, M1–M3),
-> **`docs/PHASE_4_DOCUMENTS.md`** (§10 documents — Form 9 + rent-increase live; Form 11/12 built
-> but dormant until their RTA periods are confirmed), and **`docs/PHASE_5_SMS.md`** (§11 SMS
+> **`docs/PHASE_4_DOCUMENTS.md`** (§10 documents — Form 9, rent-increase, Form 11 & Form 12 all
+> live with RTA-confirmed periods), and **`docs/PHASE_5_SMS.md`** (§11 SMS
 > front door). All rules-backed / human-in-the-loop (never auto-sent). Code + tests green
-> (rules 72, documents 11, prompts 50, web 43, worker 303; db 3 skipped); runtime DoDs pending
+> (rules 71, documents 11, prompts 50, web 43, worker 304; db 3 skipped); runtime DoDs pending
 > the same live-data / provider bring-up as Phase 1. See the Phase 2–5 sections below.
 
 Each milestone has a clear definition of done. Work them in order. Mark the current one `[CURRENT]`, completed ones `[DONE]`. When you finish a milestone, stop and report — don't roll into the next without confirmation.
