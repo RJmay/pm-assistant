@@ -87,5 +87,39 @@ jobs:
       - name: Build dashboard
         run: pnpm --filter web build
 
-      - name: Deploy dashboard (Cloudflare Pages)
+      # Cloudflare Pages only treats `pages deploy --branch X` as a PRODUCTION
+      # deploy when X equals the project's configured production branch. If it
+      # doesn't, the deploy silently lands as a *preview* (main.<project>.pages.dev)
+      # while the apex (<project>.pages.dev) keeps serving a stale build — the
+      # deploy still goes green, so the drift is invisible. Enforce main ==
+      # production branch (idempotent) so every deploy updates the apex.
+      - name: Ensure Pages production branch is "main"
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/pm-assistant-web"
+          current=$(curl -fsS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" | jq -r '.result.production_branch')
+          echo "Pages production branch is currently: $current"
+          if [ "$current" != "main" ]; then
+            echo "Setting production branch to 'main'…"
+            resp=$(curl -fsS -X PATCH "$api" \
+              -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data '{"production_branch":"main"}')
+            [ "$(echo "$resp" | jq -r '.success')" = "true" ] || { echo "PATCH failed: $resp"; exit 1; }
+          fi
+
+      - name: Deploy dashboard (Cloudflare Pages — production)
         run: pnpm --filter worker exec wrangler pages deploy ../web/.svelte-kit/cloudflare --project-name pm-assistant-web --branch main
+
+      # Fail loudly if the deploy didn't actually become the production deployment,
+      # so a stale apex can never hide behind a green deploy again.
+      - name: Verify the deploy went live on the production apex
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/pm-assistant-web/deployments?per_page=1"
+          env=$(curl -fsS -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" | jq -r '.result[0].environment')
+          echo "Newest Pages deployment environment: $env"
+          if [ "$env" != "production" ]; then
+            echo "::error::Newest Pages deployment is '$env', not 'production' — the apex (pm-assistant-web.pages.dev) will be stale."
+            exit 1
+          fi
