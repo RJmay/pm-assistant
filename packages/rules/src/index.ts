@@ -53,12 +53,15 @@ export {
 export type {
   BreachKind,
   DwellingType,
+  NoticeOfIntentionToLeaveGround,
+  NoticeOfIntentionToLeaveRequirements,
   NoticeToLeaveGround,
   NoticeToLeaveRequirements,
   NoticeToRemedyBreachOptions,
   NoticeToRemedyBreachRequirements,
 } from "./notices";
 export {
+  noticeOfIntentionToLeaveRequirements,
   noticePeriodEnd,
   noticeToLeaveRequirements,
   noticeToRemedyBreachRequirements,

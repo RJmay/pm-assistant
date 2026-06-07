@@ -418,6 +418,53 @@ const RAW: RegulatoryRule[] = [
       "General (non-rent) unremedied breach (14 days), following a general-breach Form 11. The rent-arrears equivalent is notice_to_leave_unremedied_breach (7 days).",
   },
 
+  // --- Form 13 (Notice of intention to leave) — the TENANT's notice periods --
+  // From rta.qld.gov.au (Form 13 page + notice-periods table), retrieved June
+  // 2026. v1 models the three common grounds; sensitive/rare grounds (domestic
+  // & family violence, non-liveability, owner-intends-to-sell, repair-order,
+  // death of (co-)tenant, etc.) are deferred. effectiveFrom null (current).
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_periodic",
+    version: "rta-2026-06",
+    value: { days: 14 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
+    sourceNote:
+      "RTA (general tenancies), retrieved June 2026: a tenant ending a PERIODIC agreement without grounds via a Notice of intention to leave (Form 13) must give 14 days' notice.",
+    needsHumanConfirmation: false,
+    notes: "Tenant's Form 13, periodic agreement, without grounds (14 days).",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_end_of_fixed_term",
+    version: "rta-2026-06",
+    value: { days: 14 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
+    sourceNote:
+      "RTA (general tenancies), retrieved June 2026: a tenant ending a FIXED-TERM agreement without grounds via a Notice of intention to leave (Form 13) must give the later of 14 days or the day the agreement ends.",
+    needsHumanConfirmation: false,
+    notes:
+      "Tenant's Form 13, end of fixed term (14 days). The vacate date is the later of (notice + 14 days) and the lease end date — the builder computes this when given the lease end date.",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_unremedied_breach",
+    version: "rta-2026-06",
+    value: { days: 7 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
+    sourceNote:
+      "RTA (general tenancies), retrieved June 2026: a tenant ending the agreement for an unremedied breach by the lessor/agent (after a Form 11 issued by the tenant) via a Notice of intention to leave (Form 13) must give 7 days' notice.",
+    needsHumanConfirmation: false,
+    notes:
+      "Tenant's Form 13, unremedied breach by the lessor/agent (7 days), following a tenant-issued Form 11.",
+  },
+
   // --- Prescribed house-rules transition (forward-dated) --------------------
   {
     jurisdiction: "QLD",

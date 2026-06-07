@@ -260,6 +260,26 @@ describe("generateDocument", () => {
     ).rejects.toMatchObject({ code: "missing_data" });
   });
 
+  it("generates a Form 13 (notice of intention to leave) with the tenant as sender", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_of_intention_to_leave",
+        tenancyId: TENANCY,
+        ground: "periodic",
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("13");
+    expect(res.type).toBe("notice_of_intention_to_leave");
+    const doc = first("documents");
+    expect(doc.type).toBe("notice_of_intention_to_leave");
+    expect(doc.content).toContain("Notice of Intention to Leave (Form 13)");
+    expect(doc.content).toContain("17 June 2026"); // notice + 14 days
+  });
+
   it("generates a Form 12 end-of-fixed-term notice (2 months, handover = later of notice+2mo / lease end)", async () => {
     const res = await generateDocument(
       fakeClientRef.current as Client,
@@ -357,5 +377,15 @@ describe("POST /api/documents", () => {
     expect(res.status).toBe(409);
     const json = (await res.json()) as { code?: string };
     expect(json.code).toBe("missing_data");
+  });
+
+  it("generates a Form 13 notice of intention to leave (201)", async () => {
+    const res = await post(
+      { type: "notice_of_intention_to_leave", tenancyId: TENANCY, ground: "periodic" },
+      await token(),
+    );
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { formId: string | null };
+    expect(json.formId).toBe("13");
   });
 });

@@ -120,8 +120,53 @@ export function noticeToLeaveRequirements(
 }
 
 /** `noticeDate` + the requirement's period (respecting its days/months unit). */
-export function noticePeriodEnd(noticeDate: string, req: NoticeToLeaveRequirements): string {
+export function noticePeriodEnd(
+  noticeDate: string,
+  req: { period: number; unit: "days" | "months" },
+): string {
   return req.unit === "months"
     ? addMonths(noticeDate, req.period)
     : addDays(noticeDate, req.period);
+}
+
+// ----------------------------------------------------------------------------
+// Notice of intention to leave (Form 13) — the TENANT's notice (spec §10)
+// ----------------------------------------------------------------------------
+// The mirror of Form 12: the tenant ends the tenancy. v1 supports the three
+// common grounds; periods come from @pm/rules. End of fixed term computes the
+// vacate date as the later of (notice + period) and the lease end date.
+
+export type NoticeOfIntentionToLeaveGround = "periodic" | "end_of_fixed_term" | "unremedied_breach";
+
+export interface NoticeOfIntentionToLeaveRequirements {
+  /** The notice period, in days (all v1 Form 13 grounds are in days). */
+  period: number;
+  unit: "days";
+  ground: NoticeOfIntentionToLeaveGround;
+  formId: string;
+  ruleVersions: string[];
+}
+
+/** Form 13 (Notice of Intention to Leave) requirements for a given ground. */
+export function noticeOfIntentionToLeaveRequirements(
+  ground: NoticeOfIntentionToLeaveGround,
+  asOf: string,
+  source: readonly RegulatoryRule[] = QLD_RULES,
+): NoticeOfIntentionToLeaveRequirements {
+  const form = selectForm("notice_of_intention_to_leave", asOf);
+  const key =
+    ground === "periodic"
+      ? "notice_intention_to_leave_periodic"
+      : ground === "end_of_fixed_term"
+        ? "notice_intention_to_leave_end_of_fixed_term"
+        : "notice_intention_to_leave_unremedied_breach";
+  const rule = getConfiguredRule(key, asOf, source);
+  const { days } = daysValueSchema.parse(rule.value);
+  return {
+    period: days,
+    unit: "days",
+    ground,
+    formId: form.formId,
+    ruleVersions: [rule.version, `form-${form.formId}`],
+  };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  noticeOfIntentionToLeaveRequirements,
   noticePeriodEnd,
   noticeToLeaveRequirements,
   noticeToRemedyBreachRequirements,
@@ -64,5 +65,29 @@ describe("noticeToLeaveRequirements (Form 12)", () => {
     expect(req.formId).toBe("12");
     // 2026-06-03 + 2 months = 2026-08-03
     expect(noticePeriodEnd(ASOF, req)).toBe("2026-08-03");
+  });
+});
+
+describe("noticeOfIntentionToLeaveRequirements (Form 13)", () => {
+  it("periodic without grounds is 14 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("periodic", ASOF);
+    expect(req.period).toBe(14);
+    expect(req.unit).toBe("days");
+    expect(req.formId).toBe("13");
+    expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-17");
+  });
+
+  it("unremedied (lessor) breach is 7 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("unremedied_breach", ASOF);
+    expect(req.period).toBe(7);
+    expect(req.formId).toBe("13");
+    expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-10");
+  });
+
+  it("end of fixed term is 14 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("end_of_fixed_term", ASOF);
+    expect(req.period).toBe(14);
+    expect(req.unit).toBe("days");
+    expect(req.formId).toBe("13");
   });
 });

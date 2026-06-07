@@ -1752,7 +1752,8 @@ export type Database = {
         | "entry_notice"
         | "rent_increase_notice"
         | "notice_to_remedy_breach"
-        | "notice_to_leave";
+        | "notice_to_leave"
+        | "notice_of_intention_to_leave";
       draft_category: "MAINTENANCE" | "RENT" | "LEASE" | "COMPLAINT" | "ADMIN" | "OTHER";
       draft_priority: "STANDARD" | "PRIORITY" | "EMERGENCY_ALERT";
       draft_source: "inbound_reply" | "sequence" | "maintenance";
@@ -1939,6 +1940,7 @@ export const Constants = {
         "rent_increase_notice",
         "notice_to_remedy_breach",
         "notice_to_leave",
+        "notice_of_intention_to_leave",
       ],
       draft_category: ["MAINTENANCE", "RENT", "LEASE", "COMPLAINT", "ADMIN", "OTHER"],
       draft_priority: ["STANDARD", "PRIORITY", "EMERGENCY_ALERT"],

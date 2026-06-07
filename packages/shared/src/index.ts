@@ -142,6 +142,7 @@ export const DOCUMENT_TYPES = [
   "rent_increase_notice",
   "notice_to_remedy_breach",
   "notice_to_leave",
+  "notice_of_intention_to_leave",
 ] as const;
 export const documentTypeSchema = z.enum(DOCUMENT_TYPES);
 export type DocumentType = z.infer<typeof documentTypeSchema>;

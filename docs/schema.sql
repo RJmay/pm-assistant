@@ -1156,7 +1156,8 @@ create type document_type as enum (
   'entry_notice',
   'rent_increase_notice',
   'notice_to_remedy_breach', -- added in 0018
-  'notice_to_leave' -- added in 0018
+  'notice_to_leave', -- added in 0018
+  'notice_of_intention_to_leave' -- Form 13, added in 0020
 );
 create type document_status as enum ('generated', 'sent', 'void');
 

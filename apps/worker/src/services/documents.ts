@@ -2,6 +2,7 @@ import type { Client, Json } from "@pm/db";
 import {
   buildEntryNoticeDocument,
   buildGeneralBreachNotice,
+  buildNoticeOfIntentionToLeave,
   buildNoticeToLeave,
   buildRemedyBreachNotice,
   buildRentIncreaseNoticeDocument,
@@ -63,6 +64,13 @@ export type GenerateDocumentInput =
       tenancyId: string;
       createdByPmId: string;
       ground: "unremedied_breach" | "unremedied_general_breach" | "end_of_fixed_term";
+    }
+  | {
+      agencyId: string;
+      type: "notice_of_intention_to_leave";
+      tenancyId: string;
+      createdByPmId: string;
+      ground: "periodic" | "end_of_fixed_term" | "unremedied_breach";
     };
 
 export interface GenerateDocumentResult {
@@ -166,8 +174,14 @@ export async function generateDocument(
           dwelling: input.dwelling,
         });
       }
-    } else {
+    } else if (input.type === "notice_to_leave") {
       model = buildNoticeToLeave({
+        ...common,
+        ground: input.ground,
+        leaseEndDate: tenancy.end_date,
+      });
+    } else {
+      model = buildNoticeOfIntentionToLeave({
         ...common,
         ground: input.ground,
         leaseEndDate: tenancy.end_date,

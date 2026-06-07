@@ -17,7 +17,8 @@
     | "entry_notice"
     | "rent_increase_notice"
     | "notice_to_remedy_breach"
-    | "notice_to_leave";
+    | "notice_to_leave"
+    | "notice_of_intention_to_leave";
   let docType = $state<DocType>("entry_notice");
   let tenancyId = $state("");
   let entryDate = $state("");
@@ -32,6 +33,8 @@
     $state<"unremedied_breach" | "unremedied_general_breach" | "end_of_fixed_term">(
       "end_of_fixed_term",
     );
+  let niltGround =
+    $state<"periodic" | "end_of_fixed_term" | "unremedied_breach">("end_of_fixed_term");
   let busy = $state(false);
 
   const typeLabels: Record<string, string> = {
@@ -39,6 +42,7 @@
     rent_increase_notice: "Rent-increase notice",
     notice_to_remedy_breach: "Notice to remedy breach (Form 11)",
     notice_to_leave: "Notice to leave (Form 12)",
+    notice_of_intention_to_leave: "Notice of intention to leave (Form 13)",
   };
 
   async function generate() {
@@ -81,8 +85,10 @@
         }
         body.amountOwedCents = cents;
       }
-    } else {
+    } else if (docType === "notice_to_leave") {
       body.ground = ground;
+    } else {
+      body.ground = niltGround;
     }
 
     busy = true;
@@ -143,6 +149,9 @@
               <option value="rent_increase_notice">Rent-increase notice</option>
               <option value="notice_to_remedy_breach">Notice to remedy breach (Form 11)</option>
               <option value="notice_to_leave">Notice to leave (Form 12)</option>
+              <option value="notice_of_intention_to_leave">
+                Notice of intention to leave (Form 13)
+              </option>
             </select>
           </div>
           <div class="space-y-1.5">
@@ -215,7 +224,7 @@
                 />
               </div>
             {/if}
-          {:else}
+          {:else if docType === "notice_to_leave"}
             <div class="space-y-1.5">
               <Label for="ground">Ground</Label>
               <select
@@ -226,6 +235,19 @@
                 <option value="end_of_fixed_term">End of fixed term</option>
                 <option value="unremedied_breach">Rent not paid (breach not remedied)</option>
                 <option value="unremedied_general_breach">General breach (not remedied)</option>
+              </select>
+            </div>
+          {:else}
+            <div class="space-y-1.5">
+              <Label for="niltground">Reason</Label>
+              <select
+                id="niltground"
+                bind:value={niltGround}
+                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="end_of_fixed_term">End of fixed term</option>
+                <option value="periodic">Periodic (no grounds)</option>
+                <option value="unremedied_breach">Unremedied breach by lessor/agent</option>
               </select>
             </div>
           {/if}

@@ -24,6 +24,8 @@ export {
   humanDate,
   STANDARD_DISCLAIMER,
 } from "./model";
+export type { NoticeOfIntentionToLeaveInput } from "./notice-of-intention-to-leave";
+export { buildNoticeOfIntentionToLeave } from "./notice-of-intention-to-leave";
 export type { NoticeToLeaveInput } from "./notice-to-leave";
 export { buildNoticeToLeave } from "./notice-to-leave";
 export type { GeneralBreachNoticeInput, RemedyBreachNoticeInput } from "./remedy-breach";

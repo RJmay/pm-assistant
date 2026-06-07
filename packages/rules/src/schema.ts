@@ -42,6 +42,10 @@ export const RULE_KEYS = [
   "notice_to_leave_unremedied_breach",
   "notice_to_leave_unremedied_general_breach",
   "notice_to_leave_end_of_fixed_term",
+  // Notice of intention to leave (Form 13) — the TENANT's notice periods.
+  "notice_intention_to_leave_periodic",
+  "notice_intention_to_leave_end_of_fixed_term",
+  "notice_intention_to_leave_unremedied_breach",
 ] as const;
 
 export const ruleKeySchema = z.enum(RULE_KEYS);
