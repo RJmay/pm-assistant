@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { handleOwnerDigest } from "./cron/owner-digest";
 import { handleRefreshWatches } from "./cron/refresh-watches";
 import { handleRegulatoryScan } from "./cron/regulatory-scan";
@@ -27,6 +28,32 @@ app.use("*", async (c, next) => {
   c.header("X-Request-Id", requestId);
   await next();
 });
+
+// CORS: the dashboard (Cloudflare Pages) calls the worker cross-origin with an
+// Authorization header, which triggers a preflight. Allow the web-app origins
+// (prod apex, branch/preview aliases, local dev). Server-to-server callers
+// (Pub/Sub, Twilio) send no Origin and are unaffected.
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      if (!origin) return undefined;
+      try {
+        const { hostname, protocol } = new URL(origin);
+        const allowed =
+          hostname === "pm-assistant-web.pages.dev" ||
+          hostname.endsWith(".pm-assistant-web.pages.dev") ||
+          (hostname === "localhost" && protocol === "http:");
+        return allowed ? origin : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Authorization", "Content-Type"],
+    maxAge: 86400,
+  }),
+);
 
 app.route("/", health);
 app.route("/", gmailWebhook);
