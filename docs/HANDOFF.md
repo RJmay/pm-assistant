@@ -16,7 +16,7 @@ setup (Twilio/mailbox/Sydney), and a few enhancements (binary PDFs, rare Form 13
 | Web dashboard | `https://pm-assistant-web.pages.dev` (apex verified serving the current build) |
 | Supabase project | `deisxzmquxjaovubosil` (region **Singapore** — recreate in Sydney for the real pilot) |
 | CI/CD | push to `main` → CI (typecheck + lint + test) → deploy (`wrangler deploy` + Pages deploy) |
-| Migrations | `0001`–`0020` **applied** to the hosted DB |
+| Migrations | `0001`–`0021` **applied** to the hosted DB |
 | Active drafting prompt | **v2.4** in hosted `prompt_versions` (the real ~33.5KB prompt; see below) |
 | Git | all work committed + pushed to `origin/main` |
 
@@ -57,15 +57,17 @@ are already set from Phase B. The web app reads `PUBLIC_*` from `$env/static/pub
   notice), **rent-increase notice**, **Form 11** (remedy breach — rent 7d, general non-rent breach
   7d, moveable-dwelling rent 5d), **Form 12** (notice to leave — unremedied rent 7d, unremedied
   general breach 14d, end-of-term 2 months), **Form 13** (notice of intention to leave — periodic
-  14d, end-of-term later-of-14d/lease-end, unremedied lessor breach 7d). Print-ready HTML.
-  `/documents` dashboard.
+  14d, end-of-term later-of-14d/lease-end, unremedied lessor breach 7d, plus sale / repair-order /
+  compulsory-acquisition / condition / death-of-tenant 14d and tribunal-order non-compliance 7d).
+  Rendered as print-ready **HTML + a real PDF** (`pdf-lib`, stored `pdf_base64`, downloadable at
+  `/documents/:id/pdf`). `/documents` dashboard.
 - **Phase 5 — SMS front door** (`docs/PHASE_5_SMS.md`): signature-verified Twilio inbound webhook →
   classify (escalation-first) → draft a status reply → `/sms` review/send. Never auto-sent.
 
 Foundation also live: `@pm/rules` (QLD compliance engine + RTA-confirmed values) and the regulatory
 monitoring bot (spec §12).
 
-**Test counts (all green):** rules 79, documents 18, prompts 50, shared 1, web 43, worker 313
+**Test counts (all green):** rules 81, documents 21, prompts 50, shared 1, web 43, worker 314
 (`packages/db` RLS tests skip without `RUN_DB_TESTS=1`). `pnpm exec biome check .` + `pnpm -r typecheck` clean.
 
 ---
@@ -78,15 +80,12 @@ monitoring bot (spec §12).
 2. **Phase 5 SMS runtime.** Needs a **Twilio number off-trial** with its inbound webhook set to
    `https://pm-assistant-worker.ryanmay065.workers.dev/webhook/sms/<AGENCY_ID>` (A2P for production).
    (Worker `TWILIO_*` secrets already exist.)
-3. **Remaining statutory grounds** (same rules-backed pattern, confirm each period from
-   rta.qld.gov.au): the **rare Form 13 grounds** not yet modelled — domestic & family violence
-   (7d / can leave immediately — **sensitive, has its own process**), non-liveability (the day given),
-   owner-intends-to-sell (14d), failure to comply with repair order (14d), compulsory acquisition
-   (14d), condition of premises (14d), death of sole/co-tenant (14d), non-compliance with tribunal
-   order (7d). The common forms/grounds (Forms 11/12/13 core) are **done**.
-4. **Binary PDF for documents** — currently print-to-HTML. Plan: add `pdf-lib` to `@pm/documents`,
-   a `renderDocumentPdf(model)` renderer, store the PDF (inline column or Supabase Storage) and a
-   download in the dashboard. Keep the HTML path so it's regression-safe and additive.
+3. **Two deferred Form 13 grounds only** — domestic & family violence (7d / can leave immediately —
+   **sensitive, has its own evidence-based process**, ends only the affected tenant's interest) and
+   non-liveability (effective the day given / 0-day edge — needs a non-positive-days model). All
+   other Forms 11/12/13 grounds are **done + live**.
+4. **Binary PDF for documents — DONE + live.** `pdf-lib` renderer (`renderDocumentPdf`), stored
+   `pdf_base64` (migration 0021), download at `/documents/:id/pdf`; HTML path kept (additive).
 5. **Voice** (the other half of §11) — not built; a separate telephony integration.
 6. **Real-pilot follow-ups** (from Phase B): a **dedicated agency mailbox** (not a personal Gmail —
    reconnect via `/oauth/gmail/start?agency_id=…`); recreate **Supabase in Sydney**; verify a
