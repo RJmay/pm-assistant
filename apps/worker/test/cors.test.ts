@@ -32,11 +32,7 @@ describe("CORS", () => {
   });
 
   it("allows Pages branch/preview aliases", async () => {
-    const res = await fetchFn(
-      preflight("https://main.pm-assistant-web.pages.dev"),
-      env,
-      ctx,
-    );
+    const res = await fetchFn(preflight("https://main.pm-assistant-web.pages.dev"), env, ctx);
     expect(res.headers.get("access-control-allow-origin")).toBe(
       "https://main.pm-assistant-web.pages.dev",
     );
