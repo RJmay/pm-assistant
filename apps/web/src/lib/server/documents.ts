@@ -38,6 +38,8 @@ export interface DocumentRecord {
   content: string;
   rule_versions: string[];
   created_at: string;
+  /** Whether a rendered PDF is available for download (0021). */
+  hasPdf: boolean;
 }
 
 /** One document with its rendered content. */
@@ -48,12 +50,14 @@ export async function fetchDocument(
 ): Promise<DocumentRecord | null> {
   const { data, error } = await client
     .from("documents")
-    .select("id, type, form_id, title, content, rule_versions, created_at")
+    .select("id, type, form_id, title, content, rule_versions, created_at, pdf_base64")
     .eq("agency_id", agencyId)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`document fetch failed: ${error.message}`);
-  return (data ?? null) as DocumentRecord | null;
+  if (!data) return null;
+  const { pdf_base64, ...rest } = data;
+  return { ...rest, hasPdf: Boolean(pdf_base64) };
 }
 
 /** Active tenancies as dropdown options ("12 Marine Parade — Alex Tan"). */

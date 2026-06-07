@@ -2,7 +2,7 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { relativeTime } from "$lib/format";
-  import { ArrowLeft, Printer } from "lucide-svelte";
+  import { ArrowLeft, Download, Printer } from "lucide-svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -24,9 +24,16 @@
     >
       <ArrowLeft class="h-4 w-4" /> Back to documents
     </a>
-    <Button variant="outline" onclick={print}>
-      <Printer class="mr-1.5 h-4 w-4" /> Print / Save as PDF
-    </Button>
+    <div class="flex items-center gap-2">
+      {#if data.document.hasPdf}
+        <Button variant="outline" href={`/documents/${data.document.id}/pdf`}>
+          <Download class="mr-1.5 h-4 w-4" /> Download PDF
+        </Button>
+      {/if}
+      <Button variant="outline" onclick={print}>
+        <Printer class="mr-1.5 h-4 w-4" /> Print / Save as PDF
+      </Button>
+    </div>
   </div>
 
   <div class="flex flex-wrap items-center gap-2">
