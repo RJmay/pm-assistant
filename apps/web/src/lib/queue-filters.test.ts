@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyFilters,
+  EMPTY_FILTER,
   filtersToQuery,
   hasActiveFilter,
   isAlert,
@@ -42,29 +43,42 @@ describe("parseFilters", () => {
     expect(f.categories).toEqual(["MAINTENANCE", "RENT"]);
     expect(f.escalations).toEqual(["LEGAL"]);
     expect(f.pmId).toBe("pm-1");
+    expect(f.sort).toBe("urgency");
   });
 
   it("returns an empty filter for no params", () => {
     const f = parseFilters(new URLSearchParams(""));
-    expect(f).toEqual({ categories: [], escalations: [], pmId: null });
+    expect(f).toEqual(EMPTY_FILTER);
     expect(hasActiveFilter(f)).toBe(false);
+  });
+
+  it("parses a valid sort, falling back to urgency for junk", () => {
+    expect(parseFilters(new URLSearchParams("sort=recent")).sort).toBe("recent");
+    expect(parseFilters(new URLSearchParams("sort=oldest")).sort).toBe("oldest");
+    expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("urgency");
   });
 });
 
 describe("filtersToQuery", () => {
   it("round-trips through parseFilters", () => {
     const original = {
+      ...EMPTY_FILTER,
       categories: ["RENT" as const],
       escalations: ["LEGAL" as const],
       pmId: "pm-9",
+      sort: "recent" as const,
     };
     const qs = filtersToQuery(original);
-    const reparsed = parseFilters(new URLSearchParams(qs));
-    expect(reparsed).toEqual(original);
+    expect(parseFilters(new URLSearchParams(qs))).toEqual(original);
   });
 
-  it("is empty when no filters set", () => {
-    expect(filtersToQuery({ categories: [], escalations: [], pmId: null })).toBe("");
+  it("is empty when no filters set (default sort omitted)", () => {
+    expect(filtersToQuery(EMPTY_FILTER)).toBe("");
+  });
+
+  it("includes sort only when it's not the default", () => {
+    expect(filtersToQuery({ ...EMPTY_FILTER, sort: "recent" })).toBe("?sort=recent");
+    expect(filtersToQuery({ ...EMPTY_FILTER, sort: "urgency" })).toBe("");
   });
 });
 
@@ -76,27 +90,27 @@ describe("applyFilters", () => {
   ];
 
   it("filters by category (OR within dimension)", () => {
-    const out = applyFilters(items, { categories: ["RENT", "LEASE"], escalations: [], pmId: null });
+    const out = applyFilters(items, { ...EMPTY_FILTER, categories: ["RENT", "LEASE"] });
     expect(out.map((i) => i.id)).toEqual(["b", "c"]);
   });
 
   it("filters by escalation", () => {
-    const out = applyFilters(items, { categories: [], escalations: ["LEGAL"], pmId: null });
+    const out = applyFilters(items, { ...EMPTY_FILTER, escalations: ["LEGAL"] });
     expect(out.map((i) => i.id)).toEqual(["b"]);
   });
 
   it("ANDs across dimensions (category AND pm)", () => {
-    const out = applyFilters(items, { categories: ["MAINTENANCE"], escalations: [], pmId: "pm-1" });
+    const out = applyFilters(items, { ...EMPTY_FILTER, categories: ["MAINTENANCE"], pmId: "pm-1" });
     expect(out.map((i) => i.id)).toEqual(["a"]);
   });
 
   it("returns everything when no filter is active", () => {
-    expect(applyFilters(items, { categories: [], escalations: [], pmId: null })).toHaveLength(3);
+    expect(applyFilters(items, EMPTY_FILTER)).toHaveLength(3);
   });
 });
 
 describe("sortQueue", () => {
-  it("orders by priority (Emergency first) then received_at ascending", () => {
+  it("default 'urgency': priority (Emergency first) then received_at ascending", () => {
     const items = [
       item({ id: "std-old", priority: "STANDARD", received_at: "2026-05-01T00:00:00Z" }),
       item({ id: "emg", priority: "EMERGENCY_ALERT", received_at: "2026-05-29T00:00:00Z" }),
@@ -106,10 +120,20 @@ describe("sortQueue", () => {
     expect(sortQueue(items).map((i) => i.id)).toEqual(["emg", "pri", "std-old", "std-new"]);
   });
 
+  it("'recent' orders newest first; 'oldest' orders oldest first (ignoring priority)", () => {
+    const items = [
+      item({ id: "old", priority: "EMERGENCY_ALERT", received_at: "2026-05-01T00:00:00Z" }),
+      item({ id: "new", priority: "STANDARD", received_at: "2026-05-29T00:00:00Z" }),
+      item({ id: "mid", priority: "STANDARD", received_at: "2026-05-15T00:00:00Z" }),
+    ];
+    expect(sortQueue(items, "recent").map((i) => i.id)).toEqual(["new", "mid", "old"]);
+    expect(sortQueue(items, "oldest").map((i) => i.id)).toEqual(["old", "mid", "new"]);
+  });
+
   it("does not mutate the input array", () => {
     const items = [item({ id: "a" }), item({ id: "b" })];
     const copy = [...items];
-    sortQueue(items);
+    sortQueue(items, "recent");
     expect(items).toEqual(copy);
   });
 });

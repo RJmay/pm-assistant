@@ -11,6 +11,7 @@
     hasActiveFilter,
     parseFilters,
     type QueueFilter,
+    type QueueSort,
     sortQueue,
   } from "$lib/queue-filters";
   import { getBrowserClient } from "$lib/supabase-browser";
@@ -33,7 +34,11 @@
   const ESCALATIONS: EscalationFlag[] = ["WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"];
 
   const filter = $derived(parseFilters(page.url.searchParams));
-  const visible = $derived(sortQueue(applyFilters(data.items, filter)));
+  const visible = $derived(sortQueue(applyFilters(data.items, filter), filter.sort));
+
+  function setSort(e: Event) {
+    setFilter({ ...filter, sort: (e.currentTarget as HTMLSelectElement).value as QueueSort });
+  }
 
   function setFilter(next: QueueFilter) {
     replaceState(`/queue${filtersToQuery(next)}`, {});
@@ -57,7 +62,7 @@
     setFilter({ ...filter, pmId: value || null });
   }
   function clearFilters() {
-    setFilter({ categories: [], escalations: [], pmId: null });
+    setFilter({ categories: [], escalations: [], pmId: null, sort: filter.sort });
   }
 
   // Realtime: any change to this agency's drafts re-fetches the joined list.
@@ -116,19 +121,31 @@
           {escalationLabel(e)}
         </button>
       {/each}
-      {#if data.pms.length > 0}
+      <div class="ml-auto flex items-center gap-1.5">
         <select
-          onchange={setPm}
-          value={filter.pmId ?? ""}
-          class="ml-auto h-8 rounded-md border bg-background px-2 text-xs"
-          aria-label="Filter by property manager"
+          onchange={setSort}
+          value={filter.sort}
+          class="h-8 rounded-md border bg-background px-2 text-xs"
+          aria-label="Sort the queue"
         >
-          <option value="">All PMs</option>
-          {#each data.pms as pm (pm.id)}
-            <option value={pm.id}>{pm.name}</option>
-          {/each}
+          <option value="urgency">Highest urgency</option>
+          <option value="recent">Most recent</option>
+          <option value="oldest">Oldest first</option>
         </select>
-      {/if}
+        {#if data.pms.length > 0}
+          <select
+            onchange={setPm}
+            value={filter.pmId ?? ""}
+            class="h-8 rounded-md border bg-background px-2 text-xs"
+            aria-label="Filter by property manager"
+          >
+            <option value="">All PMs</option>
+            {#each data.pms as pm (pm.id)}
+              <option value={pm.id}>{pm.name}</option>
+            {/each}
+          </select>
+        {/if}
+      </div>
     </div>
     {#if hasActiveFilter(filter)}
       <button type="button" onclick={clearFilters} class="text-xs text-muted-foreground underline">
