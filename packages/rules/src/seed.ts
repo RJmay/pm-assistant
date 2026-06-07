@@ -287,9 +287,13 @@ const RAW: RegulatoryRule[] = [
           needsHumanConfirmation: false,
         },
         {
+          // CORRECTION (June 2026): the spec mislabelled R12 as "disputed bond".
+          // R12 is the ROOMING-ACCOMMODATION notice to leave (RTA rooming-
+          // accommodation forms page); rooming accommodation is out of v1 scope,
+          // so action is null (unreachable via selectForm, like R18/18b).
           formId: "R12",
-          purpose: "Disputed bond (refund of rental bond)",
-          action: "disputed_bond",
+          purpose: "Notice to leave (rooming accommodation)",
+          action: null,
           updatedUnder2025Regulation: false,
           needsHumanConfirmation: false,
         },
@@ -313,10 +317,10 @@ const RAW: RegulatoryRule[] = [
     effectiveTo: null,
     sourceUrl: RTA,
     sourceNote:
-      "RTA forms relevant to drafting — 18a (general tenancy agreement), 18b (moveable dwelling tenancy agreement, confirmed from the official RTA form), 9 (entry notice), 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave), R12 (disputed bond). 18a/18b/R18 were updated under the 2025 Regulation.",
+      "RTA forms relevant to drafting — 18a (general tenancy agreement), 18b (moveable dwelling tenancy agreement, confirmed from the official RTA form), 9 (entry notice), 11 (notice to remedy breach), 12 (notice to leave), 13 (notice of intention to leave). R12 is the ROOMING-ACCOMMODATION notice to leave (confirmed from the RTA rooming-accommodation forms page, retrieved June 2026) — NOT a disputed-bond form; rooming accommodation is out of v1 residential scope (recorded like R18). The disputed-bond process for general tenancies is Form 4 (refund of rental bond) + Form 16 (dispute resolution request) — bond-process, deferred. 18a/18b/R18 were updated under the 2025 Regulation.",
     needsHumanConfirmation: false,
     notes:
-      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 (rooming accommodation agreement) confirmed from the official RTA form; rooming accommodation is out of v1 residential scope but the metadata is recorded.",
+      "Confirm exact current form versions from the RTA forms page before generating any statutory document (Phase 4). R18 (rooming accommodation agreement) and R12 (rooming accommodation notice to leave) confirmed from the official RTA rooming-accommodation forms; rooming accommodation is out of v1 residential scope but the metadata is recorded. R12 was corrected June 2026 from a spec mislabel ('disputed bond'); the same mislabel still lives in the spec and the drafting prompt (needs a prompt-versioning task).",
   },
 
   // --- Notice periods for Forms 11/12 (RTA-confirmed June 2026) -------------

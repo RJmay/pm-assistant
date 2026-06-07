@@ -133,7 +133,9 @@ export const formActionSchema = z.enum([
   "notice_to_remedy_breach",
   "notice_to_leave",
   "notice_of_intention_to_leave",
-  "disputed_bond",
+  // NOTE: there is deliberately no "disputed_bond" action — R12 was a spec
+  // mislabel (it's the rooming-accommodation notice to leave). The disputed-bond
+  // process is Form 4 + Form 16 (bond-process, out of v1 document scope).
 ]);
 export type FormAction = z.infer<typeof formActionSchema>;
 

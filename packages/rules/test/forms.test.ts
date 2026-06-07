@@ -16,7 +16,6 @@ describe("selectForm", () => {
     expect(selectForm("notice_to_remedy_breach", ASOF).formId).toBe("11");
     expect(selectForm("notice_to_leave", ASOF).formId).toBe("12");
     expect(selectForm("notice_of_intention_to_leave", ASOF).formId).toBe("13");
-    expect(selectForm("disputed_bond", ASOF).formId).toBe("R12");
   });
 });
 
@@ -32,6 +31,13 @@ describe("getFormById", () => {
     const f18b = getFormById("18b", ASOF);
     expect(f18b.purpose).toBe("Moveable dwelling tenancy agreement");
     expect(f18b.needsHumanConfirmation).toBe(false);
+  });
+
+  it("R12 is the rooming-accommodation notice to leave (corrected spec mislabel)", () => {
+    const r12 = getFormById("R12", ASOF);
+    expect(r12.purpose).toBe("Notice to leave (rooming accommodation)");
+    // action is null → out of v1 scope and unreachable via selectForm.
+    expect(r12.action).toBeNull();
   });
 
   it("throws for an unknown form id", () => {
