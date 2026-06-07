@@ -57,8 +57,9 @@ are already set from Phase B. The web app reads `PUBLIC_*` from `$env/static/pub
   notice), **rent-increase notice**, **Form 11** (remedy breach — rent 7d, general non-rent breach
   7d, moveable-dwelling rent 5d), **Form 12** (notice to leave — unremedied rent 7d, unremedied
   general breach 14d, end-of-term 2 months), **Form 13** (notice of intention to leave — periodic
-  14d, end-of-term later-of-14d/lease-end, unremedied lessor breach 7d, plus sale / repair-order /
-  compulsory-acquisition / condition / death-of-tenant 14d and tribunal-order non-compliance 7d).
+  14d, end-of-term later-of-14d/lease-end, unremedied lessor breach 7d, sale / repair-order /
+  compulsory-acquisition / condition / death-of-tenant 14d, tribunal-order non-compliance 7d,
+  **DFV** 7d (guardrail note), and **non-liveability** (immediate) — all grounds modelled).
   Rendered as print-ready **HTML + a real PDF** (`pdf-lib`, stored `pdf_base64`, downloadable at
   `/documents/:id/pdf`). `/documents` dashboard.
 - **Phase 5 — SMS front door** (`docs/PHASE_5_SMS.md`): signature-verified Twilio inbound webhook →
@@ -67,7 +68,12 @@ are already set from Phase B. The web app reads `PUBLIC_*` from `$env/static/pub
 Foundation also live: `@pm/rules` (QLD compliance engine + RTA-confirmed values) and the regulatory
 monitoring bot (spec §12).
 
-**Test counts (all green):** rules 81, documents 21, prompts 50, shared 1, web 43, worker 314
+**Onboarding (June 2026):** `scripts/onboard-agency.mjs` + `scripts/agency.example.json` +
+`docs/ONBOARDING.md` — idempotent per-agency provisioning (agency, agency_config, an active v2.4
+prompt, email state, PM users) plus the console steps the script can't do (Supabase Auth user with
+`app_metadata.agency_id`, Gmail OAuth, Twilio webhook).
+
+**Test counts (all green):** rules 83, documents 23, prompts 50, shared 1, web 43, worker 317
 (`packages/db` RLS tests skip without `RUN_DB_TESTS=1`). `pnpm exec biome check .` + `pnpm -r typecheck` clean.
 
 ---
@@ -80,10 +86,9 @@ monitoring bot (spec §12).
 2. **Phase 5 SMS runtime.** Needs a **Twilio number off-trial** with its inbound webhook set to
    `https://pm-assistant-worker.ryanmay065.workers.dev/webhook/sms/<AGENCY_ID>` (A2P for production).
    (Worker `TWILIO_*` secrets already exist.)
-3. **Two deferred Form 13 grounds only** — domestic & family violence (7d / can leave immediately —
-   **sensitive, has its own evidence-based process**, ends only the affected tenant's interest) and
-   non-liveability (effective the day given / 0-day edge — needs a non-positive-days model). All
-   other Forms 11/12/13 grounds are **done + live**.
+3. **Statutory forms/grounds — DONE.** All Forms 9/11/12/13 grounds are modelled + live, incl. DFV
+   (with a guardrail note — ends only the affected tenant's interest, evidence required; still "not
+   legal advice", review before issuing) and non-liveability (immediate / 0-day).
 4. **Binary PDF for documents — DONE + live.** `pdf-lib` renderer (`renderDocumentPdf`), stored
    `pdf_base64` (migration 0021), download at `/documents/:id/pdf`; HTML path kept (additive).
 5. **Voice** (the other half of §11) — not built; a separate telephony integration.
@@ -120,6 +125,12 @@ monitoring bot (spec §12).
   set on the old (CLAUDE.md: explicit prompt-versioning task). v2.4 is current.
 - **Cloudflare Pages production branch must equal the deploy `--branch`** or the apex goes stale —
   `ci.yml` now enforces + asserts this.
+- **The worker needs CORS** (added June 2026 in `index.ts`) for browser→worker calls; without it the
+  dashboard shows "Could not reach the Worker". Allowed origins: `*.pm-assistant-web.pages.dev` +
+  localhost. Server-to-server callers (Pub/Sub, Twilio) send no Origin and are unaffected.
+- **`pnpm lint` is `biome check .` (no `--write`)** — run `pnpm exec biome check --write .` before
+  pushing, or CI's Lint step fails and the deploy is skipped. (Don't hand-edit with `sed` then skip
+  the formatter.)
 - Cloudflare cron day-of-week: use `SUN`, not `0`. All Phase 2 scanners run under **one** daily cron.
 - Postgres: a **new enum value** needs its **own migration** (can't be used in the same transaction
   it's added) — see `0015`/`0018`/`0020`.
