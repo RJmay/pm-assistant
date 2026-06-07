@@ -26,8 +26,8 @@ export {
 } from "./model";
 export type { NoticeToLeaveInput } from "./notice-to-leave";
 export { buildNoticeToLeave } from "./notice-to-leave";
-export type { RemedyBreachNoticeInput } from "./remedy-breach";
-export { buildRemedyBreachNotice } from "./remedy-breach";
+export type { GeneralBreachNoticeInput, RemedyBreachNoticeInput } from "./remedy-breach";
+export { buildGeneralBreachNotice, buildRemedyBreachNotice } from "./remedy-breach";
 export { renderDocumentHtml } from "./render";
 export type { RentIncreaseNoticeInput } from "./rent-increase";
 export { buildRentIncreaseNoticeDocument } from "./rent-increase";

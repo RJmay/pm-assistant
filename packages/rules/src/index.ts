@@ -51,8 +51,11 @@ export {
   entryNoticeRequirements,
 } from "./inspection";
 export type {
+  BreachKind,
+  DwellingType,
   NoticeToLeaveGround,
   NoticeToLeaveRequirements,
+  NoticeToRemedyBreachOptions,
   NoticeToRemedyBreachRequirements,
 } from "./notices";
 export {

@@ -25,7 +25,13 @@
   let newRent = $state("");
   let effectiveDate = $state("");
   let amountOwed = $state("");
-  let ground = $state<"unremedied_breach" | "end_of_fixed_term">("end_of_fixed_term");
+  let breachKind = $state<"rent" | "general">("rent");
+  let dwelling = $state<"general" | "moveable">("general");
+  let breachDescription = $state("");
+  let ground =
+    $state<"unremedied_breach" | "unremedied_general_breach" | "end_of_fixed_term">(
+      "end_of_fixed_term",
+    );
   let busy = $state(false);
 
   const typeLabels: Record<string, string> = {
@@ -59,12 +65,22 @@
       body.newRentCents = cents;
       if (effectiveDate) body.effectiveDate = effectiveDate;
     } else if (docType === "notice_to_remedy_breach") {
-      const cents = Math.round(Number.parseFloat(amountOwed) * 100);
-      if (!Number.isFinite(cents) || cents <= 0) {
-        toast.error("Enter the amount owing.");
-        return;
+      body.breach = breachKind;
+      body.dwelling = dwelling;
+      if (breachKind === "general") {
+        if (!breachDescription.trim()) {
+          toast.error("Describe the breach.");
+          return;
+        }
+        body.breachDescription = breachDescription.trim();
+      } else {
+        const cents = Math.round(Number.parseFloat(amountOwed) * 100);
+        if (!Number.isFinite(cents) || cents <= 0) {
+          toast.error("Enter the amount owing.");
+          return;
+        }
+        body.amountOwedCents = cents;
       }
-      body.amountOwedCents = cents;
     } else {
       body.ground = ground;
     }
@@ -163,9 +179,42 @@
             </div>
           {:else if docType === "notice_to_remedy_breach"}
             <div class="space-y-1.5">
-              <Label for="owed">Amount owing ($)</Label>
-              <Input id="owed" bind:value={amountOwed} placeholder="e.g. 1160" />
+              <Label for="breachkind">Breach type</Label>
+              <select
+                id="breachkind"
+                bind:value={breachKind}
+                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="rent">Rent arrears</option>
+                <option value="general">General (non-rent) breach</option>
+              </select>
             </div>
+            <div class="space-y-1.5">
+              <Label for="dwelling">Tenancy type</Label>
+              <select
+                id="dwelling"
+                bind:value={dwelling}
+                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="general">General tenancy</option>
+                <option value="moveable">Moveable dwelling (caravan park)</option>
+              </select>
+            </div>
+            {#if breachKind === "rent"}
+              <div class="space-y-1.5">
+                <Label for="owed">Amount owing ($)</Label>
+                <Input id="owed" bind:value={amountOwed} placeholder="e.g. 1160" />
+              </div>
+            {:else}
+              <div class="space-y-1.5 sm:col-span-2">
+                <Label for="breachdesc">Describe the breach</Label>
+                <Input
+                  id="breachdesc"
+                  bind:value={breachDescription}
+                  placeholder="e.g. Unapproved pet kept at the premises"
+                />
+              </div>
+            {/if}
           {:else}
             <div class="space-y-1.5">
               <Label for="ground">Ground</Label>
@@ -176,6 +225,7 @@
               >
                 <option value="end_of_fixed_term">End of fixed term</option>
                 <option value="unremedied_breach">Rent not paid (breach not remedied)</option>
+                <option value="unremedied_general_breach">General breach (not remedied)</option>
               </select>
             </div>
           {/if}

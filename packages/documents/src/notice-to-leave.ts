@@ -10,13 +10,15 @@ import { type DocumentModel, formatNames, humanDate, STANDARD_DISCLAIMER } from 
 // Notice to Leave (RTA Form 12)
 // ============================================================================
 // The notice period (per ground) + Form number come from @pm/rules. Grounds
-// supported in v1: an unremedied RENT-arrears breach (following a Form 11), and
-// the end of a fixed-term agreement. For end of term the period is in MONTHS and
+// supported: an unremedied RENT-arrears breach (7 days), an unremedied GENERAL
+// (non-rent) breach (14 days) — both following the matching Form 11 — and the
+// end of a fixed-term agreement. For end of term the period is in MONTHS and
 // the handover date is the LATER of (notice + period) and the lease end date.
 // ============================================================================
 
 const GROUND_LABEL: Record<NoticeToLeaveGround, string> = {
   unremedied_breach: "Failure to pay rent — breach not remedied",
+  unremedied_general_breach: "Breach of the agreement — breach not remedied",
   end_of_fixed_term: "End of the fixed-term tenancy agreement",
 };
 

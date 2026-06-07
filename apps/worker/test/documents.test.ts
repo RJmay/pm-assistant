@@ -172,6 +172,94 @@ describe("generateDocument", () => {
     expect(doc.content).toContain("$1,160.00");
   });
 
+  it("generates a Form 11 general (non-rent) breach (7 days) with the described breach", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_to_remedy_breach",
+        tenancyId: TENANCY,
+        breach: "general",
+        breachDescription: "Unapproved pet kept at the premises",
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("11");
+    const doc = first("documents");
+    expect(doc.content).toContain("Unapproved pet kept at the premises");
+    expect(doc.content).toContain("10 June 2026"); // notice + 7 days
+  });
+
+  it("generates a Form 11 moveable-dwelling rent breach (5 days)", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_to_remedy_breach",
+        tenancyId: TENANCY,
+        breach: "rent",
+        dwelling: "moveable",
+        amountOwedCents: 50000,
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("11");
+    expect(first("documents").content).toContain("8 June 2026"); // notice + 5 days
+  });
+
+  it("generates a Form 12 unremedied general breach (14 days)", async () => {
+    const res = await generateDocument(
+      fakeClientRef.current as Client,
+      {
+        agencyId: AGENCY,
+        type: "notice_to_leave",
+        tenancyId: TENANCY,
+        ground: "unremedied_general_breach",
+        createdByPmId: PM,
+      },
+      deps,
+    );
+    expect(res.formId).toBe("12");
+    const doc = first("documents");
+    expect(doc.content).toContain("14 days");
+    expect(doc.content).toContain("17 June 2026"); // notice + 14 days
+  });
+
+  it("refuses a general breach with no description (missing_data)", async () => {
+    await expect(
+      generateDocument(
+        fakeClientRef.current as Client,
+        {
+          agencyId: AGENCY,
+          type: "notice_to_remedy_breach",
+          tenancyId: TENANCY,
+          breach: "general",
+          createdByPmId: PM,
+        },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "missing_data" });
+    expect(rows("documents")).toHaveLength(0);
+  });
+
+  it("refuses a rent breach with no amount (missing_data)", async () => {
+    await expect(
+      generateDocument(
+        fakeClientRef.current as Client,
+        {
+          agencyId: AGENCY,
+          type: "notice_to_remedy_breach",
+          tenancyId: TENANCY,
+          breach: "rent",
+          createdByPmId: PM,
+        },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "missing_data" });
+  });
+
   it("generates a Form 12 end-of-fixed-term notice (2 months, handover = later of notice+2mo / lease end)", async () => {
     const res = await generateDocument(
       fakeClientRef.current as Client,
@@ -244,5 +332,30 @@ describe("POST /api/documents", () => {
     expect(res.status).toBe(409);
     const json = (await res.json()) as { code?: string };
     expect(json.code).toBe("not_compliant");
+  });
+
+  it("generates a general-breach Form 11 (201)", async () => {
+    const res = await post(
+      {
+        type: "notice_to_remedy_breach",
+        tenancyId: TENANCY,
+        breach: "general",
+        breachDescription: "Unapproved pet kept at the premises",
+      },
+      await token(),
+    );
+    expect(res.status).toBe(201);
+    const json = (await res.json()) as { formId: string | null };
+    expect(json.formId).toBe("11");
+  });
+
+  it("409s a general breach with no description (missing_data)", async () => {
+    const res = await post(
+      { type: "notice_to_remedy_breach", tenancyId: TENANCY, breach: "general" },
+      await token(),
+    );
+    expect(res.status).toBe(409);
+    const json = (await res.json()) as { code?: string };
+    expect(json.code).toBe("missing_data");
   });
 });

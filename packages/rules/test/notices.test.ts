@@ -12,9 +12,31 @@ describe("noticeToRemedyBreachRequirements (Form 11, rent arrears)", () => {
   it("returns the RTA-confirmed 7-day remedy period + Form 11", () => {
     const req = noticeToRemedyBreachRequirements(ASOF);
     expect(req.remedyDays).toBe(7);
+    expect(req.breach).toBe("rent");
+    expect(req.dwelling).toBe("general");
     expect(req.formId).toBe("11");
     expect(req.ruleVersions.length).toBeGreaterThan(0);
     expect(remedyByDate(ASOF, req.remedyDays)).toBe("2026-06-10");
+  });
+});
+
+describe("noticeToRemedyBreachRequirements — breach + dwelling variants", () => {
+  it("general (non-rent) breach is 7 days", () => {
+    const req = noticeToRemedyBreachRequirements(ASOF, { breach: "general" });
+    expect(req.remedyDays).toBe(7);
+    expect(req.breach).toBe("general");
+  });
+
+  it("moveable-dwelling rent arrears is 5 days", () => {
+    const req = noticeToRemedyBreachRequirements(ASOF, { breach: "rent", dwelling: "moveable" });
+    expect(req.remedyDays).toBe(5);
+    expect(req.dwelling).toBe("moveable");
+    expect(remedyByDate(ASOF, req.remedyDays)).toBe("2026-06-08");
+  });
+
+  it("a general breach in a moveable dwelling is still 7 days", () => {
+    const req = noticeToRemedyBreachRequirements(ASOF, { breach: "general", dwelling: "moveable" });
+    expect(req.remedyDays).toBe(7);
   });
 });
 
@@ -25,6 +47,14 @@ describe("noticeToLeaveRequirements (Form 12)", () => {
     expect(req.unit).toBe("days");
     expect(req.formId).toBe("12");
     expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-10");
+  });
+
+  it("unremedied GENERAL (non-rent) breach is 14 DAYS", () => {
+    const req = noticeToLeaveRequirements("unremedied_general_breach", ASOF);
+    expect(req.period).toBe(14);
+    expect(req.unit).toBe("days");
+    expect(req.formId).toBe("12");
+    expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-17");
   });
 
   it("end of fixed term is 2 MONTHS (not days)", () => {

@@ -31,12 +31,17 @@ const bodySchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("notice_to_remedy_breach"),
     tenancyId: z.string().min(1),
-    amountOwedCents: z.number().int().positive(),
+    // breach defaults to "rent" in the service; a general breach needs a
+    // breachDescription, a rent breach needs amountOwedCents (validated there).
+    breach: z.enum(["rent", "general"]).optional(),
+    dwelling: z.enum(["general", "moveable"]).optional(),
+    amountOwedCents: z.number().int().positive().optional(),
+    breachDescription: z.string().min(1).optional(),
   }),
   z.object({
     type: z.literal("notice_to_leave"),
     tenancyId: z.string().min(1),
-    ground: z.enum(["unremedied_breach", "end_of_fixed_term"]),
+    ground: z.enum(["unremedied_breach", "unremedied_general_breach", "end_of_fixed_term"]),
   }),
 ]);
 

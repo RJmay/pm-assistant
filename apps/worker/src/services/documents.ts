@@ -1,6 +1,7 @@
 import type { Client, Json } from "@pm/db";
 import {
   buildEntryNoticeDocument,
+  buildGeneralBreachNotice,
   buildNoticeToLeave,
   buildRemedyBreachNotice,
   buildRentIncreaseNoticeDocument,
@@ -51,14 +52,17 @@ export type GenerateDocumentInput =
       type: "notice_to_remedy_breach";
       tenancyId: string;
       createdByPmId: string;
-      amountOwedCents: number;
+      breach?: "rent" | "general";
+      dwelling?: "general" | "moveable";
+      amountOwedCents?: number;
+      breachDescription?: string;
     }
   | {
       agencyId: string;
       type: "notice_to_leave";
       tenancyId: string;
       createdByPmId: string;
-      ground: "unremedied_breach" | "end_of_fixed_term";
+      ground: "unremedied_breach" | "unremedied_general_breach" | "end_of_fixed_term";
     };
 
 export interface GenerateDocumentResult {
@@ -142,7 +146,26 @@ export async function generateDocument(
         lastIncreaseDate: tenancy.last_rent_increase_date,
       });
     } else if (input.type === "notice_to_remedy_breach") {
-      model = buildRemedyBreachNotice({ ...common, amountOwedCents: input.amountOwedCents });
+      const breach = input.breach ?? "rent";
+      if (breach === "general") {
+        if (!input.breachDescription) {
+          throw new DocumentError("missing_data", "describe the breach to be remedied");
+        }
+        model = buildGeneralBreachNotice({
+          ...common,
+          breachDescription: input.breachDescription,
+          dwelling: input.dwelling,
+        });
+      } else {
+        if (input.amountOwedCents == null) {
+          throw new DocumentError("missing_data", "enter the rent amount owing");
+        }
+        model = buildRemedyBreachNotice({
+          ...common,
+          amountOwedCents: input.amountOwedCents,
+          dwelling: input.dwelling,
+        });
+      }
     } else {
       model = buildNoticeToLeave({
         ...common,

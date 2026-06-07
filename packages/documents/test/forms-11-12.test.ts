@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildNoticeToLeave, buildRemedyBreachNotice, renderDocumentHtml } from "../src";
+import {
+  buildGeneralBreachNotice,
+  buildNoticeToLeave,
+  buildRemedyBreachNotice,
+  renderDocumentHtml,
+} from "../src";
 
 const base = {
   agencyName: "Sunshine Coast Test Agency",
@@ -21,6 +26,31 @@ describe("buildRemedyBreachNotice (Form 11)", () => {
     expect(html).toContain("Notice to Remedy Breach (Form 11)");
     expect(html).not.toMatch(/\{\{|\}\}/);
   });
+
+  it("moveable-dwelling rent arrears → 5-day remedy date", () => {
+    const doc = buildRemedyBreachNotice({ ...base, amountOwedCents: 50000, dwelling: "moveable" });
+    expect(doc.fields.find((f) => f.label === "Remedy period")?.value).toBe("5 days");
+    expect(doc.fields.find((f) => f.label === "Remedy required by")?.value).toBe("8 June 2026");
+  });
+});
+
+describe("buildGeneralBreachNotice (Form 11, non-rent)", () => {
+  it("builds a general-breach notice with the 7-day remedy date + the described breach", () => {
+    const doc = buildGeneralBreachNotice({
+      ...base,
+      breachDescription: "Unapproved pet kept at the premises",
+    });
+    expect(doc.formId).toBe("11");
+    expect(doc.title).toBe("Notice to Remedy Breach (Form 11)");
+    expect(doc.fields.find((f) => f.label === "Nature of breach")?.value).toBe(
+      "Unapproved pet kept at the premises",
+    );
+    expect(doc.fields.find((f) => f.label === "Remedy period")?.value).toBe("7 days");
+    expect(doc.fields.find((f) => f.label === "Remedy required by")?.value).toBe("10 June 2026");
+    const html = renderDocumentHtml(doc);
+    expect(html).toContain("Unapproved pet kept at the premises");
+    expect(html).not.toMatch(/\{\{|\}\}/);
+  });
 });
 
 describe("buildNoticeToLeave (Form 12)", () => {
@@ -30,6 +60,18 @@ describe("buildNoticeToLeave (Form 12)", () => {
     expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe("7 days");
     expect(doc.fields.find((f) => f.label === "Hand over the premises by")?.value).toBe(
       "10 June 2026",
+    );
+  });
+
+  it("unremedied GENERAL breach → 14 days to hand over", () => {
+    const doc = buildNoticeToLeave({ ...base, ground: "unremedied_general_breach" });
+    expect(doc.formId).toBe("12");
+    expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe("14 days");
+    expect(doc.fields.find((f) => f.label === "Hand over the premises by")?.value).toBe(
+      "17 June 2026",
+    );
+    expect(doc.fields.find((f) => f.label === "Ground")?.value).toContain(
+      "Breach of the agreement",
     );
   });
 

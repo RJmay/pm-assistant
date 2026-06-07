@@ -32,10 +32,15 @@ export const RULE_KEYS = [
   "emergency_repairs_s214",
   "forms",
   "house_rules_transition",
-  // Notice periods for Forms 11/12 — seeded unconfirmed (value null) until a
-  // human supplies the current RTA values; the engine refuses to guess (§0.3).
+  // Notice periods for Forms 11/12 — RTA-confirmed (see seed.ts). Rent-arrears
+  // and end-of-term were confirmed first; the general-breach + moveable-dwelling
+  // variants were added later (same RTA pages). Any value seeded with
+  // `needsHumanConfirmation: true` makes the engine refuse to guess (§0.3).
   "notice_remedy_breach_rent_arrears",
+  "notice_remedy_breach_rent_arrears_moveable",
+  "notice_remedy_breach_general",
   "notice_to_leave_unremedied_breach",
+  "notice_to_leave_unremedied_general_breach",
   "notice_to_leave_end_of_fixed_term",
 ] as const;
 

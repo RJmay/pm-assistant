@@ -336,10 +336,10 @@ const RAW: RegulatoryRule[] = [
     sourceUrl:
       "https://www.rta.qld.gov.au/during-a-tenancy/rent-and-other-bills/non-payment-of-rent",
     sourceNote:
-      "RTA (general tenancies), retrieved June 2026: a Notice to Remedy Breach (Form 11) for rent arrears gives the tenant 7 days to pay (5 days for moveable dwellings, not modelled). Rent must be more than 7 days in arrears before the Form 11 is issued.",
+      "RTA (general tenancies), retrieved June 2026: a Notice to Remedy Breach (Form 11) for rent arrears gives the tenant 7 days to pay. Rent must be more than 7 days in arrears before the Form 11 is issued. (Moveable dwellings get 5 days — see notice_remedy_breach_rent_arrears_moveable.)",
     needsHumanConfirmation: false,
     notes:
-      "General tenancies only. Caravan-park/moveable-dwelling remedy period (5 days) not modelled.",
+      "General-tenancy rent arrears (7 days). The moveable-dwelling variant (5 days) is notice_remedy_breach_rent_arrears_moveable; a non-rent general breach is notice_remedy_breach_general (7 days).",
   },
   {
     jurisdiction: "QLD",
@@ -350,10 +350,10 @@ const RAW: RegulatoryRule[] = [
     effectiveTo: null,
     sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
     sourceNote:
-      "RTA (general tenancies), retrieved June 2026: a Notice to Leave (Form 12) for an unremedied RENT-ARREARS breach has a minimum notice period of 7 days. (A general non-rent unremedied breach is 14 days — a separate ground, not yet modelled.)",
+      "RTA (general tenancies), retrieved June 2026: a Notice to Leave (Form 12) for an unremedied RENT-ARREARS breach has a minimum notice period of 7 days. (A general non-rent unremedied breach is 14 days — see notice_to_leave_unremedied_general_breach.)",
     needsHumanConfirmation: false,
     notes:
-      "This rule is the RENT-arrears unremedied-breach period (7 days), following a rent Form 11. The general (non-rent) unremedied breach is 14 days — add as a separate ground when needed.",
+      "This rule is the RENT-arrears unremedied-breach period (7 days), following a rent Form 11. The general (non-rent) unremedied breach (14 days) is notice_to_leave_unremedied_general_breach.",
   },
   {
     jurisdiction: "QLD",
@@ -368,6 +368,54 @@ const RAW: RegulatoryRule[] = [
     needsHumanConfirmation: false,
     notes:
       "Period is MONTHS, not days. The handover date is max(noticeDate + 2 months, lease end date) — the builder computes this when given the lease end date.",
+  },
+
+  // --- Form 11/12 variants: general (non-rent) breach + moveable dwellings ---
+  // Same RTA pages as the rent-arrears/end-of-term rules above, retrieved June
+  // 2026. effectiveFrom null (current values, no asserted start date).
+  {
+    jurisdiction: "QLD",
+    key: "notice_remedy_breach_rent_arrears_moveable",
+    version: "rta-2026-06",
+    value: { days: 5 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/during-a-tenancy/rent-and-other-bills/non-payment-of-rent",
+    sourceNote:
+      "RTA, retrieved June 2026: for a moveable dwelling (caravan park), a Notice to Remedy Breach (Form 11) for rent arrears gives the tenant 5 days to pay (vs 7 days for a general tenancy). Rent must be more than 7 days in arrears before the Form 11 is issued.",
+    needsHumanConfirmation: false,
+    notes:
+      "Moveable-dwelling rent-arrears remedy period (5 days). The general-tenancy equivalent is notice_remedy_breach_rent_arrears (7 days).",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_remedy_breach_general",
+    version: "rta-2026-06",
+    value: { days: 7 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/during-a-tenancy/breach-of-the-agreement/tenant-breaches-the-agreement",
+    sourceNote:
+      "RTA, retrieved June 2026: when a tenant breaches a non-rent term of the agreement, a Notice to Remedy Breach (Form 11) must give the tenant 7 days to remedy the breach. The same 7-day period applies to general breaches in moveable dwellings.",
+    needsHumanConfirmation: false,
+    notes:
+      "Non-rent (general) breach remedy period (7 days), for both general tenancies and moveable dwellings. Rent arrears are notice_remedy_breach_rent_arrears (7d) / _moveable (5d).",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_to_leave_unremedied_general_breach",
+    version: "rta-2026-06",
+    value: { days: 14 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl: "https://www.rta.qld.gov.au/ending-tenancy-notice",
+    sourceNote:
+      "RTA (general tenancies), retrieved June 2026: a Notice to Leave (Form 12) for an unremedied GENERAL (non-rent) breach has a minimum notice period of 14 days (distinct from the 7-day rent-arrears ground).",
+    needsHumanConfirmation: false,
+    notes:
+      "General (non-rent) unremedied breach (14 days), following a general-breach Form 11. The rent-arrears equivalent is notice_to_leave_unremedied_breach (7 days).",
   },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------
