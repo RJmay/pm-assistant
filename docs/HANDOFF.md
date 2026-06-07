@@ -128,6 +128,11 @@ prompt, email state, PM users) plus the console steps the script can't do (Supab
 - **The worker needs CORS** (added June 2026 in `index.ts`) for browser→worker calls; without it the
   dashboard shows "Could not reach the Worker". Allowed origins: `*.pm-assistant-web.pages.dev` +
   localhost. Server-to-server callers (Pub/Sub, Twilio) send no Origin and are unaffected.
+- **Supabase tokens are ES256** (asymmetric signing keys — the current default). `lib/auth.ts`
+  branches on the token `alg`: ES256/RS256 → verify via the project JWKS
+  (`/auth/v1/.well-known/jwks.json`); HS256 → legacy shared secret. A new Supabase project (e.g. the
+  Sydney one) will be ES256 — no code change needed, but `SUPABASE_URL` must be set so the JWKS
+  resolves. ("alg header parameter not allowed" = this was misconfigured.)
 - **`pnpm lint` is `biome check .` (no `--write`)** — run `pnpm exec biome check --write .` before
   pushing, or CI's Lint step fails and the deploy is skipped. (Don't hand-edit with `sed` then skip
   the formatter.)
