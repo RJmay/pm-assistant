@@ -1,0 +1,47 @@
+{
+  "agency": {
+    "id": "OPTIONAL — omit to generate one; paste it back here for idempotent re-runs",
+    "name": "Acme Property Management",
+    "suburb": "Maroochydore",
+    "businessHours": "Mon–Fri 9am–5pm AEST",
+    "afterHoursEmergencyLine": "+61 7 5555 0000",
+    "principalEmail": "principal@acme.example"
+  },
+  "mailbox": "rentals@acme.example",
+  "config": {
+    "nominatedRepairer": { "name": "Coast Plumbing Co", "number": "+61 400 000 001" },
+    "approvedTradies": [
+      {
+        "trade": "plumbing",
+        "name": "Coast Plumbing Co",
+        "business_hours_contact": "+61 7 5555 0001",
+        "after_hours_contact": "+61 400 000 001"
+      },
+      {
+        "trade": "electrical",
+        "name": "Sparkwise Electrical",
+        "business_hours_contact": "+61 7 5555 0002",
+        "after_hours_contact": "+61 400 000 002"
+      }
+    ],
+    "voiceSamples": [
+      {
+        "label": "Warm acknowledgement",
+        "body": "Hi {name},\n\nThanks for letting me know — I've logged it and will be in touch shortly.\n\nKind regards,\n{pm}"
+      }
+    ],
+    "routineApprovalThresholdCents": 25000,
+    "writtenQuoteThresholdCents": 50000,
+    "houseRules": "- Pet requests processed within 7 business days\n- No rent payment by credit card",
+    "pmSignoffDefault": "Kind regards,"
+  },
+  "pms": [
+    {
+      "authUserId": "OPTIONAL — the Supabase Auth user id; add it after creating the auth user, then re-run to link",
+      "email": "jess@acme.example",
+      "fullName": "Jess Bowman",
+      "role": "pm",
+      "signatureBlock": "Jess Bowman\nAcme Property Management"
+    }
+  ]
+}

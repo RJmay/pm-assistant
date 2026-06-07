@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.0",
+    "postgres": "^3.4.9",
     "supabase": "^2.101.0"
   }
 }
