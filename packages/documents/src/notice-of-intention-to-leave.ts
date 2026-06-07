@@ -19,6 +19,12 @@ const GROUND_LABEL: Record<NoticeOfIntentionToLeaveGround, string> = {
   periodic: "Ending a periodic agreement (without grounds)",
   end_of_fixed_term: "Ending at the end of the fixed-term agreement",
   unremedied_breach: "Unremedied breach by the lessor/agent",
+  sale_not_disclosed: "Lessor's undisclosed intention to sell the premises",
+  repair_order_non_compliance: "Lessor's failure to comply with a repair order",
+  compulsory_acquisition: "Compulsory acquisition of the premises",
+  condition_of_premises: "Condition of the premises",
+  death_of_tenant: "Death of a tenant",
+  tribunal_order_non_compliance: "Lessor's non-compliance with a tribunal (QCAT) order",
 };
 
 export interface NoticeOfIntentionToLeaveInput {

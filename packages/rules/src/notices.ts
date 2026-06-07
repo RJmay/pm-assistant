@@ -136,7 +136,17 @@ export function noticePeriodEnd(
 // common grounds; periods come from @pm/rules. End of fixed term computes the
 // vacate date as the later of (notice + period) and the lease end date.
 
-export type NoticeOfIntentionToLeaveGround = "periodic" | "end_of_fixed_term" | "unremedied_breach";
+export type NoticeOfIntentionToLeaveGround =
+  | "periodic"
+  | "end_of_fixed_term"
+  | "unremedied_breach"
+  // Additional Form 13 grounds (14 days, except tribunal-order non-compliance = 7).
+  | "sale_not_disclosed"
+  | "repair_order_non_compliance"
+  | "compulsory_acquisition"
+  | "condition_of_premises"
+  | "death_of_tenant"
+  | "tribunal_order_non_compliance";
 
 export interface NoticeOfIntentionToLeaveRequirements {
   /** The notice period, in days (all v1 Form 13 grounds are in days). */
@@ -154,12 +164,25 @@ export function noticeOfIntentionToLeaveRequirements(
   source: readonly RegulatoryRule[] = QLD_RULES,
 ): NoticeOfIntentionToLeaveRequirements {
   const form = selectForm("notice_of_intention_to_leave", asOf);
-  const key =
-    ground === "periodic"
-      ? "notice_intention_to_leave_periodic"
-      : ground === "end_of_fixed_term"
-        ? "notice_intention_to_leave_end_of_fixed_term"
-        : "notice_intention_to_leave_unremedied_breach";
+  let key: RuleKey;
+  switch (ground) {
+    case "periodic":
+      key = "notice_intention_to_leave_periodic";
+      break;
+    case "end_of_fixed_term":
+      key = "notice_intention_to_leave_end_of_fixed_term";
+      break;
+    case "unremedied_breach":
+      key = "notice_intention_to_leave_unremedied_breach";
+      break;
+    case "tribunal_order_non_compliance":
+      key = "notice_intention_to_leave_noncompliance_order";
+      break;
+    default:
+      // sale_not_disclosed | repair_order_non_compliance | compulsory_acquisition
+      // | condition_of_premises | death_of_tenant — all 14 days.
+      key = "notice_intention_to_leave_other_14day";
+  }
   const rule = getConfiguredRule(key, asOf, source);
   const { days } = daysValueSchema.parse(rule.value);
   return {

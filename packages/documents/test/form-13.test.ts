@@ -31,6 +31,13 @@ describe("buildNoticeOfIntentionToLeave (Form 13)", () => {
     expect(doc.fields.find((f) => f.label === "Vacating on or before")?.value).toBe("10 June 2026");
   });
 
+  it("an additional 14-day ground (death of a tenant) renders with the right period + label", () => {
+    const doc = buildNoticeOfIntentionToLeave({ ...base, ground: "death_of_tenant" });
+    expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe("14 days");
+    expect(doc.fields.find((f) => f.label === "Reason")?.value).toContain("Death of a tenant");
+    expect(doc.fields.find((f) => f.label === "Vacating on or before")?.value).toBe("17 June 2026");
+  });
+
   it("end of fixed term → vacate is the LATER of notice+14d and the lease end", () => {
     // lease ends 2026-10-31, well after notice + 14 days (2026-06-17) → lease end
     const late = buildNoticeOfIntentionToLeave({

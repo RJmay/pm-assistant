@@ -81,7 +81,16 @@ export type GenerateDocumentInput =
       type: "notice_of_intention_to_leave";
       tenancyId: string;
       createdByPmId: string;
-      ground: "periodic" | "end_of_fixed_term" | "unremedied_breach";
+      ground:
+        | "periodic"
+        | "end_of_fixed_term"
+        | "unremedied_breach"
+        | "sale_not_disclosed"
+        | "repair_order_non_compliance"
+        | "compulsory_acquisition"
+        | "condition_of_premises"
+        | "death_of_tenant"
+        | "tribunal_order_non_compliance";
     };
 
 export interface GenerateDocumentResult {

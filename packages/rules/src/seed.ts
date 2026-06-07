@@ -468,6 +468,35 @@ const RAW: RegulatoryRule[] = [
     notes:
       "Tenant's Form 13, unremedied breach by the lessor/agent (7 days), following a tenant-issued Form 11.",
   },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_other_14day",
+    version: "rta-2026-06",
+    value: { days: 14 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/forms-resources/forms/forms-for-general-tenancies/notice-of-intention-to-leave-form-13",
+    sourceNote:
+      "RTA Form 13 page (general tenancies), retrieved June 2026: these tenant grounds each require 14 days' notice — lessor's intention to sell (not disclosed), failure to comply with a repair order, compulsory acquisition, condition of the premises, and death of a tenant.",
+    needsHumanConfirmation: false,
+    notes:
+      "Shared 14-day period for several Form 13 grounds; the specific ground is set by the document builder's label. DEFERRED grounds (own process / edge case, not modelled): domestic & family violence (its own evidence-based process, ends only the affected tenant's interest) and non-liveability (effective the day the notice is given).",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_noncompliance_order",
+    version: "rta-2026-06",
+    value: { days: 7 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/forms-resources/forms/forms-for-general-tenancies/notice-of-intention-to-leave-form-13",
+    sourceNote:
+      "RTA Form 13 page (general tenancies), retrieved June 2026: a tenant ending the tenancy for the lessor's non-compliance with a tribunal (QCAT) order must give 7 days' notice.",
+    needsHumanConfirmation: false,
+    notes: "Tenant's Form 13, non-compliance with a tribunal order (7 days).",
+  },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------
   {

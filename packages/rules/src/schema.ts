@@ -46,6 +46,11 @@ export const RULE_KEYS = [
   "notice_intention_to_leave_periodic",
   "notice_intention_to_leave_end_of_fixed_term",
   "notice_intention_to_leave_unremedied_breach",
+  // Form 13 additional grounds (RTA Form 13 page): a 14-day bucket (sale,
+  // repair-order, compulsory acquisition, condition of premises, death of a
+  // tenant) and non-compliance with a tribunal order (7 days).
+  "notice_intention_to_leave_other_14day",
+  "notice_intention_to_leave_noncompliance_order",
 ] as const;
 
 export const ruleKeySchema = z.enum(RULE_KEYS);

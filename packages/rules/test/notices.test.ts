@@ -90,4 +90,18 @@ describe("noticeOfIntentionToLeaveRequirements (Form 13)", () => {
     expect(req.unit).toBe("days");
     expect(req.formId).toBe("13");
   });
+
+  it("a 14-day additional ground (sale not disclosed) is 14 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("sale_not_disclosed", ASOF);
+    expect(req.period).toBe(14);
+    expect(req.formId).toBe("13");
+    expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-17");
+  });
+
+  it("non-compliance with a tribunal order is 7 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("tribunal_order_non_compliance", ASOF);
+    expect(req.period).toBe(7);
+    expect(req.formId).toBe("13");
+    expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-10");
+  });
 });

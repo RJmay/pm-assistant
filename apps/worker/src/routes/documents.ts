@@ -46,7 +46,17 @@ const bodySchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("notice_of_intention_to_leave"),
     tenancyId: z.string().min(1),
-    ground: z.enum(["periodic", "end_of_fixed_term", "unremedied_breach"]),
+    ground: z.enum([
+      "periodic",
+      "end_of_fixed_term",
+      "unremedied_breach",
+      "sale_not_disclosed",
+      "repair_order_non_compliance",
+      "compulsory_acquisition",
+      "condition_of_premises",
+      "death_of_tenant",
+      "tribunal_order_non_compliance",
+    ]),
   }),
 ]);
 

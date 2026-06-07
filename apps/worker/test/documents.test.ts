@@ -391,4 +391,17 @@ describe("POST /api/documents", () => {
     const json = (await res.json()) as { formId: string | null };
     expect(json.formId).toBe("13");
   });
+
+  it("generates a Form 13 with an additional ground (201)", async () => {
+    const res = await post(
+      {
+        type: "notice_of_intention_to_leave",
+        tenancyId: TENANCY,
+        ground: "compulsory_acquisition",
+      },
+      await token(),
+    );
+    expect(res.status).toBe(201);
+    expect(((await res.json()) as { formId: string | null }).formId).toBe("13");
+  });
 });

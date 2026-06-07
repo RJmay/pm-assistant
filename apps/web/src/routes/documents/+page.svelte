@@ -19,6 +19,16 @@
     | "notice_to_remedy_breach"
     | "notice_to_leave"
     | "notice_of_intention_to_leave";
+  type NiltGround =
+    | "periodic"
+    | "end_of_fixed_term"
+    | "unremedied_breach"
+    | "sale_not_disclosed"
+    | "repair_order_non_compliance"
+    | "compulsory_acquisition"
+    | "condition_of_premises"
+    | "death_of_tenant"
+    | "tribunal_order_non_compliance";
   let docType = $state<DocType>("entry_notice");
   let tenancyId = $state("");
   let entryDate = $state("");
@@ -33,8 +43,7 @@
     $state<"unremedied_breach" | "unremedied_general_breach" | "end_of_fixed_term">(
       "end_of_fixed_term",
     );
-  let niltGround =
-    $state<"periodic" | "end_of_fixed_term" | "unremedied_breach">("end_of_fixed_term");
+  let niltGround = $state<NiltGround>("end_of_fixed_term");
   let busy = $state(false);
 
   const typeLabels: Record<string, string> = {
@@ -248,6 +257,12 @@
                 <option value="end_of_fixed_term">End of fixed term</option>
                 <option value="periodic">Periodic (no grounds)</option>
                 <option value="unremedied_breach">Unremedied breach by lessor/agent</option>
+                <option value="sale_not_disclosed">Undisclosed intention to sell</option>
+                <option value="repair_order_non_compliance">Repair order not complied with</option>
+                <option value="compulsory_acquisition">Compulsory acquisition</option>
+                <option value="condition_of_premises">Condition of the premises</option>
+                <option value="death_of_tenant">Death of a tenant</option>
+                <option value="tribunal_order_non_compliance">Tribunal order not complied with</option>
               </select>
             </div>
           {/if}
