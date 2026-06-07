@@ -1,4 +1,4 @@
-import { SignJWT } from "jose";
+import { generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
 import { AuthError, verifyDashboardJwt } from "../src/lib/auth";
 
@@ -66,5 +66,34 @@ describe("verifyDashboardJwt", () => {
     const token = await makeToken();
     const identity = await verifyDashboardJwt(token, { jwtSecret: SECRET });
     expect(identity.agencyId).toBe("agency-aaa");
+  });
+
+  // Supabase's default is now asymmetric signing keys (ES256, verified via JWKS).
+  it("verifies an ES256 token via the JWKS", async () => {
+    const { publicKey, privateKey } = await generateKeyPair("ES256");
+    const token = await new SignJWT({ app_metadata: { agency_id: "agency-es" } })
+      .setProtectedHeader({ alg: "ES256" })
+      .setSubject("user-es")
+      .setAudience("authenticated")
+      .setIssuer(`${SUPABASE_URL}/auth/v1`)
+      .setExpirationTime("1h")
+      .sign(privateKey);
+    const identity = await verifyDashboardJwt(token, { ...opts, jwks: async () => publicKey });
+    expect(identity).toEqual({ authUserId: "user-es", agencyId: "agency-es" });
+  });
+
+  it("rejects an ES256 token signed by a different key (401)", async () => {
+    const signer = await generateKeyPair("ES256");
+    const other = await generateKeyPair("ES256");
+    const token = await new SignJWT({ app_metadata: { agency_id: "agency-es" } })
+      .setProtectedHeader({ alg: "ES256" })
+      .setSubject("user-es")
+      .setAudience("authenticated")
+      .setIssuer(`${SUPABASE_URL}/auth/v1`)
+      .setExpirationTime("1h")
+      .sign(signer.privateKey);
+    await expect(
+      verifyDashboardJwt(token, { ...opts, jwks: async () => other.publicKey }),
+    ).rejects.toBeInstanceOf(AuthError);
   });
 });
