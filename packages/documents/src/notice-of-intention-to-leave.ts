@@ -25,6 +25,22 @@ const GROUND_LABEL: Record<NoticeOfIntentionToLeaveGround, string> = {
   condition_of_premises: "Condition of the premises",
   death_of_tenant: "Death of a tenant",
   tribunal_order_non_compliance: "Lessor's non-compliance with a tribunal (QCAT) order",
+  dfv: "Domestic and family violence",
+  non_liveability: "The premises is non-liveable",
+};
+
+// Extra guardrail paragraph for grounds with a special process/note. Not legal
+// advice — the standard disclaimer still applies.
+const GROUND_NOTE: Partial<Record<NoticeOfIntentionToLeaveGround, string>> = {
+  dfv:
+    "This notice relates to domestic and family violence. It ends ONLY the interest of the " +
+    "affected tenant — any co-tenants' interests continue. It must be accompanied by the required " +
+    "evidence (for example a protection order or a prescribed declaration). The affected tenant " +
+    "may be entitled to leave immediately. Please seek advice from the RTA, QCAT, or a domestic " +
+    "and family violence support service.",
+  non_liveability:
+    "This notice is given because the premises is non-liveable and takes effect on the day it is " +
+    "given. Keep evidence of the condition of the premises.",
 };
 
 export interface NoticeOfIntentionToLeaveInput {
@@ -54,7 +70,11 @@ export function buildNoticeOfIntentionToLeave(
       ? maxIso(periodEnd, input.leaseEndDate)
       : periodEnd;
   const tenantsLine = formatNames(input.tenantNames);
-  const noticeLabel = `${req.period} ${req.period === 1 ? "day" : "days"}`;
+  const noticeLabel =
+    req.period === 0
+      ? "Immediate (effective the day given)"
+      : `${req.period} ${req.period === 1 ? "day" : "days"}`;
+  const note = GROUND_NOTE[input.ground];
 
   return {
     type: "notice_of_intention_to_leave",
@@ -84,6 +104,7 @@ export function buildNoticeOfIntentionToLeave(
           `The tenant(s) intend to hand over vacant possession of the premises on or before ${humanDate(vacateBy)}.`,
         ],
       },
+      ...(note ? [{ heading: "Important", paragraphs: [note] }] : []),
       {
         heading: "Next steps",
         paragraphs: [

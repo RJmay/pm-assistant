@@ -51,6 +51,10 @@ export const RULE_KEYS = [
   // tenant) and non-compliance with a tribunal order (7 days).
   "notice_intention_to_leave_other_14day",
   "notice_intention_to_leave_noncompliance_order",
+  // Sensitive / edge-case Form 13 grounds: domestic & family violence (7 days,
+  // own evidence-based process) and non-liveability (effective the day given = 0).
+  "notice_intention_to_leave_dfv",
+  "notice_intention_to_leave_non_liveability",
 ] as const;
 
 export const ruleKeySchema = z.enum(RULE_KEYS);
@@ -94,6 +98,9 @@ export const monthsValueSchema = z.object({ months: z.number().int().positive() 
 
 /** A notice/remedy period expressed in days (Forms 11/12). */
 export const daysValueSchema = z.object({ days: z.number().int().positive() });
+
+/** Like `daysValueSchema` but allows 0 — e.g. a Form 13 ground effective the day given. */
+export const nonNegativeDaysValueSchema = z.object({ days: z.number().int().nonnegative() });
 
 export const banValueSchema = z.object({
   banned: z.boolean(),

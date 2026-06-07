@@ -497,6 +497,36 @@ const RAW: RegulatoryRule[] = [
     needsHumanConfirmation: false,
     notes: "Tenant's Form 13, non-compliance with a tribunal order (7 days).",
   },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_dfv",
+    version: "rta-2026-06",
+    value: { days: 7 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/forms-resources/forms/forms-for-general-tenancies/notice-of-intention-to-leave-form-13",
+    sourceNote:
+      "RTA Form 13 page (general tenancies), retrieved June 2026: a tenant experiencing domestic and family violence can end their interest with 7 days' notice (and may be able to leave immediately). It requires evidence and ends ONLY the affected tenant's interest — co-tenants' interests continue.",
+    needsHumanConfirmation: false,
+    notes:
+      "DFV ground (7 days). SENSITIVE + its own process: needs evidence (e.g. a protection order / prescribed declaration); ends only the affected tenant's interest; the affected tenant may leave immediately. The document builder adds guardrail notes; this is not legal advice.",
+  },
+  {
+    jurisdiction: "QLD",
+    key: "notice_intention_to_leave_non_liveability",
+    version: "rta-2026-06",
+    value: { days: 0 },
+    effectiveFrom: null,
+    effectiveTo: null,
+    sourceUrl:
+      "https://www.rta.qld.gov.au/forms-resources/forms/forms-for-general-tenancies/notice-of-intention-to-leave-form-13",
+    sourceNote:
+      "RTA Form 13 page (general tenancies), retrieved June 2026: where the premises is non-liveable (e.g. destroyed/unsafe), a tenant's Notice of intention to leave is effective on the day it is given (0 days' notice).",
+    needsHumanConfirmation: false,
+    notes:
+      "Non-liveability ground (0 days = effective the day given). Uses the non-negative days schema; the builder shows 'Immediate' and the vacate date equals the notice date.",
+  },
 
   // --- Prescribed house-rules transition (forward-dated) --------------------
   {

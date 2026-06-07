@@ -104,4 +104,17 @@ describe("noticeOfIntentionToLeaveRequirements (Form 13)", () => {
     expect(req.formId).toBe("13");
     expect(noticePeriodEnd(ASOF, req)).toBe("2026-06-10");
   });
+
+  it("domestic & family violence is 7 days", () => {
+    const req = noticeOfIntentionToLeaveRequirements("dfv", ASOF);
+    expect(req.period).toBe(7);
+    expect(req.formId).toBe("13");
+  });
+
+  it("non-liveability is immediate (0 days) — vacate date = notice date", () => {
+    const req = noticeOfIntentionToLeaveRequirements("non_liveability", ASOF);
+    expect(req.period).toBe(0);
+    expect(req.unit).toBe("days");
+    expect(noticePeriodEnd(ASOF, req)).toBe(ASOF);
+  });
 });

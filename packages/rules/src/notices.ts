@@ -1,7 +1,13 @@
 import { addDays, addMonths } from "./dates";
 import { getConfiguredRule } from "./engine";
 import { selectForm } from "./forms";
-import { daysValueSchema, monthsValueSchema, type RegulatoryRule, type RuleKey } from "./schema";
+import {
+  daysValueSchema,
+  monthsValueSchema,
+  nonNegativeDaysValueSchema,
+  type RegulatoryRule,
+  type RuleKey,
+} from "./schema";
 import { QLD_RULES } from "./seed";
 
 // ============================================================================
@@ -146,7 +152,10 @@ export type NoticeOfIntentionToLeaveGround =
   | "compulsory_acquisition"
   | "condition_of_premises"
   | "death_of_tenant"
-  | "tribunal_order_non_compliance";
+  | "tribunal_order_non_compliance"
+  // Sensitive / edge-case grounds.
+  | "dfv"
+  | "non_liveability";
 
 export interface NoticeOfIntentionToLeaveRequirements {
   /** The notice period, in days (all v1 Form 13 grounds are in days). */
@@ -178,13 +187,20 @@ export function noticeOfIntentionToLeaveRequirements(
     case "tribunal_order_non_compliance":
       key = "notice_intention_to_leave_noncompliance_order";
       break;
+    case "dfv":
+      key = "notice_intention_to_leave_dfv";
+      break;
+    case "non_liveability":
+      key = "notice_intention_to_leave_non_liveability";
+      break;
     default:
       // sale_not_disclosed | repair_order_non_compliance | compulsory_acquisition
       // | condition_of_premises | death_of_tenant — all 14 days.
       key = "notice_intention_to_leave_other_14day";
   }
   const rule = getConfiguredRule(key, asOf, source);
-  const { days } = daysValueSchema.parse(rule.value);
+  // Non-negative: most grounds are positive, but non-liveability is 0 (immediate).
+  const { days } = nonNegativeDaysValueSchema.parse(rule.value);
   return {
     period: days,
     unit: "days",

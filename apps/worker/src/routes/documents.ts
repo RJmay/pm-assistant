@@ -56,6 +56,8 @@ const bodySchema = z.discriminatedUnion("type", [
       "condition_of_premises",
       "death_of_tenant",
       "tribunal_order_non_compliance",
+      "dfv",
+      "non_liveability",
     ]),
   }),
 ]);

@@ -28,7 +28,9 @@
     | "compulsory_acquisition"
     | "condition_of_premises"
     | "death_of_tenant"
-    | "tribunal_order_non_compliance";
+    | "tribunal_order_non_compliance"
+    | "dfv"
+    | "non_liveability";
   let docType = $state<DocType>("entry_notice");
   let tenancyId = $state("");
   let entryDate = $state("");
@@ -263,6 +265,8 @@
                 <option value="condition_of_premises">Condition of the premises</option>
                 <option value="death_of_tenant">Death of a tenant</option>
                 <option value="tribunal_order_non_compliance">Tribunal order not complied with</option>
+                <option value="dfv">Domestic & family violence</option>
+                <option value="non_liveability">Premises non-liveable</option>
               </select>
             </div>
           {/if}

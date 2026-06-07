@@ -38,6 +38,23 @@ describe("buildNoticeOfIntentionToLeave (Form 13)", () => {
     expect(doc.fields.find((f) => f.label === "Vacating on or before")?.value).toBe("17 June 2026");
   });
 
+  it("DFV → 7 days with the guardrail note (affected tenant only + evidence)", () => {
+    const doc = buildNoticeOfIntentionToLeave({ ...base, ground: "dfv" });
+    expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe("7 days");
+    const html = renderDocumentHtml(doc);
+    expect(html).toContain("domestic and family violence");
+    expect(html).toContain("ends ONLY the interest of the affected tenant");
+    expect(html).not.toMatch(/\{\{|\}\}/);
+  });
+
+  it("non-liveability → immediate, vacate date equals the notice date", () => {
+    const doc = buildNoticeOfIntentionToLeave({ ...base, ground: "non_liveability" });
+    expect(doc.fields.find((f) => f.label === "Minimum notice")?.value).toBe(
+      "Immediate (effective the day given)",
+    );
+    expect(doc.fields.find((f) => f.label === "Vacating on or before")?.value).toBe("3 June 2026");
+  });
+
   it("end of fixed term → vacate is the LATER of notice+14d and the lease end", () => {
     // lease ends 2026-10-31, well after notice + 14 days (2026-06-17) → lease end
     const late = buildNoticeOfIntentionToLeave({
