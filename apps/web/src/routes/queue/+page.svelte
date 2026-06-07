@@ -33,7 +33,11 @@
   ];
   const ESCALATIONS: EscalationFlag[] = ["WELFARE", "LEGAL", "REPUTATIONAL", "INCIDENT"];
 
-  const filter = $derived(parseFilters(page.url.searchParams));
+  // Local source of truth (initialised from the URL for deep-links/refresh).
+  // Shallow routing (`replaceState`) updates the address bar but does NOT
+  // reactively update `page.url`, so we drive reactivity from $state here and
+  // mirror it back to the URL for shareability.
+  let filter = $state<QueueFilter>(parseFilters(page.url.searchParams));
   const visible = $derived(sortQueue(applyFilters(data.items, filter), filter.sort));
 
   function setSort(e: Event) {
@@ -41,6 +45,7 @@
   }
 
   function setFilter(next: QueueFilter) {
+    filter = next;
     replaceState(`/queue${filtersToQuery(next)}`, {});
   }
   function toggleCategory(c: DraftCategory) {
