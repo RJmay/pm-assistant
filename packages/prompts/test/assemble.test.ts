@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { type AssembleInput, assemble, type LeanNote, MissingNominatedRepairerError } from "../src";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.3.md"), "utf-8");
+const basePrompt = readFileSync(resolve(__dirname, "../src/base/pm-drafting-v2.4.md"), "utf-8");
 
 // Pinned date so snapshots stay deterministic across runs.
 const NOW = new Date("2026-05-28T00:00:00Z");
