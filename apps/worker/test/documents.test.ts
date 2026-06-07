@@ -105,6 +105,9 @@ describe("generateDocument", () => {
     expect(doc.content).toContain("Entry Notice (Form 9)");
     expect(doc.content).toContain("10 June 2026"); // notice + 7 days
     expect((doc.rule_versions as string[]).length).toBeGreaterThan(0);
+    // A rendered PDF is stored alongside the HTML (0021). base64 of "%PDF" → "JVBER…".
+    expect(typeof doc.pdf_base64).toBe("string");
+    expect((doc.pdf_base64 as string).startsWith("JVBER")).toBe(true);
     expect(rows("audit_log").some((r) => r.action === "document.generated")).toBe(true);
   });
 

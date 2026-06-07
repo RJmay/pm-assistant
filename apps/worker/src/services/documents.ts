@@ -9,6 +9,7 @@ import {
   type DocumentModel,
   DocumentNotCompliantError,
   renderDocumentHtml,
+  renderDocumentPdf,
 } from "@pm/documents";
 import { RuleNotConfiguredError, RuleNotFoundError } from "@pm/rules";
 import type { DocumentType } from "@pm/shared";
@@ -29,6 +30,16 @@ const AEST_OFFSET_MS = 10 * 60 * 60 * 1000;
 
 function aestToday(now: Date): string {
   return new Date(now.getTime() + AEST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Base64-encode bytes using Web APIs only (works on Workers + Node, no Buffer). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
 }
 
 export type GenerateDocumentInput =
@@ -202,6 +213,17 @@ export async function generateDocument(
 
   const content = renderDocumentHtml(model);
 
+  // Render a PDF too (additive). A PDF failure must NEVER block document
+  // creation — log and fall back to HTML-only.
+  let pdfBase64: string | null = null;
+  try {
+    pdfBase64 = bytesToBase64(await renderDocumentPdf(model));
+  } catch (err) {
+    deps.logger.warn("pdf render failed; storing HTML only", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // ---- Persist ----
   const { data: doc, error: insErr } = await client
     .from("documents")
@@ -215,6 +237,7 @@ export async function generateDocument(
       fields: model.fields as unknown as Json,
       content,
       content_type: "text/html",
+      pdf_base64: pdfBase64,
       rule_versions: model.ruleVersions,
       created_by: input.createdByPmId,
     })

@@ -465,6 +465,7 @@ export type Database = {
           fields: Json;
           form_id: string | null;
           id: string;
+          pdf_base64: string | null;
           property_id: string | null;
           rule_versions: string[];
           status: Database["public"]["Enums"]["document_status"];
@@ -481,6 +482,7 @@ export type Database = {
           fields?: Json;
           form_id?: string | null;
           id?: string;
+          pdf_base64?: string | null;
           property_id?: string | null;
           rule_versions?: string[];
           status?: Database["public"]["Enums"]["document_status"];
@@ -497,6 +499,7 @@ export type Database = {
           fields?: Json;
           form_id?: string | null;
           id?: string;
+          pdf_base64?: string | null;
           property_id?: string | null;
           rule_versions?: string[];
           status?: Database["public"]["Enums"]["document_status"];

@@ -1172,6 +1172,7 @@ create table documents (
   fields jsonb not null default '{}'::jsonb,
   content text not null,
   content_type text not null default 'text/html',
+  pdf_base64 text, -- optional rendered PDF (added in 0021)
   rule_versions text[] not null default '{}',
   status document_status not null default 'generated',
   created_by uuid references agency_users(id) on delete set null,
