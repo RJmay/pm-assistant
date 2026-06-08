@@ -117,6 +117,10 @@ URL: `https://pm-assistant-web.pages.dev` (sign in with the PM's account).
 
 ### B1. Information to collect from the client
 
+> 📄 **Downloadable intake sheet:** [`docs/client-intake.csv`](client-intake.csv) — open in
+> Excel/Google Sheets and have the client fill the "Your value" column. The tables below are the
+> same fields for reference.
+
 **Agency details**
 
 | Field | Example | Required |
