@@ -113,31 +113,72 @@ URL: `https://pm-assistant-web.pages.dev` (sign in with the PM's account).
   prompt versions, regulatory alerts.
 - **Audit** — a record of what was generated/sent and the compliance rule versions used.
 
-## B. Onboarding a new agency (your job, ~repeatable)
-Full runbook: `docs/ONBOARDING.md`. In short:
-1. **Fill a config file:** `cp scripts/agency.example.json scripts/agency.<client>.json` —
-   agency name, the mailbox to monitor, nominated repairer (required), tradies,
-   thresholds, house rules, voice samples.
-2. **Provision:** `node --env-file=packages/db/.env.local scripts/onboard-agency.mjs scripts/agency.<client>.json`
-   — creates the agency, its config, an active drafting prompt, and mailbox state.
-   Prints the `agency_id`.
-3. **Create the PM logins:** in Supabase → Authentication → add each PM with
-   `app_metadata.agency_id` = the agency id; add their `authUserId` to the config and
-   re-run step 2 to link them.
-4. **Connect the mailbox** (see C).
-5. **Import owners / properties / tenancies** via **Supabase Studio** (the point-and-click
-   table editor over the database — no SQL needed) or a seed.
-6. **Smoke test:** email the mailbox → a draft appears in the queue → Approve & Send.
+## B. Getting a client up and running
 
-## C. Connecting a mailbox (Google Cloud / Gmail)
-1. The OAuth app already exists. For the **smoothest** experience, the agency mailbox
-   should be **Google Workspace**, and the Cloud project set to **Internal** for that
-   org (no "unverified app" warning, tokens don't expire). For a quick pilot on a
-   personal `@gmail.com`, set the OAuth app to **External** and add the mailbox under
-   **Test users** (works immediately; the refresh token re-auths ~weekly).
-2. Open `https://pm-assistant-worker.ryanmay065.workers.dev/oauth/gmail/start?agency_id=<agency_id>`
-   and consent with the agency mailbox → "Mailbox connected."
-3. Inbound email now flows into the queue automatically.
+### B1. Collect these values from the client
+*(Everything you need to fill `scripts/agency.<client>.json` + import their rent roll.)*
+
+| What to ask for | Example | Required? | Goes to |
+|---|---|---|---|
+| Agency name | "Acme Property Management" | ✅ | `agency.name` |
+| Suburb / region | "Maroochydore" | – | `agency.suburb` |
+| Business hours | "Mon–Fri 9am–5pm AEST" | – | `agency.businessHours` |
+| After-hours emergency line | "+61 7 5555 0000" | – | `agency.afterHoursEmergencyLine` |
+| Principal's email | "principal@acme.com.au" | – | `agency.principalEmail` |
+| **Mailbox to monitor** (a dedicated agency inbox, ideally Google Workspace) | "rentals@acme.com.au" | ✅ | `mailbox` |
+| **Nominated repairer** — name + phone | "Coast Plumbing, +61 7 …" | ✅ (drafting fails without) | `config.nominatedRepairer` |
+| Approved tradies — per trade: business name, business-hours #, after-hours # | plumbing / electrical / … | – | `config.approvedTradies` |
+| Spending thresholds — auto-approve limit + written-quote limit | "$250 / $500" | – | `config.routineApprovalThresholdCents` etc. |
+| Voice samples — 2–3 real example replies in their tone | their past emails | – (recommended) | `config.voiceSamples` |
+| House rules / quirks | "pet requests in 7 days…" | – | `config.houseRules` |
+| Each PM — full name + email (for dashboard logins) | "Jess Bowman, jess@acme…" | ✅ | `pms[]` + Supabase Auth |
+| **Rent roll** — owners, properties, tenancies, and **tenants (with email)** | their export | ✅ | DB import |
+
+> The tenant **email** is what links an inbound message to a property — make sure the rent
+> roll has it, or drafts will land as "property unknown."
+
+### B2. Provision + go live
+1. **Fill the config:** `cp scripts/agency.example.json scripts/agency.<client>.json` and enter the B1 values.
+2. **Provision:** `node --env-file=packages/db/.env.local scripts/onboard-agency.mjs scripts/agency.<client>.json`
+   → creates the agency, config, active prompt, mailbox state. Prints the `agency_id`.
+3. **Create PM logins:** Supabase → Authentication → add each PM with **App Metadata**
+   `{ "agency_id": "<agency_id>" }`; put each new user's id into `pms[].authUserId` and re-run
+   step 2 to link them. (A single-PM agency auto-signs drafts in that PM's name.)
+4. **Connect the mailbox** (section C) — `/oauth/gmail/start?agency_id=<agency_id>`.
+5. **Import the rent roll** (owners → properties → tenancies → tenants) via **Supabase Studio**
+   (point-and-click table editor; no SQL).
+6. **Smoke test:** email the mailbox as a "tenant" → a draft appears in `/queue` → Approve & Send.
+
+## C. The Google OAuth client + connecting a mailbox
+
+### C1. The OAuth client — set up **once for the platform** (not per client)
+In Google Cloud Console (the project that owns the worker), one time:
+1. **Enable APIs:** Gmail API + Cloud Pub/Sub API.
+2. **APIs & Services → Credentials → Create credentials → OAuth client ID:**
+   - **Application type:** Web application
+   - **Name:** "PM Assistant"
+   - **Authorized redirect URIs:** add **both**
+     `https://pm-assistant-worker.ryanmay065.workers.dev/oauth/gmail/callback/` **and**
+     `…/oauth/gmail/callback` (with and without the trailing slash)
+   - (Authorized JavaScript origins: not needed — it's a server-side flow.)
+   - Save → copy the **Client ID** + **Client secret** into worker secrets
+     `GMAIL_OAUTH_CLIENT_ID` / `GMAIL_OAUTH_CLIENT_SECRET`.
+3. **OAuth consent screen → scopes:** `gmail.modify`, `userinfo.email`, `userinfo.profile`.
+4. **Pub/Sub:** create the topic (`PUBSUB_TOPIC`) + a **push** subscription to
+   `https://pm-assistant-worker.ryanmay065.workers.dev/webhook/gmail` (auth = the push service
+   account, `GOOGLE_PUBSUB_AUDIENCE` = that URL); grant
+   `gmail-api-push@system.gserviceaccount.com` the **Publisher** role on the topic.
+
+> `gmail.modify` is a Google **restricted scope**, and your clients are external orgs, so:
+> **Pilot** → add each client's mailbox under **OAuth consent → Test users** (works now; the
+> refresh token re-auths ~weekly). **Production / many clients** → complete Google's one-time
+> **restricted-scope verification** so any client mailbox can connect with no test-user step.
+> (A client's own Workspace can't make *your* app "Internal" — that's only for your own org.)
+
+### C2. Connect each client's mailbox (per client)
+1. Open `https://pm-assistant-worker.ryanmay065.workers.dev/oauth/gmail/start?agency_id=<agency_id>`.
+2. Sign in / consent with the **client's agency mailbox** → "Mailbox connected."
+3. Inbound email now flows into that agency's queue automatically.
 
 ## D. Admin / infrastructure reference
 - **Worker secrets** (Cloudflare): set with `pnpm --filter worker exec wrangler secret put <NAME>`.
