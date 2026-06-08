@@ -115,27 +115,41 @@ URL: `https://pm-assistant-web.pages.dev` (sign in with the PM's account).
 
 ## B. Getting a client up and running
 
-### B1. Collect these values from the client
-*(Everything you need to fill `scripts/agency.<client>.json` + import their rent roll.)*
+### B1. Information to collect from the client
 
-| What to ask for | Example | Required? | Goes to |
-|---|---|---|---|
-| Agency name | "Acme Property Management" | ✅ | `agency.name` |
-| Suburb / region | "Maroochydore" | – | `agency.suburb` |
-| Business hours | "Mon–Fri 9am–5pm AEST" | – | `agency.businessHours` |
-| After-hours emergency line | "+61 7 5555 0000" | – | `agency.afterHoursEmergencyLine` |
-| Principal's email | "principal@acme.com.au" | – | `agency.principalEmail` |
-| **Mailbox to monitor** (a dedicated agency inbox, ideally Google Workspace) | "rentals@acme.com.au" | ✅ | `mailbox` |
-| **Nominated repairer** — name + phone | "Coast Plumbing, +61 7 …" | ✅ (drafting fails without) | `config.nominatedRepairer` |
-| Approved tradies — per trade: business name, business-hours #, after-hours # | plumbing / electrical / … | – | `config.approvedTradies` |
-| Spending thresholds — auto-approve limit + written-quote limit | "$250 / $500" | – | `config.routineApprovalThresholdCents` etc. |
-| Voice samples — 2–3 real example replies in their tone | their past emails | – (recommended) | `config.voiceSamples` |
-| House rules / quirks | "pet requests in 7 days…" | – | `config.houseRules` |
-| Each PM — full name + email (for dashboard logins) | "Jess Bowman, jess@acme…" | ✅ | `pms[]` + Supabase Auth |
-| **Rent roll** — owners, properties, tenancies, and **tenants (with email)** | their export | ✅ | DB import |
+**Agency details**
 
-> The tenant **email** is what links an inbound message to a property — make sure the rent
-> roll has it, or drafts will land as "property unknown."
+| Field | Example | Required |
+|---|---|---|
+| Agency name | Acme Property Management | **Yes** |
+| Suburb / region | Maroochydore | Optional |
+| Business hours | Mon–Fri 9am–5pm AEST | Optional |
+| After-hours emergency line | +61 7 5555 0000 | Optional |
+| Principal's email | principal@acme.com.au | Optional |
+
+**Mailbox & compliance config**
+
+| Field | Example | Required |
+|---|---|---|
+| Mailbox to monitor (dedicated agency inbox) | rentals@acme.com.au | **Yes** |
+| Nominated repairer — name + phone | Coast Plumbing · +61 7 5443 0000 | **Yes** |
+| Approved tradies — name + business-hrs + after-hrs phone, per trade | Coast Plumbing, Sparkwise Electrical | Optional |
+| Spending thresholds — auto-approve $ / written-quote $ | $250 / $500 | Optional |
+| Voice samples — 2–3 real example replies in their tone | their past emails | Recommended |
+| House rules / quirks | "Pet requests reviewed in 7 days" | Optional |
+
+**People & rent roll**
+
+| Field | Example | Required |
+|---|---|---|
+| Property managers — full name + email (one per login) | Jess Bowman · jess@acme.com.au | **Yes** |
+| Owners — name, email, phone | Jordan Reeves · jordan@… | **Yes** |
+| Properties — address + owner | 35 Pakenham St → Jordan Reeves | **Yes** |
+| Tenancies — rent, frequency, dates | $600/wk · periodic | **Yes** |
+| Tenants — name + **email** + phone | Ryan May · ryan@… | **Yes** |
+
+> ⚠️ The **tenant email** is the key that links an inbound message to a property. Make sure the
+> rent roll includes it, or drafts arrive as "property unknown."
 
 ### B2. Provision + go live
 1. **Fill the config:** `cp scripts/agency.example.json scripts/agency.<client>.json` and enter the B1 values.
