@@ -128,12 +128,16 @@ export async function runDraftPipeline(
     // ---- 3. Assemble system prompt ---------------------------------------
     let systemPrompt: string;
     try {
+      // Single-PM agencies: pre-fill the signoff name so the draft is send-ready.
+      // Multi-PM (or none): leave [PM_NAME] literal for the reviewing PM to set.
+      const solePm = ctx.pms.length === 1 ? ctx.pms[0] : undefined;
       systemPrompt = assemble({
         basePrompt: ctx.promptContent,
         now: now(),
         agency: ctx.agency,
         agencyConfig: ctx.agencyConfig,
         pms: ctx.pms,
+        runtimeContext: solePm ? { pmName: solePm.name } : undefined,
       } satisfies AssembleInput);
     } catch (err) {
       if (err instanceof MissingNominatedRepairerError) {
