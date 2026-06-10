@@ -79,7 +79,9 @@ Then flick to `/properties` for 15 seconds:
 
 ## Minute 7–9 — Onboarding (show, don't promise)
 
-Open `/signup` (or screenshots if offline):
+Open `/signup` **in an incognito/private window** — signed-in users are
+redirected to their queue, so the signup page only renders logged-out. (Have
+the incognito tab ready before the meeting.)
 
 > "Getting you live is deliberately boring. Magic-link sign-in — no passwords,
 > no IT. Connect your rentals inbox with one Google sign-in. Upload your rent
