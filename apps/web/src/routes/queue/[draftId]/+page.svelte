@@ -12,6 +12,8 @@
   import {
     categoryLabel,
     confidenceLabel,
+    draftStatusLabel,
+    draftStatusVariant,
     escalationLabel,
     escalationVariant,
     priorityLabel,
@@ -27,6 +29,9 @@
   let { data }: { data: PageData } = $props();
 
   const isOutbound = $derived(data.draft.draft_source !== "inbound_reply");
+  // A sent/discarded draft is read-only: editing or discarding it would lie
+  // about what actually happened (and editing re-arms Approve & Send).
+  const terminal = $derived(data.draft.status === "sent" || data.draft.status === "discarded");
   const canCreateJob = $derived(
     data.draft.draft_source === "inbound_reply" &&
       data.draft.category === "MAINTENANCE" &&
@@ -159,7 +164,9 @@
     {#if data.draft.emergency_landlord_alert}<Badge variant="destructive">Landlord alert</Badge>{/if}
     {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
     {#if isOutbound}<Badge variant="secondary">Outbound</Badge>{/if}
-    <Badge variant="secondary">Status: {data.draft.status}</Badge>
+    <Badge variant={draftStatusVariant(data.draft.status)}>
+      {draftStatusLabel(data.draft.status)}
+    </Badge>
   </div>
 
   <div class="grid gap-4 lg:grid-cols-2">
@@ -272,14 +279,20 @@
             <Label for="body">Body</Label>
             <Textarea id="body" name="body" bind:value={body} class="min-h-[220px]" />
           </div>
+          {#if terminal}
+            <p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              This draft was {data.draft.status === "sent" ? "sent" : "discarded"} and can no
+              longer be edited or sent.
+            </p>
+          {/if}
           <div class="flex flex-wrap gap-2">
-            <Button type="submit" variant="outline" disabled={saving || !dirty}>
+            <Button type="submit" variant="outline" disabled={saving || !dirty || terminal}>
               {saving ? "Saving…" : "Save edit"}
             </Button>
             <Button
               type="button"
               onclick={approveAndSend}
-              disabled={sending || data.draft.do_not_send}
+              disabled={sending || data.draft.do_not_send || terminal}
               title={data.draft.do_not_send ? "Flagged do-not-send — edit the draft to clear the flag" : undefined}
             >
               {sending ? "Sending…" : "Approve & Send"}
@@ -288,6 +301,7 @@
               type="button"
               variant="destructive"
               class="ml-auto"
+              disabled={terminal}
               onclick={() => {
                 discardOpen = true;
               }}

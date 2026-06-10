@@ -87,18 +87,27 @@ async function project(client: Client, agencyId: string, drafts: DraftRow[]): Pr
   });
 }
 
-/** Pending drafts for the daily review queue. */
+/**
+ * Reviewable drafts for the daily queue. Both `pending` and `edited` are
+ * sendable states (the worker's send route accepts either), so an edited
+ * draft must stay visible until it's sent or discarded.
+ */
 export async function fetchQueueItems(client: Client, agencyId: string): Promise<QueueItem[]> {
   const { data, error } = await client
     .from("ai_drafts")
     .select(DRAFT_COLUMNS)
     .eq("agency_id", agencyId)
-    .eq("status", "pending");
+    .in("status", ["pending", "edited"]);
   if (error) throw new Error(`ai_drafts fetch failed: ${error.message}`);
   return project(client, agencyId, (data ?? []) as DraftRow[]);
 }
 
-/** Drafts that belong on the alerts stream (escalation / emergency / safety / DNS). */
+/**
+ * Drafts that belong on the alerts stream (escalation / emergency / safety /
+ * DNS). Only OUTSTANDING alerts: still-reviewable drafts, plus bounces
+ * (which by definition happen after sending). Handled (sent/discarded,
+ * un-bounced) drafts drop off the stream.
+ */
 export async function fetchAlertItems(client: Client, agencyId: string): Promise<QueueItem[]> {
   const { data, error } = await client
     .from("ai_drafts")
@@ -107,6 +116,7 @@ export async function fetchAlertItems(client: Client, agencyId: string): Promise
     .or(
       "escalation_flag.neq.NONE,emergency_landlord_alert.eq.true,safety_critical.eq.true,do_not_send.eq.true,bounced_at.not.is.null",
     )
+    .or("status.in.(pending,edited,do_not_send),bounced_at.not.is.null")
     .order("created_at", { ascending: false });
   if (error) throw new Error(`ai_drafts alerts fetch failed: ${error.message}`);
   return project(client, agencyId, (data ?? []) as DraftRow[]);

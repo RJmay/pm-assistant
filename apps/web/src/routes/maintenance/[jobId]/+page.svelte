@@ -6,7 +6,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { toast } from "$lib/components/ui/sonner";
-  import { relativeTime } from "$lib/format";
+  import { formatDateTime, jobStateLabel, ownerApprovalLabel, relativeTime } from "$lib/format";
   import { env } from "$lib/public-env";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { ArrowLeft } from "lucide-svelte";
@@ -135,11 +135,13 @@
 
   <div class="flex flex-wrap items-center gap-2">
     <Badge variant={data.job.classification === "emergency" ? "destructive" : "secondary"}>
-      {data.job.classification}
+      {data.job.classification === "emergency" ? "Emergency" : data.job.classification === "routine" ? "Routine" : "Other"}
     </Badge>
-    <Badge variant="outline">{data.job.state}</Badge>
+    <Badge variant="outline">{jobStateLabel(data.job.state)}</Badge>
     {#if data.job.trade}<Badge variant="outline">{data.job.trade}</Badge>{/if}
-    <Badge variant="secondary">owner approval: {data.job.owner_approval_state}</Badge>
+    <Badge variant="secondary">
+      Owner approval: {ownerApprovalLabel(data.job.owner_approval_state)}
+    </Badge>
   </div>
 
   <Card>
@@ -238,7 +240,8 @@
       <CardContent class="space-y-4">
         {#if data.job.scheduled_for}
           <p class="text-sm text-muted-foreground">
-            Scheduled for {relativeTime(data.job.scheduled_for)}. A tenant message is in the queue.
+            Scheduled for {formatDateTime(data.job.scheduled_for)}. A tenant message is in the
+            queue.
           </p>
         {/if}
         <div class="space-y-2">

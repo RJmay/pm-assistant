@@ -7,6 +7,7 @@
     AlertTriangle,
     FileText,
     HelpCircle,
+    Home,
     Inbox,
     LogOut,
     MessageSquare,
@@ -22,6 +23,7 @@
   const navItems = [
     { href: "/queue", label: "Queue", icon: Inbox },
     { href: "/alerts", label: "Alerts", icon: AlertTriangle },
+    { href: "/properties", label: "Properties", icon: Home },
     { href: "/maintenance", label: "Maintenance", icon: Wrench },
     { href: "/documents", label: "Documents", icon: FileText },
     { href: "/sms", label: "SMS", icon: MessageSquare },
@@ -51,6 +53,7 @@
             {#each navItems as item (item.href)}
               <a
                 href={item.href}
+                aria-current={isActive(item.href) ? "page" : undefined}
                 class={cn(
                   "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
                   isActive(item.href)
@@ -95,13 +98,14 @@
       {@render children()}
     </main>
 
-    <!-- Mobile bottom nav -->
+    <!-- Mobile bottom nav (grid-cols must equal navItems.length) -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 border-t bg-background sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 border-t bg-background sm:hidden"
     >
       {#each navItems as item (item.href)}
         <a
           href={item.href}
+          aria-current={isActive(item.href) ? "page" : undefined}
           class={cn(
             "flex flex-col items-center gap-1 py-2 text-xs",
             isActive(item.href) ? "text-foreground" : "text-muted-foreground",

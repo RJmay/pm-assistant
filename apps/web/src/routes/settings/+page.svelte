@@ -83,6 +83,8 @@
   <input type="hidden" name="approved_tradies" value={tradiesJson} />
   <input type="hidden" name="voice_samples" value={voiceJson} />
 
+  <!-- Read-only users get a genuinely read-only form, not silently-lost edits. -->
+  <fieldset disabled={!data.isAdmin} class="m-0 min-w-0 space-y-6 border-0 p-0">
   <div class="flex items-center justify-between">
     <h1 class="text-2xl font-semibold tracking-tight">Agency settings</h1>
     <Button type="submit" disabled={saving || !data.isAdmin}>
@@ -225,4 +227,5 @@
       </p>
     </CardContent>
   </Card>
+  </fieldset>
 </form>

@@ -5,7 +5,7 @@
   import { Card, CardContent } from "$lib/components/ui/card";
   import { Textarea } from "$lib/components/ui/textarea";
   import { toast } from "$lib/components/ui/sonner";
-  import { relativeTime } from "$lib/format";
+  import { escalationLabel, relativeTime } from "$lib/format";
   import { env } from "$lib/public-env";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { ShieldAlert } from "lucide-svelte";
@@ -89,7 +89,7 @@
             {#if m.intent}<Badge variant="outline">{m.intent.replace("_", " ")}</Badge>{/if}
             {#if m.escalation_flag !== "NONE"}
               <Badge variant="destructive">
-                <ShieldAlert class="mr-1 h-3.5 w-3.5" />{m.escalation_flag}
+                <ShieldAlert class="mr-1 h-3.5 w-3.5" />{escalationLabel(m.escalation_flag)}
               </Badge>
             {/if}
             <span class="ml-auto text-xs text-muted-foreground">{relativeTime(m.created_at)}</span>

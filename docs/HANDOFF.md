@@ -73,7 +73,20 @@ monitoring bot (spec §12).
 prompt, email state, PM users) plus the console steps the script can't do (Supabase Auth user with
 `app_metadata.agency_id`, Gmail OAuth, Twilio webhook).
 
-**Test counts (all green):** rules 83, documents 23, prompts 50, shared 1, web 43, worker 317
+**Rent-roll UI (June 2026):** `/properties` — searchable list (arrears + inspection-due badges
+mirroring the sequence scanners) + detail page (edit owner/tenant contacts + lease terms, record
+inspections, flag/clear arrears — the manually-maintained sequence-driver fields now have a UI;
+Supabase Studio is only for bulk import). Form actions via `locals.supabase` (rent-roll RLS is
+`for all`, so no migration needed); every edit audit-logged as `rent_roll.updated`. Pure logic in
+`apps/web/src/lib/rent-roll.ts` (tested). The same pass fixed: edited drafts vanishing from
+/queue (now `pending`+`edited` — the worker sends from either), sent/discarded drafts re-armable
+via Save edit (status guards + read-only detail), alerts showing handled drafts forever, the
+prompt-activate dialog desync (one-way `open` → `bind:open` — the Dialog mutates its bindable),
+future dates as "just now" (`relativeTime` future + `formatDate`/`formatDateTime`/`formatMoney`,
+hand-formatted NOT Intl: en-AU CLDR renders short June/July as full names, varies by ICU), raw
+enum labels (maintenance/SMS), a root `+error.svelte`, non-admin settings now truly read-only.
+
+**Test counts (all green):** rules 83, documents 23, prompts 50, shared 1, web 70, worker 319
 (`packages/db` RLS tests skip without `RUN_DB_TESTS=1`). `pnpm exec biome check .` + `pnpm -r typecheck` clean.
 
 ---

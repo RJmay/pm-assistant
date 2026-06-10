@@ -12,6 +12,8 @@ export type EmailThread = Row<"email_threads">;
 export type NotificationLog = Row<"notification_log">;
 export type Owner = Row<"owners">;
 export type Property = Row<"properties">;
+export type Tenancy = Row<"tenancies">;
+export type Tenant = Row<"tenants">;
 
 export type DraftCategory = Database["public"]["Enums"]["draft_category"];
 export type DraftPriority = Database["public"]["Enums"]["draft_priority"];
@@ -20,6 +22,11 @@ export type EscalationFlag = Database["public"]["Enums"]["escalation_flag"];
 export type ConfidenceLevel = Database["public"]["Enums"]["confidence_level"];
 export type MatchConfidence = Database["public"]["Enums"]["match_confidence"];
 export type DraftSource = Database["public"]["Enums"]["draft_source"];
+export type TenancyStatus = Database["public"]["Enums"]["tenancy_status"];
+export type RentFrequency = Database["public"]["Enums"]["rent_frequency"];
+export type AgreementType = Database["public"]["Enums"]["agreement_type"];
+export type MaintenanceJobState = Database["public"]["Enums"]["maintenance_job_state"];
+export type MaintenanceOwnerApproval = Database["public"]["Enums"]["maintenance_owner_approval"];
 
 // --- agency_config jsonb shapes (mirrors @pm/prompts render types) ----------
 

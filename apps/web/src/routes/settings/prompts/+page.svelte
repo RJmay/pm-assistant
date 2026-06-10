@@ -16,6 +16,9 @@
   // svelte-ignore state_referenced_locally
   let selectedId = $state(data.active?.id ?? data.versions[0]?.id ?? null);
   let activateTarget = $state<{ id: string; version: string } | null>(null);
+  // Bound to the Dialog so closes via Escape/X/backdrop stay in sync (a
+  // one-way `open={...}` expression desyncs and the dialog can't reopen).
+  let activateOpen = $state(false);
 
   const selected = $derived(data.versions.find((v) => v.id === selectedId) ?? null);
   const diff = $derived(
@@ -73,7 +76,10 @@
               <Button
                 variant="outline"
                 class="mt-2 h-7 px-2 text-xs"
-                onclick={() => (activateTarget = { id: v.id, version: v.version })}
+                onclick={() => {
+                  activateTarget = { id: v.id, version: v.version };
+                  activateOpen = true;
+                }}
               >
                 Activate
               </Button>
@@ -122,7 +128,7 @@
 </div>
 
 <Dialog
-  open={activateTarget !== null}
+  bind:open={activateOpen}
   title="Activate this prompt version?"
   description="This closes the current active version and records a new active row. The change is audit-logged."
 >
@@ -135,6 +141,7 @@
           if (result.type === "success") {
             toast.success("Prompt version activated.");
             activateTarget = null;
+            activateOpen = false;
             await invalidateAll();
           } else if (result.type === "failure") {
             toast.error((result.data as { error?: string })?.error ?? "Activation failed.");
@@ -147,7 +154,7 @@
         Make <span class="font-medium">{activateTarget.version}</span> the active drafting prompt?
       </p>
       <div class="mt-4 flex justify-end gap-2">
-        <Button type="button" variant="outline" onclick={() => (activateTarget = null)}>Cancel</Button>
+        <Button type="button" variant="outline" onclick={() => (activateOpen = false)}>Cancel</Button>
         <Button type="submit">Activate</Button>
       </div>
     </form>

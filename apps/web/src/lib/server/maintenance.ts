@@ -1,5 +1,6 @@
 import type { Client } from "@pm/db";
 import type { MaintenanceQuote } from "@pm/shared";
+import type { MaintenanceJobState, MaintenanceOwnerApproval } from "$lib/types";
 
 // Server queries for the maintenance-jobs views. Agency-scoped via RLS (the
 // dashboard uses the authed anon client).
@@ -8,9 +9,9 @@ export interface MaintenanceJobListItem {
   id: string;
   issue: string;
   classification: string;
-  state: string;
+  state: MaintenanceJobState;
   trade: string | null;
-  owner_approval_state: string;
+  owner_approval_state: MaintenanceOwnerApproval;
   scheduled_for: string | null;
   created_at: string;
   property_address: string | null;
@@ -21,9 +22,9 @@ interface JobRow {
   id: string;
   issue: string;
   classification: string;
-  state: string;
+  state: MaintenanceJobState;
   trade: string | null;
-  owner_approval_state: string;
+  owner_approval_state: MaintenanceOwnerApproval;
   scheduled_for: string | null;
   created_at: string;
   property_id: string | null;

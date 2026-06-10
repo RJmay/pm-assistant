@@ -100,6 +100,7 @@
         <button
           type="button"
           onclick={() => toggleCategory(c)}
+          aria-pressed={filter.categories.includes(c)}
           class={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
             filter.categories.includes(c)
@@ -116,6 +117,7 @@
         <button
           type="button"
           onclick={() => toggleEscalation(e)}
+          aria-pressed={filter.escalations.includes(e)}
           class={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
             filter.escalations.includes(e)

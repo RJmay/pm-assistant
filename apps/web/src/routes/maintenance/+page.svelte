@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Badge } from "$lib/components/ui/badge";
   import { Card, CardContent } from "$lib/components/ui/card";
-  import { relativeTime } from "$lib/format";
+  import { jobStateLabel, ownerApprovalLabel, relativeTime } from "$lib/format";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -34,12 +34,12 @@
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 <Badge variant={job.classification === "emergency" ? "destructive" : "secondary"}>
-                  {job.classification}
+                  {job.classification === "emergency" ? "Emergency" : job.classification === "routine" ? "Routine" : "Other"}
                 </Badge>
-                <Badge variant="outline">{job.state}</Badge>
+                <Badge variant="outline">{jobStateLabel(job.state)}</Badge>
                 {#if job.trade}<Badge variant="outline">{job.trade}</Badge>{/if}
                 {#if job.owner_approval_state !== "not_required"}
-                  <Badge variant="outline">owner: {job.owner_approval_state}</Badge>
+                  <Badge variant="outline">Owner: {ownerApprovalLabel(job.owner_approval_state)}</Badge>
                 {/if}
               </div>
               <p class="mt-2 truncate font-medium">{job.issue}</p>

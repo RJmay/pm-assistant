@@ -119,6 +119,19 @@ export const actions: Actions = {
     const editorId = await currentAgencyUserId(locals, agencyId);
     if (!editorId) return fail(403, { error: "Your user is not linked to this agency." });
 
+    // Guard: editing flips status to 'edited' (a sendable state), so a sent or
+    // discarded draft must not be editable — that would re-arm Approve & Send.
+    const { data: current } = await locals.supabase
+      .from("ai_drafts")
+      .select("status")
+      .eq("agency_id", agencyId)
+      .eq("id", params.draftId)
+      .maybeSingle();
+    if (!current) return fail(404, { error: "Draft not found." });
+    if (current.status !== "pending" && current.status !== "edited") {
+      return fail(409, { error: `This draft is ${current.status} and can no longer be edited.` });
+    }
+
     const { error: editErr } = await locals.supabase.from("draft_edits").insert({
       agency_id: agencyId,
       draft_id: params.draftId,
@@ -130,7 +143,7 @@ export const actions: Actions = {
     });
     if (editErr) return fail(500, { error: editErr.message });
 
-    const { error: updErr } = await locals.supabase
+    const { data: updated, error: updErr } = await locals.supabase
       .from("ai_drafts")
       // Editing clears do_not_send: the PM has taken ownership of the content,
       // which is the sanctioned path to make a flagged draft sendable.
@@ -141,8 +154,15 @@ export const actions: Actions = {
         do_not_send: false,
       })
       .eq("agency_id", agencyId)
-      .eq("id", params.draftId);
+      .eq("id", params.draftId)
+      // Re-assert the state guard at the write (closes the check/write race —
+      // e.g. Approve & Send landing between the check above and this update).
+      .in("status", ["pending", "edited"])
+      .select("id");
     if (updErr) return fail(500, { error: updErr.message });
+    if (!updated || updated.length === 0) {
+      return fail(409, { error: "This draft changed state and can no longer be edited." });
+    }
 
     return { saved: true };
   },
@@ -156,12 +176,19 @@ export const actions: Actions = {
     const editorId = await currentAgencyUserId(locals, agencyId);
     if (!editorId) return fail(403, { error: "Your user is not linked to this agency." });
 
-    const { error: updErr } = await locals.supabase
+    // Guard at the DB: only a still-reviewable draft can be discarded (a sent
+    // email can't be un-sent, and re-discarding is a no-op).
+    const { data: discarded, error: updErr } = await locals.supabase
       .from("ai_drafts")
       .update({ status: "discarded" })
       .eq("agency_id", agencyId)
-      .eq("id", params.draftId);
+      .eq("id", params.draftId)
+      .in("status", ["pending", "edited"])
+      .select("id");
     if (updErr) return fail(500, { error: updErr.message });
+    if (!discarded || discarded.length === 0) {
+      return fail(409, { error: "This draft was already sent or discarded." });
+    }
 
     await locals.supabase.from("audit_log").insert({
       agency_id: agencyId,

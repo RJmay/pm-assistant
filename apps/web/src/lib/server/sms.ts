@@ -1,4 +1,5 @@
 import type { Client } from "@pm/db";
+import type { EscalationFlag } from "$lib/types";
 
 // Server queries for the SMS review view. Agency-scoped via RLS (authed client).
 
@@ -7,7 +8,7 @@ export interface SmsReviewItem {
   from_number: string;
   body: string;
   intent: string | null;
-  escalation_flag: string;
+  escalation_flag: EscalationFlag;
   status: string;
   draft_reply: string | null;
   tenant_name: string | null;
@@ -19,7 +20,7 @@ interface SmsRow {
   from_number: string;
   body: string;
   intent: string | null;
-  escalation_flag: string;
+  escalation_flag: EscalationFlag;
   status: string;
   draft_reply: string | null;
   tenant_id: string | null;

@@ -105,6 +105,10 @@ URL: `https://pm-assistant-web.pages.dev` (sign in with the PM's account).
 - **Queue** — the daily review list. Sort by **Highest urgency / Most recent / Oldest**;
   filter by category, escalation, or PM. Open a draft → edit → **Approve & Send**.
 - **Alerts** — escalations, emergency owner alerts, safety-critical, do-not-send, bounces.
+- **Properties** — the rent roll: every property with its owner, tenants, rent, lease dates,
+  plus **arrears** and **inspection-due** indicators. Open a property to edit owner/tenant
+  contact details, lease terms, record an inspection, or flag/clear arrears — the two fields
+  that drive the automated arrears and inspection sequences. No database access needed.
 - **Documents** — generate a statutory document (entry notice, rent increase, Form 11/12/13),
   view it, **Download PDF**.
 - **Maintenance** — maintenance jobs: triage → tradie quotes → owner approval → scheduling.
@@ -164,7 +168,8 @@ URL: `https://pm-assistant-web.pages.dev` (sign in with the PM's account).
    step 2 to link them. (A single-PM agency auto-signs drafts in that PM's name.)
 4. **Connect the mailbox** (section C) — `/oauth/gmail/start?agency_id=<agency_id>`.
 5. **Import the rent roll** (owners → properties → tenancies → tenants) via **Supabase Studio**
-   (point-and-click table editor; no SQL).
+   (point-and-click table editor; no SQL). Day-to-day upkeep afterwards happens in the
+   dashboard's **Properties** section — Studio is only needed for the initial bulk import.
 6. **Smoke test:** email the mailbox as a "tenant" → a draft appears in `/queue` → Approve & Send.
 
 ## C. The Google OAuth client + connecting a mailbox

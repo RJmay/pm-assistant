@@ -2,6 +2,8 @@
   import { Badge } from "$lib/components/ui/badge";
   import {
     categoryLabel,
+    draftStatusLabel,
+    draftStatusVariant,
     escalationLabel,
     escalationVariant,
     matchLabel,
@@ -31,6 +33,9 @@
         <Badge variant="outline">{categoryLabel(item.category)}</Badge>
         {#if isOutbound}
           <Badge variant="secondary">Outbound</Badge>
+        {/if}
+        {#if item.status !== "pending"}
+          <Badge variant={draftStatusVariant(item.status)}>{draftStatusLabel(item.status)}</Badge>
         {/if}
         {#if item.escalation_flag !== "NONE"}
           <Badge variant={escalationVariant(item.escalation_flag)}>
