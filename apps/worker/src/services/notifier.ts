@@ -77,6 +77,21 @@ export async function dispatchOwnerNotification(
   });
   const now = deps.now ?? (() => new Date());
 
+  // ---- 0. DEMO SANDBOX — transport-layer seal. A demo tenant's owner alerts
+  // never reach Twilio/Resend (the demo hot-water scenario raises an emergency
+  // alert; without this gate a sales demo would SMS a real number). Checked
+  // here — at the dispatch chokepoint — not in the callers, so it cannot be
+  // bypassed by a new call site.
+  const { data: agencyRow } = await client
+    .from("agencies")
+    .select("is_demo")
+    .eq("id", input.agencyId)
+    .maybeSingle();
+  if (agencyRow?.is_demo) {
+    log.info("notifier: demo tenant — alert sandboxed, no SMS/email dispatched");
+    return { dispatched: 0, queued: 0, suppressed: 1, failed: 0, abortReason: "demo_sandbox" };
+  }
+
   // ---- 1. Resolve owner + property + preferences ----
   const ctx = await loadContext(client, input);
   if (ctx.kind === "no_owner") {

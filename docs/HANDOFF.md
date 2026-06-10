@@ -73,6 +73,30 @@ monitoring bot (spec §12).
 prompt, email state, PM users) plus the console steps the script can't do (Supabase Auth user with
 `app_metadata.agency_id`, Gmail OAuth, Twilio webhook).
 
+**Demo mode + onboarding wizard (June 2026 — sales enablement):** see `docs/DEMO_BUILD_PLAN.md`
+(audit + decisions) and `docs/DEMO_SCRIPT.md` (the 10-minute talk track).
+- **Demo tenant:** `agencies.is_demo` + `demo_scenarios` (+ `onboarding_progress`) — migration
+  **0022** (apply with `node --env-file=packages/db/.env.local scripts/apply-migration.mjs 0022`).
+  `pnpm seed:demo` / `pnpm reset:demo` builds "Coastline Property Management (Demo)" (25
+  properties / 23 tenancies / 30 tenants / 10 scenarios, fixed `dd…` UUIDs, idempotent
+  delete-cascade-recreate; demo PM logins seeded into auth.users with bcrypt). **Hermetic seal at
+  the transport layer:** routes/send.ts short-circuits demo sends into a sandboxed outbound row
+  (never calls Gmail — asserted by send.test.ts) and dispatchOwnerNotification refuses demo
+  agencies (never Twilio/Resend); demo tenants get no mailbox identity or Vault token at all.
+  Worker `/api/demo/inject` runs scenarios through the REAL pipeline; `/api/demo/reset` clears
+  activity + re-pins the arrears date (structural rebuild = the CLI). Web: floating DemoPanel
+  (demo tenants only) + compliance chips resolved via @pm/rules at render time (web now depends
+  on @pm/rules; §0.3 — chips never hardcode statutory numbers).
+- **Onboarding wizard:** `/signup` (magic link, signInWithOtp) → `/auth/confirm` → `/onboarding`
+  (5 skippable steps, progress server-persisted): provision (worker creates agency + stamps
+  `app_metadata.agency_id` via admin API, then `refreshSession`), connect Gmail (the REAL
+  integration; forwarding-address is a stubbed "coming soon" — no ingest infra exists), CSV
+  import (PropertyMe/Console/VaultRE header presets + manual mapping + row validation + inline
+  fixes, `$lib/csv.ts` + `$lib/import-presets.ts`, tested), voice & guardrails (tone/signoff/
+  hours/nominated repairer; "drafts only" locked banner), first-draft moment (worker
+  `/api/onboarding/first-draft` injects a sample hot-water email through the real pipeline).
+  hooks.server.ts: authed user with no agency → forced to `/onboarding`.
+
 **Rent-roll UI (June 2026):** `/properties` — searchable list (arrears + inspection-due badges
 mirroring the sequence scanners) + detail page (edit owner/tenant contacts + lease terms, record
 inspections, flag/clear arrears — the manually-maintained sequence-driver fields now have a UI;

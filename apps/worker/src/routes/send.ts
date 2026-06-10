@@ -1,10 +1,10 @@
 import type { Json } from "@pm/db";
 import { GmailApiError } from "@pm/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { AuthError, verifyDashboardJwt } from "../lib/auth";
 import type { WorkerBindings } from "../lib/env";
-import { createLogger } from "../lib/log";
+import { createLogger, type Logger } from "../lib/log";
 import { usersMessagesSend } from "../services/gmail";
 import { buildRawMessage } from "../services/mime";
 import { resolveSendIdentity } from "../services/send-identity";
@@ -180,7 +180,7 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
 
     // ---- 8. Sending mailbox + agency name (+ thread gmail id for replies) ----
     const [{ data: agency }, { data: state }, threadRes] = await Promise.all([
-      supabase.from("agencies").select("name").eq("id", agencyId).maybeSingle(),
+      supabase.from("agencies").select("name, is_demo").eq("id", agencyId).maybeSingle(),
       supabase
         .from("agency_email_state")
         .select("mailbox_address")
@@ -195,6 +195,25 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
             .maybeSingle()
         : Promise.resolve({ data: null }),
     ]);
+
+    // ---- 8b. DEMO SANDBOX — transport-layer seal, checked BEFORE any real
+    // transport concern (a demo agency has no mailbox identity at all). A demo
+    // tenant's "send" never touches Gmail: it resolves instantly into a
+    // sandboxed outbound row + the normal status flip + audit, so the demo
+    // shows the full approve→sent lifecycle with zero chance of real email.
+    if (agency?.is_demo) {
+      return await sandboxedDemoSend(c, supabase, log, {
+        agencyId,
+        pm,
+        draft,
+        finalSubject,
+        finalBody,
+        recipient,
+        inboundThreadDbId,
+        isSequence,
+      });
+    }
+
     if (!state?.mailbox_address) {
       return c.json({ error: "agency mailbox is not configured" }, 409);
     }
@@ -391,3 +410,140 @@ sendRoute.post("/api/drafts/:id/send", async (c) => {
     return c.json({ error: "internal", request_id: c.get("requestId") }, 500);
   }
 });
+
+// ----------------------------------------------------------------------------
+// Demo sandbox send — the hermetic seal for demo tenants.
+// ----------------------------------------------------------------------------
+// Mirrors the real send's persistence (draft_edits, outbound email_messages,
+// optimistic status flip, audit) WITHOUT any transport: no identity resolution,
+// no Gmail call. The outbound row is marked with a `demo-sent-` gmail id and
+// the audit metadata carries `sandbox: true`. Asserted by send.test.ts: a demo
+// agency send must never reach usersMessagesSend.
+
+interface DemoSendInput {
+  agencyId: string;
+  pm: { id: string; full_name: string };
+  draft: {
+    id: string;
+    draft_source: string;
+    draft_subject: string | null;
+    draft_body: string | null;
+    assigned_pm_id: string | null;
+  };
+  finalSubject: string;
+  finalBody: string;
+  recipient: string;
+  inboundThreadDbId: string | null;
+  isSequence: boolean;
+}
+
+async function sandboxedDemoSend(
+  c: Context<{ Bindings: WorkerBindings; Variables: { requestId: string } }>,
+  supabase: ReturnType<typeof createServiceClient>,
+  log: Logger,
+  input: DemoSendInput,
+): Promise<Response> {
+  const { agencyId, pm, draft, finalSubject, finalBody, recipient } = input;
+  const nowIso = new Date().toISOString();
+  const sandboxMessageId = `demo-sent-${crypto.randomUUID()}`;
+  const fromAddress = "outbox@coastline-demo.example.com";
+
+  // Edit capture (parity with the real path's step 9).
+  if (finalSubject !== (draft.draft_subject ?? "") || finalBody !== (draft.draft_body ?? "")) {
+    const { error: editErr } = await supabase.from("draft_edits").insert({
+      agency_id: agencyId,
+      draft_id: draft.id,
+      edited_by: pm.id,
+      previous_subject: draft.draft_subject,
+      new_subject: finalSubject,
+      previous_body: draft.draft_body,
+      new_body: finalBody,
+    });
+    if (editErr) log.warn("demo draft_edits insert failed", { error: editErr.message });
+  }
+
+  // Thread: replies file under the inbound thread; sequence drafts get a
+  // sandboxed thread row so the outbox is browsable like the real thing.
+  let threadDbId = input.inboundThreadDbId;
+  if (input.isSequence || !threadDbId) {
+    const { data: threadRow } = await supabase
+      .from("email_threads")
+      .upsert(
+        {
+          agency_id: agencyId,
+          gmail_thread_id: `demo-thread-${sandboxMessageId}`,
+          subject: finalSubject,
+          last_message_at: nowIso,
+        },
+        { onConflict: "agency_id,gmail_thread_id" },
+      )
+      .select("id")
+      .maybeSingle();
+    threadDbId = threadRow?.id ?? null;
+  }
+
+  if (threadDbId) {
+    const { error: outErr } = await supabase.from("email_messages").insert({
+      agency_id: agencyId,
+      thread_id: threadDbId,
+      gmail_message_id: sandboxMessageId,
+      direction: "outbound",
+      from_address: fromAddress,
+      from_name: pm.full_name,
+      to_addresses: [recipient] as unknown as Json,
+      subject: finalSubject,
+      body_plain: finalBody,
+      message_id_header: `<${sandboxMessageId}@demo.sandbox>`,
+      sent_at: nowIso,
+    });
+    if (outErr) {
+      log.error("demo outbound email_messages insert failed", { error: outErr.message });
+    }
+  }
+
+  const draftUpdate: {
+    status: "sent";
+    sent_at: string;
+    sent_gmail_message_id: string;
+    assigned_pm_id?: string;
+  } = { status: "sent", sent_at: nowIso, sent_gmail_message_id: sandboxMessageId };
+  if (draft.assigned_pm_id === null) draftUpdate.assigned_pm_id = pm.id;
+  const { data: flipped, error: updErr } = await supabase
+    .from("ai_drafts")
+    .update(draftUpdate)
+    .eq("agency_id", agencyId)
+    .eq("id", draft.id)
+    .in("status", ["pending", "edited"])
+    .select("id");
+  if (updErr) {
+    log.error("demo ai_drafts status update failed", { error: updErr.message });
+  } else if ((flipped?.length ?? 0) === 0) {
+    log.warn("demo draft status not flipped: changed concurrently", { draft_id: draft.id });
+  }
+
+  await writeAuditLog(supabase, {
+    agency_id: agencyId,
+    actor_type: "user",
+    actor_id: pm.id,
+    action: "draft.sent",
+    entity_type: "ai_drafts",
+    entity_id: draft.id,
+    metadata: {
+      sandbox: true,
+      demo: true,
+      draft_source: draft.draft_source,
+      gmail_message_id: sandboxMessageId,
+      to: recipient,
+      from: fromAddress,
+    },
+  } satisfies AuditLogEntry);
+
+  log.info("draft sent (demo sandbox — no real transport)", {
+    draft_id: draft.id,
+    agency_id: agencyId,
+  });
+  return c.json(
+    { id: draft.id, sentAt: nowIso, gmailMessageId: sandboxMessageId, sandbox: true },
+    200,
+  );
+}

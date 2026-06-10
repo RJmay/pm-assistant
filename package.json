@@ -15,7 +15,9 @@
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
-    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts"
+    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts",
+    "seed:demo": "node --env-file=packages/db/.env.local scripts/seed-demo.mjs",
+    "reset:demo": "node --env-file=packages/db/.env.local scripts/seed-demo.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.0",

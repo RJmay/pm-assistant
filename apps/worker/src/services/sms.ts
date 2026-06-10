@@ -203,11 +203,27 @@ export async function sendSmsReply(
     throw new SmsError("not_sendable", "a reply has already been sent");
   }
 
+  // DEMO SANDBOX — transport-layer seal at the dispatch chokepoint (parity
+  // with routes/send.ts and services/notifier.ts). Twilio credentials are
+  // GLOBAL worker env (unlike Gmail's per-agency Vault tokens), so without
+  // this gate a demo PM's reply would send a real SMS. Demo replies resolve
+  // into a sandboxed outbound row instead.
+  const { data: agencyRow, error: agencyErr } = await client
+    .from("agencies")
+    .select("is_demo")
+    .eq("id", input.agencyId)
+    .maybeSingle();
+  // Fail CLOSED: if we can't establish demo status, refuse to touch Twilio.
+  if (agencyErr) throw new Error(`agency demo-status lookup failed: ${agencyErr.message}`);
+  const isDemo = agencyRow?.is_demo === true;
+
   // Reply from the agency number the tenant texted, to the tenant's number.
-  const sent = await sendSms(
-    { to: inbound.from_number, from: inbound.to_number, body: input.body },
-    { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN },
-  );
+  const sent = isDemo
+    ? { sid: `demo-sms-${crypto.randomUUID()}` }
+    : await sendSms(
+        { to: inbound.from_number, from: inbound.to_number, body: input.body },
+        { accountSid: env.TWILIO_ACCOUNT_SID, authToken: env.TWILIO_AUTH_TOKEN },
+      );
 
   const nowIso = now().toISOString();
   const { data: outbound, error: outErr } = await client
@@ -243,9 +259,20 @@ export async function sendSmsReply(
     action: "sms.sent",
     entity_type: "sms_messages",
     entity_id: outbound.id,
-    metadata: { reply_to_sms_id: inbound.id, provider_sid: sent.sid, to: inbound.from_number },
+    metadata: {
+      reply_to_sms_id: inbound.id,
+      provider_sid: sent.sid,
+      to: inbound.from_number,
+      ...(isDemo ? { sandbox: true, demo: true } : {}),
+    },
   });
 
-  deps.logger.info("sms reply sent", { outbound_id: outbound.id, in_reply_to: inbound.id });
+  deps.logger.info(
+    isDemo ? "sms reply sent (demo sandbox — no real transport)" : "sms reply sent",
+    {
+      outbound_id: outbound.id,
+      in_reply_to: inbound.id,
+    },
+  );
   return { outboundId: outbound.id, providerSid: sent.sid };
 }

@@ -218,6 +218,34 @@ describe("sendSmsReply", () => {
     ).rejects.toBeInstanceOf(SmsError);
     expect(sendSmsMock).not.toHaveBeenCalled();
   });
+
+  it("DEMO SANDBOX: a demo agency's reply never reaches Twilio — sandboxed outbound row instead", async () => {
+    const agency = rows("agencies").find((r) => r.id === AGENCY);
+    if (agency) agency.is_demo = true;
+    rows("sms_messages").push({
+      id: "in-3",
+      agency_id: AGENCY,
+      direction: "inbound",
+      from_number: TENANT_PHONE,
+      to_number: AGENCY_NUMBER,
+      body: "status?",
+      status: "drafted",
+    });
+    const res = await sendSmsReply(
+      fakeClientRef.current as Client,
+      env,
+      { agencyId: AGENCY, smsId: "in-3", body: "Sandboxed reply.", sentByPmId: "pm-1" },
+      deps,
+    );
+    // THE assertion: real transport untouched; full lifecycle still recorded.
+    expect(sendSmsMock).not.toHaveBeenCalled();
+    expect(res.providerSid).toMatch(/^demo-sms-/);
+    const outbound = rows("sms_messages").find(
+      (r) => r.direction === "outbound" && r.reply_to_sms_id === "in-3",
+    );
+    expect(String(outbound?.provider_sid)).toMatch(/^demo-sms-/);
+    expect(rows("sms_messages").find((r) => r.id === "in-3")?.status).toBe("sent");
+  });
 });
 
 // ---- webhook route --------------------------------------------------------

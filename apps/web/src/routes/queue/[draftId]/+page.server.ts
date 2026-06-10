@@ -83,6 +83,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     .eq("draft_id", draft.id)
     .order("edited_at", { ascending: false });
 
+  // Demo tenants: if this draft came from an injected scenario, surface its
+  // compliance chips (rule keys resolved via @pm/rules in the page). One cheap
+  // indexed lookup; always null on real tenants (the table is empty for them).
+  const { data: demoScenario } = await locals.supabase
+    .from("demo_scenarios")
+    .select("title, compliance")
+    .eq("agency_id", agencyId)
+    .eq("last_draft_id", draft.id)
+    .maybeSingle();
+
   // TODO(types): pm_review_notes is jsonb (typed Json). It always holds a
   // string[] (drafter contract), but the generated type is the recursive Json
   // union, so we narrow through unknown[] here.
@@ -96,6 +106,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
     outboundContext,
     maintenanceJob,
     edits: edits ?? [],
+    demoScenario: demoScenario ?? null,
   };
 };
 

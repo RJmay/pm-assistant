@@ -48,7 +48,7 @@ interface SendState {
     message_id_header: string | null;
     references_headers: string[] | null;
   } | null;
-  agency: { name: string } | null;
+  agency: { name: string; is_demo?: boolean } | null;
   emailState: { mailbox_address: string } | null;
   thread: { gmail_thread_id: string } | null;
   outboundInsertError: { message: string } | null;
@@ -234,6 +234,54 @@ describe("POST /api/drafts/:id/send", () => {
 
     // body changed on send -> a draft_edits row captured
     expect(state.editInserts).toHaveLength(1);
+  });
+
+  // --- Demo sandbox: the hermetic seal (acceptance criterion) ---------------
+  describe("demo sandbox", () => {
+    it("a demo agency send NEVER reaches Gmail — it is intercepted into a sandboxed outbound row", async () => {
+      state.agency = { name: "Coastline Property Management (Demo)", is_demo: true };
+      // Demo tenants have no mailbox identity at all (defense in depth).
+      state.emailState = null;
+
+      const res = await post(
+        "draft-1",
+        { subject: "Re: leaking tap", body: "Edited reply" },
+        await token(),
+      );
+      expect(res.status).toBe(200);
+      const json = (await res.json()) as { sandbox?: boolean; gmailMessageId: string };
+      expect(json.sandbox).toBe(true);
+      expect(json.gmailMessageId).toMatch(/^demo-sent-/);
+
+      // THE assertion: the real transport was never touched.
+      expect(usersMessagesSendMock).not.toHaveBeenCalled();
+
+      // The full send lifecycle still happened, sandboxed: outbound row,
+      // status flip with optimistic lock, edit capture.
+      expect(state.outboundInserts).toHaveLength(1);
+      expect(state.outboundInserts[0]).toMatchObject({ direction: "outbound" });
+      expect(String(state.outboundInserts[0]?.gmail_message_id)).toMatch(/^demo-sent-/);
+      expect(state.draftUpdates).toHaveLength(1);
+      expect(state.draftUpdates[0]).toMatchObject({ status: "sent", assigned_pm_id: "pm-1" });
+      expect(state.editInserts).toHaveLength(1);
+    });
+
+    it("a demo send still honours the do_not_send hard gate", async () => {
+      state.agency = { name: "Demo", is_demo: true };
+      state.emailState = null;
+      if (state.draft) state.draft.do_not_send = true;
+      const res = await post("draft-1", { subject: "s", body: "b" }, await token());
+      expect(res.status).toBe(409);
+      expect(usersMessagesSendMock).not.toHaveBeenCalled();
+      expect(state.outboundInserts).toHaveLength(0);
+    });
+
+    it("a real agency (is_demo false) still sends via Gmail", async () => {
+      state.agency = { name: "Sunshine Coast Rentals", is_demo: false };
+      const res = await post("draft-1", { subject: "s", body: "b" }, await token());
+      expect(res.status).toBe(200);
+      expect(usersMessagesSendMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("does not write a draft_edits row when nothing changed", async () => {

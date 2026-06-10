@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const PACKAGE_NAME = "@pm/shared";
 
+export { DEMO_AGENCY_ID, DEMO_ARREARS_DAYS, DEMO_ARREARS_TENANCY_ID, demoId } from "./demo";
+
 // ----------------------------------------------------------------------------
 // Drafter contract — mirrors ARCHITECTURE.md's `submit_draft` tool schema and
 // the `ai_drafts` table columns. Field naming stays snake_case because that's

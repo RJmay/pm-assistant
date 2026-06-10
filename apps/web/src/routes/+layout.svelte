@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import DemoPanel from "$lib/components/DemoPanel.svelte";
   import { Toaster } from "$lib/components/ui/sonner";
   import { cn } from "$lib/utils";
   import {
@@ -31,7 +32,13 @@
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
-  const isLogin = $derived(page.url.pathname === "/login");
+  // Pages rendered WITHOUT the app chrome (nav/sign-out): the public auth
+  // pages and the onboarding wizard (a fresh signup has no agency, so the nav
+  // links would all bounce back to /onboarding anyway).
+  const BARE_PREFIXES = ["/login", "/signup", "/auth", "/onboarding"];
+  const isBare = $derived(
+    BARE_PREFIXES.some((p) => page.url.pathname === p || page.url.pathname.startsWith(`${p}/`)),
+  );
   function isActive(href: string): boolean {
     return page.url.pathname === href || page.url.pathname.startsWith(`${href}/`);
   }
@@ -39,7 +46,7 @@
 
 <Toaster />
 
-{#if isLogin}
+{#if isBare}
   {@render children()}
 {:else}
   <div class="flex min-h-screen flex-col">
@@ -69,7 +76,16 @@
         </div>
         <div class="flex items-center gap-3">
           {#if data.agencyName}
-            <span class="hidden text-sm text-muted-foreground sm:inline">{data.agencyName}</span>
+            <span class="hidden items-center gap-1.5 text-sm text-muted-foreground sm:inline-flex">
+              {data.agencyName}
+              {#if data.isDemo}
+                <span
+                  class="rounded-full border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+                >
+                  Demo
+                </span>
+              {/if}
+            </span>
           {/if}
           <a
             href="/help"
@@ -97,6 +113,10 @@
     <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-20 sm:pb-6">
       {@render children()}
     </main>
+
+    {#if data.isDemo}
+      <DemoPanel scenarios={data.demoScenarios} />
+    {/if}
 
     <!-- Mobile bottom nav (grid-cols must equal navItems.length) -->
     <nav

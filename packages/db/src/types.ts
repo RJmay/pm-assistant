@@ -39,6 +39,7 @@ export type Database = {
           business_hours: string | null;
           created_at: string;
           id: string;
+          is_demo: boolean;
           name: string;
           principal_email: string | null;
           status: Database["public"]["Enums"]["agency_status"];
@@ -50,6 +51,7 @@ export type Database = {
           business_hours?: string | null;
           created_at?: string;
           id?: string;
+          is_demo?: boolean;
           name: string;
           principal_email?: string | null;
           status?: Database["public"]["Enums"]["agency_status"];
@@ -61,6 +63,7 @@ export type Database = {
           business_hours?: string | null;
           created_at?: string;
           id?: string;
+          is_demo?: boolean;
           name?: string;
           principal_email?: string | null;
           status?: Database["public"]["Enums"]["agency_status"];
@@ -451,6 +454,82 @@ export type Database = {
             columns: ["agency_id"];
             isOneToOne: false;
             referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      demo_scenarios: {
+        Row: {
+          agency_id: string;
+          body: string;
+          compliance: Json;
+          created_at: string;
+          description: string | null;
+          from_address: string;
+          from_name: string;
+          id: string;
+          key: string;
+          last_draft_id: string | null;
+          last_email_message_id: string | null;
+          sort_order: number;
+          subject: string;
+          title: string;
+          used_at: string | null;
+        };
+        Insert: {
+          agency_id: string;
+          body: string;
+          compliance?: Json;
+          created_at?: string;
+          description?: string | null;
+          from_address: string;
+          from_name: string;
+          id?: string;
+          key: string;
+          last_draft_id?: string | null;
+          last_email_message_id?: string | null;
+          sort_order?: number;
+          subject: string;
+          title: string;
+          used_at?: string | null;
+        };
+        Update: {
+          agency_id?: string;
+          body?: string;
+          compliance?: Json;
+          created_at?: string;
+          description?: string | null;
+          from_address?: string;
+          from_name?: string;
+          id?: string;
+          key?: string;
+          last_draft_id?: string | null;
+          last_email_message_id?: string | null;
+          sort_order?: number;
+          subject?: string;
+          title?: string;
+          used_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "demo_scenarios_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: false;
+            referencedRelation: "agencies";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "demo_scenarios_last_draft_id_fkey";
+            columns: ["last_draft_id"];
+            isOneToOne: false;
+            referencedRelation: "ai_drafts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "demo_scenarios_last_email_message_id_fkey";
+            columns: ["last_email_message_id"];
+            isOneToOne: false;
+            referencedRelation: "email_messages";
             referencedColumns: ["id"];
           },
         ];
@@ -996,6 +1075,38 @@ export type Database = {
             columns: ["triggered_by_draft_id"];
             isOneToOne: false;
             referencedRelation: "ai_drafts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      onboarding_progress: {
+        Row: {
+          agency_id: string;
+          completed_steps: Json;
+          current_step: string;
+          data: Json;
+          updated_at: string;
+        };
+        Insert: {
+          agency_id: string;
+          completed_steps?: Json;
+          current_step?: string;
+          data?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          agency_id?: string;
+          completed_steps?: Json;
+          current_step?: string;
+          data?: Json;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_agency_id_fkey";
+            columns: ["agency_id"];
+            isOneToOne: true;
+            referencedRelation: "agencies";
             referencedColumns: ["id"];
           },
         ];

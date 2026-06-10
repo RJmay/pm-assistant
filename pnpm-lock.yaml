@@ -23,6 +23,9 @@ importers:
       '@pm/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@pm/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       '@pm/shared':
         specifier: workspace:*
         version: link:../../packages/shared

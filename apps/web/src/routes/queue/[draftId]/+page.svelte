@@ -21,6 +21,7 @@
     relativeTime,
     senderName,
   } from "$lib/format";
+  import { resolveComplianceChips } from "$lib/compliance";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { env } from "$lib/public-env";
   import { ArrowLeft } from "lucide-svelte";
@@ -168,6 +169,32 @@
       {draftStatusLabel(data.draft.status)}
     </Badge>
   </div>
+
+  {#if data.demoScenario}
+    {@const chips = resolveComplianceChips(
+      data.demoScenario.compliance,
+      new Date().toISOString().slice(0, 10),
+    )}
+    {#if chips.length > 0}
+      <div class="rounded-lg border border-emerald-300 bg-emerald-50/60 p-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+          Compliance — resolved from the QLD rules engine
+        </p>
+        <div class="mt-1.5 flex flex-wrap gap-1.5">
+          {#each chips as chip (chip.label)}
+            <span
+              class="inline-flex items-center rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs text-emerald-900"
+            >
+              {chip.label}{chip.detail ? ` — ${chip.detail}` : ""}
+            </span>
+          {/each}
+        </div>
+        <p class="mt-1.5 text-[11px] text-emerald-700">
+          Statutory values come from the versioned rules engine at render time — never from the AI.
+        </p>
+      </div>
+    {/if}
+  {/if}
 
   <div class="grid gap-4 lg:grid-cols-2">
     {#if isOutbound}

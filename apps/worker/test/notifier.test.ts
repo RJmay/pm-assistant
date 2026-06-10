@@ -39,6 +39,7 @@ interface MockState {
   propertyPref: PrefRow | null;
   ownerPref: PrefRow | null;
   agencyName: string;
+  isDemo: boolean;
   logInserts: Array<Record<string, unknown>>;
 }
 
@@ -61,6 +62,7 @@ function reset() {
     propertyPref: null,
     ownerPref: null,
     agencyName: "Sunshine Coast Test Agency",
+    isDemo: false,
     logInserts: [],
   };
 }
@@ -109,7 +111,10 @@ function fakeClient(): Client {
         return {
           select: () => ({
             eq: () => ({
-              maybeSingle: async () => ({ data: { name: state.agencyName }, error: null }),
+              maybeSingle: async () => ({
+                data: { name: state.agencyName, is_demo: state.isDemo },
+                error: null,
+              }),
             }),
           }),
         };
@@ -184,6 +189,24 @@ beforeEach(reset);
 // ----------------------------------------------------------------------------
 
 describe("dispatchOwnerNotification", () => {
+  describe("demo sandbox (transport-layer seal)", () => {
+    it("never dispatches SMS/email for a demo agency — even on the immediate profile", async () => {
+      state.isDemo = true;
+      const deps = makeDeps();
+      const result = await dispatchOwnerNotification(fakeClient(), baseInput(), deps);
+      expect(result).toMatchObject({
+        dispatched: 0,
+        queued: 0,
+        suppressed: 1,
+        failed: 0,
+        abortReason: "demo_sandbox",
+      });
+      expect(deps.sms).not.toHaveBeenCalled();
+      expect(deps.email).not.toHaveBeenCalled();
+      expect(state.logInserts).toHaveLength(0);
+    });
+  });
+
   describe("profile: immediate (default)", () => {
     it("sends both SMS and email and logs 2 'sent' rows", async () => {
       const deps = makeDeps();

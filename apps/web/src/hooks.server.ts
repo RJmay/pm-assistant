@@ -4,7 +4,7 @@ import { env } from "$lib/public-env";
 
 // Routes reachable without an authenticated session. Everything else
 // redirects to /login.
-const PUBLIC_PREFIXES = ["/login", "/auth"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/auth"];
 
 function isPublic(path: string): boolean {
   return PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
@@ -55,8 +55,13 @@ export const handle: Handle = async ({ event, resolve }) => {
   if (!isPublic(path) && !user) {
     redirect(303, `/login?redirectTo=${encodeURIComponent(path + event.url.search)}`);
   }
-  if (path === "/login" && user) {
-    redirect(303, "/queue");
+  if ((path === "/login" || path === "/signup") && user) {
+    redirect(303, agencyId ? "/queue" : "/onboarding");
+  }
+  // A signed-in user with no agency yet (fresh magic-link signup) can only be
+  // in the onboarding wizard — every other page needs a tenant.
+  if (user && !agencyId && !isPublic(path) && path !== "/onboarding") {
+    redirect(303, "/onboarding");
   }
 
   return resolve(event, {

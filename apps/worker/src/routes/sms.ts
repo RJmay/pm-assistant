@@ -58,6 +58,21 @@ smsRoute.post("/webhook/sms/:agencyId", async (c) => {
       return c.text(EMPTY_TWIML, 200, { "Content-Type": "text/xml" });
     }
 
+    // DEMO SANDBOX — never accept real inbound SMS for a demo tenant (a
+    // misconfigured Twilio webhook pointed at the well-known demo agency id
+    // would otherwise fill the demo queue with real phone numbers).
+    const { data: agencyRow } = await createServiceClient(c.env)
+      .from("agencies")
+      .select("is_demo")
+      .eq("id", agencyId)
+      .maybeSingle();
+    if (agencyRow?.is_demo) {
+      log.warn("sms webhook ignored: demo tenants accept no real inbound SMS", {
+        agency_id: agencyId,
+      });
+      return c.text(EMPTY_TWIML, 200, { "Content-Type": "text/xml" });
+    }
+
     try {
       const result = await processInboundSms(
         createServiceClient(c.env),

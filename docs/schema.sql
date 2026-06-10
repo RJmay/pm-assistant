@@ -1236,3 +1236,67 @@ create policy tenant_isolation on sms_messages
   with check (agency_id = auth_helpers.current_agency_id());
 
 alter publication supabase_realtime add table sms_messages;
+
+-- ============================================================================
+-- 0022 — Demo mode + onboarding wizard
+-- ============================================================================
+-- agencies.is_demo: per-tenant demo flag — demo tenants are hermetically sealed
+-- at the transport layer (send route + owner-notifier never call Gmail/Twilio/
+-- Resend for a demo agency; "send" resolves into a sandboxed outbound row).
+-- demo_scenarios: seeded inbound-email scenario library; injection runs the
+-- REAL pipeline. `compliance` holds rule keys/form ids resolved via @pm/rules
+-- at render time (no hardcoded statutory values — §0.3).
+-- onboarding_progress: server-side wizard state (skippable/resumable).
+
+alter table agencies add column is_demo boolean not null default false;
+
+-- agencies previously had only a SELECT policy; dashboard updates (onboarding
+-- wizard: business hours / after-hours line) silently matched 0 rows. Tenants
+-- may update their OWN agency row.
+create policy tenant_isolation_update on agencies
+  for update
+  using (id = auth_helpers.current_agency_id())
+  with check (id = auth_helpers.current_agency_id());
+
+create table demo_scenarios (
+  id uuid primary key default gen_random_uuid(),
+  agency_id uuid not null references agencies(id) on delete cascade,
+  key text not null,
+  title text not null,
+  description text,
+  from_name text not null,
+  from_address text not null,
+  subject text not null,
+  body text not null,
+  compliance jsonb not null default '[]'::jsonb,
+  sort_order integer not null default 0,
+  used_at timestamptz,
+  last_email_message_id uuid references email_messages(id) on delete set null,
+  last_draft_id uuid references ai_drafts(id) on delete set null,
+  created_at timestamptz not null default now(),
+  unique (agency_id, key)
+);
+
+create index idx_demo_scenarios_agency on demo_scenarios(agency_id, sort_order);
+
+alter table demo_scenarios enable row level security;
+
+create policy tenant_isolation on demo_scenarios
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());
+
+create table onboarding_progress (
+  agency_id uuid primary key references agencies(id) on delete cascade,
+  current_step text not null default 'account',
+  completed_steps jsonb not null default '[]'::jsonb,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table onboarding_progress enable row level security;
+
+create policy tenant_isolation on onboarding_progress
+  for all
+  using (agency_id = auth_helpers.current_agency_id())
+  with check (agency_id = auth_helpers.current_agency_id());

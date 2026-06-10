@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@pm/db": "workspace:*",
+    "@pm/rules": "workspace:*",
     "@pm/shared": "workspace:*",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.106.0",

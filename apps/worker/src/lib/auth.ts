@@ -114,3 +114,47 @@ export async function verifyDashboardJwt(
 
   return { authUserId, agencyId: agencyIdRaw };
 }
+
+export interface ProvisioningIdentity {
+  authUserId: string;
+  /** Null when the user has not been linked to an agency yet (pre-onboarding). */
+  agencyId: string | null;
+  /** The token's email claim, if present (used to label the new agency_users row). */
+  email: string | null;
+}
+
+/**
+ * Like `verifyDashboardJwt` but tolerates a MISSING `app_metadata.agency_id` —
+ * for the onboarding provision endpoint, whose whole job is to create the
+ * agency a fresh signup doesn't have yet. Signature verification is identical;
+ * only the agency-claim requirement is relaxed.
+ */
+export async function verifyDashboardJwtForProvisioning(
+  token: string,
+  opts: VerifyDashboardJwtOpts,
+): Promise<ProvisioningIdentity> {
+  try {
+    const identity = await verifyDashboardJwt(token, opts);
+    return { authUserId: identity.authUserId, agencyId: identity.agencyId, email: null };
+  } catch (err) {
+    if (!(err instanceof AuthError) || err.status !== 403) throw err;
+  }
+  // Valid token, no agency claim: re-decode the (already-verified) payload to
+  // pull sub + email. jwtVerify ran inside verifyDashboardJwt; decoding again
+  // here is safe because the 403 path is only reachable after verification.
+  const payloadSegment = token.split(".")[1] ?? "";
+  const payload = JSON.parse(
+    new TextDecoder().decode(
+      Uint8Array.from(atob(payloadSegment.replace(/-/g, "+").replace(/_/g, "/")), (ch) =>
+        ch.charCodeAt(0),
+      ),
+    ),
+  ) as Record<string, unknown>;
+  const authUserId = typeof payload.sub === "string" ? payload.sub : null;
+  if (!authUserId) throw new AuthError("token missing sub claim", 401);
+  return {
+    authUserId,
+    agencyId: null,
+    email: typeof payload.email === "string" ? payload.email : null,
+  };
+}
