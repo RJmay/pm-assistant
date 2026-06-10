@@ -8,7 +8,7 @@
   import { env } from "$lib/public-env";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { CheckCircle2, FlaskConical, Loader2, RefreshCw, Sparkles, X } from "lucide-svelte";
-  import type { DemoScenarioListItem } from "../../routes/+layout.server";
+  import type { DemoScenarioListItem } from "$lib/types";
 
   let { scenarios }: { scenarios: DemoScenarioListItem[] } = $props();
 

@@ -1,21 +1,20 @@
 import type { Json } from "@pm/db";
 import { fail, redirect } from "@sveltejs/kit";
 import { type ImportRow, REQUIRED_FIELDS } from "$lib/import-presets";
+import { WIZARD_STEPS, type WizardStep } from "$lib/onboarding";
 import { env } from "$lib/public-env";
 import type { Actions, PageServerLoad } from "./$types";
 
 // ============================================================================
 // Onboarding wizard — server side.
 // ============================================================================
-// Steps: account → connect-email → import → voice → first-draft. Progress is
-// persisted in onboarding_progress (RLS-scoped) so the wizard survives
+// Steps: account → connect-email → import → voice → first-draft (registry in
+// $lib/onboarding — +page.server.ts may only export route handlers). Progress
+// is persisted in onboarding_progress (RLS-scoped) so the wizard survives
 // refresh/logout and every step is skippable + resumable. Plain DB writes go
 // through locals.supabase (RLS); the two side-effectful operations (agency
 // provisioning, the first-draft injection) call the Worker with the caller's
 // own access token.
-
-export const WIZARD_STEPS = ["account", "connect-email", "import", "voice", "first-draft"] as const;
-export type WizardStep = (typeof WIZARD_STEPS)[number];
 
 const workerUrl = () => (env.PUBLIC_WORKER_URL ?? "").replace(/\/+$/, "");
 

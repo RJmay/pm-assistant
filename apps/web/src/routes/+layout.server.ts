@@ -1,15 +1,5 @@
+import type { DemoScenarioListItem } from "$lib/types";
 import type { LayoutServerLoad } from "./$types";
-
-export interface DemoScenarioListItem {
-  id: string;
-  key: string;
-  title: string;
-  description: string | null;
-  compliance: unknown;
-  sort_order: number;
-  used_at: string | null;
-  last_draft_id: string | null;
-}
 
 export const load: LayoutServerLoad = async ({ locals }) => {
   let agencyName: string | null = null;

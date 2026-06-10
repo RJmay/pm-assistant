@@ -28,6 +28,18 @@ export type AgreementType = Database["public"]["Enums"]["agreement_type"];
 export type MaintenanceJobState = Database["public"]["Enums"]["maintenance_job_state"];
 export type MaintenanceOwnerApproval = Database["public"]["Enums"]["maintenance_owner_approval"];
 
+/** Scenario row shape the layout load passes to the demo panel. */
+export interface DemoScenarioListItem {
+  id: string;
+  key: string;
+  title: string;
+  description: string | null;
+  compliance: unknown;
+  sort_order: number;
+  used_at: string | null;
+  last_draft_id: string | null;
+}
+
 // --- agency_config jsonb shapes (mirrors @pm/prompts render types) ----------
 
 export interface Tradie {
