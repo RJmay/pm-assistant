@@ -58,17 +58,17 @@
       <div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
         <div class="flex items-center gap-5">
           <a href="/queue" class="shrink-0" aria-label="PM Assistant — home">
-            <BrandMark size="sm" wordmark class="hidden sm:inline-flex" />
-            <BrandMark size="sm" class="sm:hidden" />
+            <BrandMark size="sm" wordmark />
           </a>
-          <!-- Desktop nav -->
-          <nav class="hidden items-center gap-0.5 sm:flex">
+          <!-- Desktop nav from lg (labels); below lg the icon-only bottom nav
+               takes over. Tight padding so all 8 fit within the content width. -->
+          <nav class="hidden items-center gap-0.5 lg:flex">
             {#each navItems as item (item.href)}
               <a
                 href={item.href}
                 aria-current={isActive(item.href) ? "page" : undefined}
                 class={cn(
-                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
                   isActive(item.href)
                     ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
                     : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
@@ -80,36 +80,32 @@
             {/each}
           </nav>
         </div>
-        <div class="flex items-center gap-1.5">
-          {#if data.agencyName}
-            <span class="mr-1 hidden items-center gap-1.5 text-sm text-muted-foreground sm:inline-flex">
-              {data.agencyName}
-              {#if data.isDemo}
-                <span
-                  class="rounded-full border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
-                >
-                  Demo
-                </span>
-              {/if}
+        <div class="flex items-center gap-1">
+          <!-- Demo badge carries the demo signal; Help/Sign out are icon-only
+               (tooltip + aria-label) so the 8-item nav fits the content width. -->
+          {#if data.isDemo}
+            <span
+              class="mr-1 shrink-0 rounded-full border border-amber-400 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+            >
+              Demo
             </span>
-            <span class="mr-1 hidden h-5 w-px bg-border sm:block"></span>
           {/if}
           <a
             href="/help"
-            class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+            title="Help"
             aria-label="Help"
+            class="flex items-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
           >
             <HelpCircle class="h-4 w-4" />
-            <span class="hidden sm:inline">Help</span>
           </a>
           <form method="POST" action="/logout">
             <button
               type="submit"
-              class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+              title="Sign out"
               aria-label="Sign out"
+              class="flex items-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
             >
               <LogOut class="h-4 w-4" />
-              <span class="hidden sm:inline">Sign out</span>
             </button>
           </form>
         </div>
@@ -117,7 +113,7 @@
     </header>
 
     <!-- Page content -->
-    <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-20 sm:pb-6">
+    <main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-20 lg:pb-6">
       {@render children()}
     </main>
 
@@ -125,10 +121,10 @@
       <DemoPanel scenarios={data.demoScenarios} />
     {/if}
 
-    <!-- Mobile bottom nav: icon-only (8 labels won't fit at 390px), active tab
-         gets a teal pill. grid-cols must equal navItems.length. -->
+    <!-- Bottom nav for < lg: icon-only (8 labels won't fit), active tab gets a
+         teal pill. grid-cols must equal navItems.length. -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 border-t bg-background/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 border-t bg-background/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       {#each navItems as item (item.href)}
         <a
