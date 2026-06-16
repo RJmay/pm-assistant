@@ -24,3 +24,6 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Office lock/owner temp files
+~$*
