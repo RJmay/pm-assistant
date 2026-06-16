@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
@@ -125,45 +126,57 @@
 
 <svelte:head><title>Maintenance job · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <a
-    href="/maintenance"
-    class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-  >
-    <ArrowLeft class="h-4 w-4" /> Back to maintenance
-  </a>
+<div class="space-y-6">
+  <div class="space-y-3">
+    <a
+      href="/maintenance"
+      class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+    >
+      <ArrowLeft class="h-4 w-4" /> Back to maintenance
+    </a>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <Badge variant={data.job.classification === "emergency" ? "destructive" : "secondary"}>
-      {data.job.classification === "emergency" ? "Emergency" : data.job.classification === "routine" ? "Routine" : "Other"}
-    </Badge>
-    <Badge variant="outline">{jobStateLabel(data.job.state)}</Badge>
-    {#if data.job.trade}<Badge variant="outline">{data.job.trade}</Badge>{/if}
-    <Badge variant="secondary">
-      Owner approval: {ownerApprovalLabel(data.job.owner_approval_state)}
-    </Badge>
+    <PageHeader title={data.job.issue}>
+      {#snippet actions()}
+        <Badge variant={data.job.classification === "emergency" ? "destructive" : "secondary"}>
+          {data.job.classification === "emergency" ? "Emergency" : data.job.classification === "routine" ? "Routine" : "Other"}
+        </Badge>
+        <Badge variant="outline">{jobStateLabel(data.job.state)}</Badge>
+      {/snippet}
+    </PageHeader>
   </div>
 
   <Card>
-    <CardHeader><CardTitle class="text-base">{data.job.issue}</CardTitle></CardHeader>
-    <CardContent class="space-y-1 text-sm">
-      <p>
-        <span class="text-muted-foreground">Property:</span>
-        {data.job.property_address ?? "Not matched"}
-      </p>
-      <p><span class="text-muted-foreground">Created:</span> {relativeTime(data.job.created_at)}</p>
-      {#if data.job.approved_spend_cents != null}
-        <p>
-          <span class="text-muted-foreground">Approved spend:</span>
-          {dollars(data.job.approved_spend_cents)}
-        </p>
-      {/if}
+    <CardHeader><CardTitle class="text-base">Job details</CardTitle></CardHeader>
+    <CardContent class="space-y-4">
+      <div class="flex flex-wrap items-center gap-2">
+        {#if data.job.trade}<Badge variant="outline">{data.job.trade}</Badge>{/if}
+        <Badge variant="secondary">
+          Owner approval: {ownerApprovalLabel(data.job.owner_approval_state)}
+        </Badge>
+      </div>
+      <dl class="grid gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+        <div class="space-y-0.5">
+          <dt class="text-xs text-[hsl(var(--muted-foreground))]">Property</dt>
+          <dd class="font-medium">{data.job.property_address ?? "Not matched"}</dd>
+        </div>
+        <div class="space-y-0.5">
+          <dt class="text-xs text-[hsl(var(--muted-foreground))]">Created</dt>
+          <dd class="font-medium tabular-nums">{relativeTime(data.job.created_at)}</dd>
+        </div>
+        {#if data.job.approved_spend_cents != null}
+          <div class="space-y-0.5">
+            <dt class="text-xs text-[hsl(var(--muted-foreground))]">Approved spend</dt>
+            <dd class="font-medium tabular-nums">{dollars(data.job.approved_spend_cents)}</dd>
+          </div>
+        {/if}
+      </dl>
       {#if data.job.source_draft_id}
-        <p>
-          <a class="text-primary hover:underline" href={`/queue/${data.job.source_draft_id}`}>
-            View originating request →
-          </a>
-        </p>
+        <a
+          class="inline-block text-sm text-[hsl(var(--brand))] hover:underline"
+          href={`/queue/${data.job.source_draft_id}`}
+        >
+          View originating request →
+        </a>
       {/if}
     </CardContent>
   </Card>
@@ -172,19 +185,23 @@
     <CardHeader><CardTitle class="text-base">Quotes</CardTitle></CardHeader>
     <CardContent class="space-y-2">
       {#if data.job.quotes.length === 0}
-        <p class="text-sm text-muted-foreground">No quote requests yet.</p>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">No quote requests yet.</p>
       {:else}
         {#each data.job.quotes as quote (quote.id)}
-          <div class="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+          <div
+            class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 text-sm shadow-sm"
+          >
             <div class="flex flex-wrap items-center gap-2">
               <span class="font-medium">{quote.tradie_name}</span>
               <Badge variant="outline">{quote.status}</Badge>
               {#if quote.chased_at}<Badge variant="secondary">chased</Badge>{/if}
             </div>
-            <div class="flex items-center gap-2 text-muted-foreground">
-              <span>{dollars(quote.amount_cents)}</span>
+            <div class="flex items-center gap-2 text-[hsl(var(--muted-foreground))]">
+              <span class="tabular-nums">{dollars(quote.amount_cents)}</span>
               {#if quote.draft_id}
-                <a class="text-primary hover:underline" href={`/queue/${quote.draft_id}`}>draft →</a>
+                <a class="text-[hsl(var(--brand))] hover:underline" href={`/queue/${quote.draft_id}`}>
+                  draft →
+                </a>
               {/if}
               <Input
                 bind:value={amounts[quote.id]}
@@ -205,7 +222,7 @@
     <CardHeader><CardTitle class="text-base">Owner approval</CardTitle></CardHeader>
     <CardContent class="space-y-3">
       {#if data.job.owner_approval_state === "pending"}
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
           An approval request has been drafted for the owner. Once they reply, record their decision:
         </p>
         <div class="flex gap-2">
@@ -215,11 +232,13 @@
           </Button>
         </div>
       {:else if data.job.owner_approval_state === "approved"}
-        <p class="text-sm text-muted-foreground">Owner has approved this job.</p>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">Owner has approved this job.</p>
       {:else if data.job.owner_approval_state === "declined"}
-        <p class="text-sm text-muted-foreground">Owner declined. Re-quote or close the job.</p>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
+          Owner declined. Re-quote or close the job.
+        </p>
       {:else}
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
           If the cost is above the routine spend you handle, draft an approval request for the owner.
           Leave the estimate blank to use the lowest recorded quote.
         </p>
@@ -239,13 +258,16 @@
       <CardHeader><CardTitle class="text-base">Schedule &amp; close out</CardTitle></CardHeader>
       <CardContent class="space-y-4">
         {#if data.job.scheduled_for}
-          <p class="text-sm text-muted-foreground">
-            Scheduled for {formatDateTime(data.job.scheduled_for)}. A tenant message is in the
-            queue.
-          </p>
+          <div
+            class="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] p-3 text-sm text-[hsl(var(--muted-foreground))]"
+          >
+            Scheduled for <span class="font-medium text-[hsl(var(--foreground))] tabular-nums"
+              >{formatDateTime(data.job.scheduled_for)}</span
+            >. A tenant message is in the queue.
+          </div>
         {/if}
         <div class="space-y-2">
-          <p class="text-sm text-muted-foreground">
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">
             Arrange the visit. Optionally mark the accepted quote; we'll draft a message to the
             tenant about access (it never promises an exact time).
           </p>
@@ -267,10 +289,10 @@
               <Label for="scheddate">Date</Label>
               <Input id="scheddate" type="date" bind:value={scheduleDate} class="w-44" />
             </div>
-            <Button disabled={busy} onclick={schedule}>Schedule visit</Button>
+            <Button variant="brand" disabled={busy} onclick={schedule}>Schedule visit</Button>
           </div>
         </div>
-        <hr class="border-border" />
+        <hr class="border-[hsl(var(--border))]" />
         <div class="flex flex-wrap items-end gap-2">
           <Button variant="outline" disabled={busy} onclick={complete}>Mark completed</Button>
           <div class="space-y-1.5">
@@ -283,11 +305,9 @@
     </Card>
   {:else}
     <Card>
-      <CardContent class="pt-6 text-sm text-muted-foreground">
+      <CardContent class="pt-6 text-sm text-[hsl(var(--muted-foreground))]">
         This job is {data.job.state}.
       </CardContent>
     </Card>
   {/if}
 </div>
-
-<style></style>

@@ -68,13 +68,13 @@ describe("formatDate / formatMoney / rentLabel", () => {
 describe("rent-roll + status label maps", () => {
   it("maps draft status to label + variant", () => {
     expect(draftStatusLabel("edited")).toBe("Edited");
-    expect(draftStatusVariant("sent")).toBe("secondary");
+    expect(draftStatusVariant("sent")).toBe("success");
     expect(draftStatusVariant("do_not_send")).toBe("destructive");
   });
 
   it("maps tenancy status", () => {
     expect(tenancyStatusLabel("active")).toBe("Active");
-    expect(tenancyStatusVariant("active")).toBe("secondary");
+    expect(tenancyStatusVariant("active")).toBe("success");
     expect(tenancyStatusVariant("ended")).toBe("outline");
   });
 
@@ -88,6 +88,7 @@ describe("label + variant maps", () => {
   it("maps priority to label + badge variant", () => {
     expect(priorityLabel("EMERGENCY_ALERT")).toBe("Emergency");
     expect(priorityVariant("EMERGENCY_ALERT")).toBe("destructive");
+    expect(priorityVariant("PRIORITY")).toBe("warning");
     expect(priorityVariant("STANDARD")).toBe("secondary");
   });
 
@@ -101,9 +102,9 @@ describe("label + variant maps", () => {
     expect(escalationVariant("LEGAL")).toBe("destructive");
   });
 
-  it("match variant: high=secondary, none=destructive, else outline", () => {
-    expect(matchVariant("high")).toBe("secondary");
-    expect(matchVariant("none")).toBe("destructive");
+  it("match variant: high=success, none=outline, else outline", () => {
+    expect(matchVariant("high")).toBe("success");
+    expect(matchVariant("none")).toBe("outline");
     expect(matchVariant("medium")).toBe("outline");
   });
 

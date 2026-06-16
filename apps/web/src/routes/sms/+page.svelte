@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent } from "$lib/components/ui/card";
@@ -76,14 +77,19 @@
 
 <svelte:head><title>SMS · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div>
-    <h1 class="text-xl font-semibold">SMS</h1>
-    <p class="text-sm text-muted-foreground">
-      Inbound texts, classified with a drafted reply for you to review and send. Nothing is sent
-      automatically.
-    </p>
-  </div>
+<div class="space-y-6">
+  <PageHeader
+    title="SMS"
+    description="Inbound texts, classified with a drafted reply for you to review and send. Nothing is sent automatically."
+  >
+    {#snippet actions()}
+      <span
+        class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold tabular-nums text-[hsl(var(--muted-foreground))]"
+      >
+        {data.messages.length} to review
+      </span>
+    {/snippet}
+  </PageHeader>
 
   {#if data.messages.length === 0}
     <EmptyState
@@ -92,39 +98,52 @@
       description="Inbound tenant SMS will appear here, classified with a drafted reply for you to send."
     />
   {:else}
-    {#each data.messages as m (m.id)}
-      <Card>
-        <CardContent class="space-y-3 pt-6">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-medium">{sender(m)}</span>
-            {#if m.intent}<Badge variant="outline">{intentLabel(m.intent)}</Badge>{/if}
-            {#if m.escalation_flag !== "NONE"}
-              <Badge variant="destructive">
-                <ShieldAlert class="mr-1 h-3.5 w-3.5" />{escalationLabel(m.escalation_flag)}
-              </Badge>
-            {/if}
-            <span class="ml-auto text-xs text-muted-foreground">{relativeTime(m.created_at)}</span>
-          </div>
-
-          <p class="whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-sm">{m.body}</p>
-
-          {#if m.status === "escalated"}
-            <p class="rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
-              Flagged for your attention — handle this personally. No reply was drafted.
-            </p>
-          {:else}
-            <div class="space-y-1.5">
-              <p class="text-xs font-semibold uppercase text-muted-foreground">Drafted reply</p>
-              <Textarea bind:value={replies[m.id]} class="min-h-[80px]" />
-              <Button disabled={busy === m.id} onclick={() => send(m.id)}>
-                {busy === m.id ? "Sending…" : "Send reply"}
-              </Button>
+    <div class="space-y-3">
+      {#each data.messages as m (m.id)}
+        <Card>
+          <CardContent class="space-y-4 pt-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-semibold text-[hsl(var(--foreground))]">{sender(m)}</span>
+              {#if m.intent}<Badge variant="outline">{intentLabel(m.intent)}</Badge>{/if}
+              {#if m.escalation_flag !== "NONE"}
+                <Badge variant="destructive">
+                  <ShieldAlert class="mr-1 h-3.5 w-3.5" />{escalationLabel(m.escalation_flag)}
+                </Badge>
+              {/if}
+              <span class="ml-auto text-xs text-[hsl(var(--muted-foreground))]">
+                {relativeTime(m.created_at)}
+              </span>
             </div>
-          {/if}
-        </CardContent>
-      </Card>
-    {/each}
+
+            <p
+              class="whitespace-pre-wrap rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] p-3 text-sm leading-relaxed"
+            >
+              {m.body}
+            </p>
+
+            {#if m.status === "escalated"}
+              <p
+                class="flex items-start gap-2 rounded-lg border border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.08)] px-3 py-2 text-sm text-[hsl(var(--destructive))]"
+              >
+                <ShieldAlert class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>Flagged for your attention — handle this personally. No reply was drafted.</span>
+              </p>
+            {:else}
+              <div class="space-y-2">
+                <p
+                  class="text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]"
+                >
+                  Drafted reply
+                </p>
+                <Textarea bind:value={replies[m.id]} class="min-h-[80px]" />
+                <Button disabled={busy === m.id} onclick={() => send(m.id)}>
+                  {busy === m.id ? "Sending…" : "Send reply"}
+                </Button>
+              </div>
+            {/if}
+          </CardContent>
+        </Card>
+      {/each}
+    </div>
   {/if}
 </div>
-
-<style></style>

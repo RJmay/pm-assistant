@@ -1,4 +1,5 @@
 <script lang="ts">
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { relativeTime } from "$lib/format";
@@ -16,15 +17,16 @@
 
 <svelte:head><title>{data.document.title} · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <a
-      href="/documents"
-      class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-    >
-      <ArrowLeft class="h-4 w-4" /> Back to documents
-    </a>
-    <div class="flex items-center gap-2">
+<div class="space-y-6">
+  <a
+    href="/documents"
+    class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+  >
+    <ArrowLeft class="h-4 w-4" /> Back to documents
+  </a>
+
+  <PageHeader title={data.document.title}>
+    {#snippet actions()}
       {#if data.document.hasPdf}
         <Button variant="outline" href={`/documents/${data.document.id}/pdf`}>
           <Download class="mr-1.5 h-4 w-4" /> Download PDF
@@ -33,13 +35,14 @@
       <Button variant="outline" onclick={print}>
         <Printer class="mr-1.5 h-4 w-4" /> Print / Save as PDF
       </Button>
-    </div>
-  </div>
+    {/snippet}
+  </PageHeader>
 
   <div class="flex flex-wrap items-center gap-2">
-    <span class="font-medium">{data.document.title}</span>
     {#if data.document.form_id}<Badge variant="outline">Form {data.document.form_id}</Badge>{/if}
-    <span class="text-xs text-muted-foreground">generated {relativeTime(data.document.created_at)}</span>
+    <span class="text-xs text-[hsl(var(--muted-foreground))]">
+      Generated {relativeTime(data.document.created_at)}
+    </span>
   </div>
 
   <!-- The stored content is a complete HTML document; isolate it in a sandboxed iframe. -->
@@ -48,14 +51,12 @@
     title={data.document.title}
     srcdoc={data.document.content}
     sandbox="allow-same-origin allow-modals"
-    class="h-[80vh] w-full rounded-lg border bg-white"
+    class="h-[80vh] w-full rounded-xl border border-[hsl(var(--border))] bg-white shadow-sm"
   ></iframe>
 
   {#if data.document.rule_versions.length > 0}
-    <p class="text-xs text-muted-foreground">
+    <p class="text-xs text-[hsl(var(--muted-foreground))]">
       Compliance rule versions: {data.document.rule_versions.join(", ")}
     </p>
   {/if}
 </div>
-
-<style></style>

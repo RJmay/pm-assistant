@@ -1,15 +1,16 @@
 <script lang="ts">
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 </script>
 
 <svelte:head><title>Help · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div>
-    <h1 class="text-xl font-semibold">How PM Assistant works</h1>
-    <p class="text-sm text-muted-foreground">A quick reference for the daily review queue.</p>
-  </div>
+<div class="space-y-6">
+  <PageHeader
+    title="How PM Assistant works"
+    description="A quick reference for the daily review queue."
+  />
 
   <Card>
     <CardHeader><CardTitle class="text-base">The one rule that never changes</CardTitle></CardHeader>
@@ -40,9 +41,9 @@
     <CardContent class="space-y-3 text-sm">
       <div class="flex flex-wrap items-center gap-2">
         <Badge variant="destructive">Emergency alert</Badge>
-        <Badge>Priority</Badge>
+        <Badge variant="warning">Priority</Badge>
         <Badge variant="secondary">Standard</Badge>
-        <span class="text-muted-foreground">— how fast a reply is likely needed.</span>
+        <span class="text-[hsl(var(--muted-foreground))]">— how fast a reply is likely needed.</span>
       </div>
       <p>
         <span class="font-medium">Escalation flags</span> — for sensitive matters the AI writes only

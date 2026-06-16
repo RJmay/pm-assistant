@@ -7,6 +7,7 @@
   import { Label } from "$lib/components/ui/label";
   import { toast } from "$lib/components/ui/sonner";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { relativeTime } from "$lib/format";
   import { env } from "$lib/public-env";
   import { FileText } from "lucide-svelte";
@@ -49,6 +50,9 @@
     );
   let niltGround = $state<NiltGround>("end_of_fixed_term");
   let busy = $state(false);
+
+  const selectCls =
+    "h-9 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--card))] px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]";
 
   const typeLabels: Record<string, string> = {
     entry_notice: "Entry notice (Form 9)",
@@ -135,14 +139,11 @@
 
 <svelte:head><title>Documents · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div>
-    <h1 class="text-xl font-semibold">Documents</h1>
-    <p class="text-sm text-muted-foreground">
-      Generate QLD statutory documents. Dates and notice periods come from the compliance rules
-      engine — the system won't generate a document that wouldn't be compliant.
-    </p>
-  </div>
+<div class="space-y-6">
+  <PageHeader
+    title="Documents"
+    description="Generate QLD statutory documents. Dates and notice periods come from the compliance rules engine — the system won't generate a document that wouldn't be compliant."
+  />
 
   <Card>
     <CardHeader><CardTitle class="text-base">Generate a document</CardTitle></CardHeader>
@@ -156,7 +157,7 @@
             <select
               id="type"
               bind:value={docType}
-              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              class={selectCls}
             >
               <option value="entry_notice">Entry notice (Form 9)</option>
               <option value="rent_increase_notice">Rent-increase notice</option>
@@ -172,7 +173,7 @@
             <select
               id="tenancy"
               bind:value={tenancyId}
-              class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              class={selectCls}
             >
               <option value="" disabled>Select…</option>
               {#each data.tenancies as t (t.id)}
@@ -205,7 +206,7 @@
               <select
                 id="breachkind"
                 bind:value={breachKind}
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                class={selectCls}
               >
                 <option value="rent">Rent arrears</option>
                 <option value="general">General (non-rent) breach</option>
@@ -216,7 +217,7 @@
               <select
                 id="dwelling"
                 bind:value={dwelling}
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                class={selectCls}
               >
                 <option value="general">General tenancy</option>
                 <option value="moveable">Moveable dwelling (caravan park)</option>
@@ -243,7 +244,7 @@
               <select
                 id="ground"
                 bind:value={ground}
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                class={selectCls}
               >
                 <option value="end_of_fixed_term">End of fixed term</option>
                 <option value="unremedied_breach">Rent not paid (breach not remedied)</option>
@@ -256,7 +257,7 @@
               <select
                 id="niltground"
                 bind:value={niltGround}
-                class="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                class={selectCls}
               >
                 <option value="end_of_fixed_term">End of fixed term</option>
                 <option value="periodic">Periodic (no grounds)</option>
@@ -285,16 +286,18 @@
       {#each data.documents as doc (doc.id)}
         <a
           href={`/documents/${doc.id}`}
-          class="flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all hover:border-foreground/20 hover:shadow-md"
+          class="group flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-sm transition-all hover:-translate-y-px hover:border-[hsl(var(--brand)/0.4)] hover:shadow-md"
         >
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <span class="font-medium">{doc.title}</span>
+              <span class="font-semibold text-[hsl(var(--foreground))]">{doc.title}</span>
               {#if doc.form_id}<Badge variant="outline">Form {doc.form_id}</Badge>{/if}
             </div>
-            <p class="text-sm text-muted-foreground">{typeLabels[doc.type] ?? doc.type}</p>
+            <p class="text-sm text-[hsl(var(--muted-foreground))]">{typeLabels[doc.type] ?? doc.type}</p>
           </div>
-          <span class="shrink-0 text-xs text-muted-foreground">{relativeTime(doc.created_at)}</span>
+          <span class="shrink-0 text-xs text-[hsl(var(--muted-foreground))]">
+            {relativeTime(doc.created_at)}
+          </span>
         </a>
       {/each}
     </div>

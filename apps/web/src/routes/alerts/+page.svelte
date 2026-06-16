@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
   import DraftRow from "$lib/components/DraftRow.svelte";
+  import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { ShieldCheck } from "lucide-svelte";
   import { onMount } from "svelte";
@@ -24,23 +26,26 @@
 
 <svelte:head><title>Alerts · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold tracking-tight">Alerts</h1>
-    <span class="text-sm text-muted-foreground">{data.items.length}</span>
-  </div>
-  <p class="text-sm text-muted-foreground">
-    Escalations, emergency landlord alerts, safety-critical issues, and do-not-send drafts.
-  </p>
+<div class="space-y-6">
+  <PageHeader
+    title="Alerts"
+    description="Escalations, emergency landlord alerts, safety-critical issues, and do-not-send drafts."
+  >
+    {#snippet actions()}
+      <span
+        class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold tabular-nums text-[hsl(var(--muted-foreground))]"
+      >
+        {data.items.length} active
+      </span>
+    {/snippet}
+  </PageHeader>
 
   {#if data.items.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center"
-    >
-      <ShieldCheck class="h-8 w-8 text-muted-foreground" />
-      <p class="font-medium">No active alerts</p>
-      <p class="text-sm text-muted-foreground">Escalated drafts will surface here.</p>
-    </div>
+    <EmptyState
+      icon={ShieldCheck}
+      title="No active alerts"
+      description="Escalated drafts, emergency alerts and safety-critical issues will surface here."
+    />
   {:else}
     <div class="space-y-2">
       {#each data.items as item (item.id)}

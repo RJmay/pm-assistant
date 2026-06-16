@@ -89,9 +89,9 @@
 <!-- Floating demo control — demo tenants only (mounted from the layout). -->
 <div class="fixed bottom-16 right-3 z-40 sm:bottom-4 sm:right-4">
   {#if !open}
-    <Button onclick={() => (open = true)} class="rounded-full pl-2 shadow-lg">
+    <Button variant="brand" onclick={() => (open = true)} class="rounded-full pl-2 shadow-lg">
       <span
-        class="mr-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--primary-foreground)/0.2)]"
+        class="mr-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white/20"
       >
         <FlaskConical class="h-3 w-3" />
       </span>
@@ -103,7 +103,7 @@
     >
       <div class="flex items-center justify-between border-b bg-muted/50 px-3 py-2.5">
         <p class="flex items-center gap-1.5 text-sm font-semibold">
-          <FlaskConical class="h-4 w-4 text-[hsl(var(--primary))]" /> Demo scenarios
+          <FlaskConical class="h-4 w-4 text-[hsl(var(--brand))]" /> Demo scenarios
         </p>
         <div class="flex items-center gap-1">
           <Button variant="ghost" size="sm" onclick={surpriseMe} disabled={injecting !== null}>
@@ -134,7 +134,7 @@
                 <p class="flex items-center gap-1.5 text-sm font-medium">
                   {s.title}
                   {#if s.used_at}
-                    <CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-[hsl(var(--primary))]" />
+                    <CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-[hsl(var(--success))]" />
                   {/if}
                 </p>
                 {#if s.description}
@@ -169,7 +169,7 @@
             {#if s.used_at && s.last_draft_id}
               <a
                 href={`/queue/${s.last_draft_id}`}
-                class="mt-1 inline-block text-xs text-[hsl(var(--primary))] hover:underline"
+                class="mt-1 inline-block text-xs font-medium text-[hsl(var(--brand))] hover:underline"
               >
                 View the draft →
               </a>

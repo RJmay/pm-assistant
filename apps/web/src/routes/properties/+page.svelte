@@ -1,4 +1,6 @@
 <script lang="ts">
+  import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import PropertyRow from "$lib/components/PropertyRow.svelte";
   import { Input } from "$lib/components/ui/input";
   import { matchesSearch } from "$lib/rent-roll";
@@ -13,16 +15,19 @@
 
 <svelte:head><title>Properties · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold tracking-tight">Properties</h1>
-      <p class="text-sm text-muted-foreground">
-        Your rent roll — tenancies, rent, arrears and inspection indicators.
-      </p>
-    </div>
-    <span class="text-sm text-muted-foreground">{visible.length} of {data.items.length}</span>
-  </div>
+<div class="space-y-6">
+  <PageHeader
+    title="Properties"
+    description="Your rent roll — tenancies, rent, arrears and inspection indicators."
+  >
+    {#snippet actions()}
+      <span
+        class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold tabular-nums text-[hsl(var(--muted-foreground))]"
+      >
+        {search ? `${visible.length} of ${data.items.length}` : `${data.items.length} properties`}
+      </span>
+    {/snippet}
+  </PageHeader>
 
   <Input
     type="search"
@@ -32,19 +37,19 @@
   />
 
   {#if visible.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center"
-    >
-      <Home class="h-8 w-8 text-muted-foreground" />
-      {#if data.items.length === 0}
-        <p class="font-medium">No properties yet</p>
-        <p class="max-w-sm text-sm text-muted-foreground">
-          Properties appear here once your rent roll is imported during onboarding.
-        </p>
-      {:else}
-        <p class="font-medium">No properties match your search</p>
-      {/if}
-    </div>
+    {#if data.items.length === 0}
+      <EmptyState
+        icon={Home}
+        title="No properties yet"
+        description="Properties appear here once your rent roll is imported during onboarding."
+      />
+    {:else}
+      <EmptyState
+        icon={Home}
+        title="No properties match your search"
+        description="Try a different address, suburb, owner or tenant name."
+      />
+    {/if}
   {:else}
     <div class="space-y-2">
       {#each visible as item (item.id)}

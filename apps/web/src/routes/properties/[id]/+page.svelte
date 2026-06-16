@@ -18,7 +18,8 @@
   } from "$lib/format";
   import { inspectionState, nextInspectionDue } from "$lib/rent-roll";
   import type { MaintenanceJobState } from "$lib/types";
-  import { AlertTriangle, Pencil } from "lucide-svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import { AlertTriangle, ArrowLeft, Pencil } from "lucide-svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import type { PageData } from "./$types";
   import type { TenancyDetail, TenantDetail } from "$lib/server/rent-roll";
@@ -75,20 +76,24 @@
 
 <svelte:head><title>{data.property.address_line1} · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <a href="/properties" class="text-sm text-muted-foreground hover:text-foreground">
-    ← All properties
-  </a>
+<div class="space-y-6">
+  <div class="space-y-3">
+    <a
+      href="/properties"
+      class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+    >
+      <ArrowLeft class="h-4 w-4" /> All properties
+    </a>
 
-  <div>
-    <h1 class="text-2xl font-semibold tracking-tight">{address}</h1>
-    <p class="text-sm text-muted-foreground">
-      {[data.property.suburb, data.property.state, data.property.postcode]
+    <PageHeader
+      title={address}
+      description={[data.property.suburb, data.property.state, data.property.postcode]
         .filter((p) => p && p.trim() !== "")
         .join(" ")}
-    </p>
+    />
+
     {#if data.property.notes}
-      <p class="mt-1 text-sm text-muted-foreground">{data.property.notes}</p>
+      <p class="-mt-3 text-sm text-[hsl(var(--muted-foreground))]">{data.property.notes}</p>
     {/if}
   </div>
 
@@ -108,11 +113,13 @@
     <CardContent>
       {#if data.owner}
         <p class="font-medium">{data.owner.full_name}</p>
-        <p class="text-sm text-muted-foreground">
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
           {data.owner.email ?? "No email"} · {data.owner.phone ?? "No phone"}
         </p>
       {:else}
-        <p class="text-sm text-muted-foreground">No owner is linked to this property.</p>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
+          No owner is linked to this property.
+        </p>
       {/if}
     </CardContent>
   </Card>
@@ -144,14 +151,16 @@
         </Button>
       </CardHeader>
       <CardContent class="space-y-4">
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-          <div>
-            <dt class="text-muted-foreground">Rent</dt>
-            <dd class="font-medium">{rentLabel(tenancy.rent_amount_cents, tenancy.rent_frequency)}</dd>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+          <div class="space-y-0.5">
+            <dt class="text-xs text-[hsl(var(--muted-foreground))]">Rent</dt>
+            <dd class="font-medium tabular-nums">
+              {rentLabel(tenancy.rent_amount_cents, tenancy.rent_frequency)}
+            </dd>
           </div>
-          <div>
-            <dt class="text-muted-foreground">Lease</dt>
-            <dd class="font-medium">
+          <div class="space-y-0.5">
+            <dt class="text-xs text-[hsl(var(--muted-foreground))]">Lease</dt>
+            <dd class="font-medium tabular-nums">
               {formatDate(tenancy.start_date)} → {tenancy.end_date
                 ? formatDate(tenancy.end_date)
                 : tenancy.agreement_type === "periodic"
@@ -159,23 +168,25 @@
                   : "—"}
             </dd>
           </div>
-          <div>
-            <dt class="text-muted-foreground">Bond</dt>
-            <dd class="font-medium">
+          <div class="space-y-0.5">
+            <dt class="text-xs text-[hsl(var(--muted-foreground))]">Bond</dt>
+            <dd class="font-medium tabular-nums">
               {formatMoney(tenancy.bond_amount_cents)}
               {#if tenancy.bond_rta_reference}
-                <span class="text-muted-foreground">({tenancy.bond_rta_reference})</span>
+                <span class="text-[hsl(var(--muted-foreground))]">({tenancy.bond_rta_reference})</span>
               {/if}
             </dd>
           </div>
-          <div>
-            <dt class="text-muted-foreground">Last inspection</dt>
-            <dd class="font-medium">{formatDate(tenancy.last_routine_inspection_date)}</dd>
+          <div class="space-y-0.5">
+            <dt class="text-xs text-[hsl(var(--muted-foreground))]">Last inspection</dt>
+            <dd class="font-medium tabular-nums">{formatDate(tenancy.last_routine_inspection_date)}</dd>
           </div>
         </dl>
 
         {#if tenancy.status === "active" || tenancy.status === "ending"}
-          <div class="flex flex-wrap items-end gap-4 rounded-md border bg-muted/30 p-3">
+          <div
+            class="flex flex-wrap items-end gap-4 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] p-3"
+          >
             <!-- Record inspection: rolls the next inspection cycle forward -->
             <form
               method="POST"
@@ -233,13 +244,17 @@
 
         <!-- Tenants on this tenancy -->
         <div>
-          <h3 class="mb-2 text-sm font-medium">Tenants</h3>
+          <h3 class="mb-2 text-sm font-semibold text-[hsl(var(--foreground))]">Tenants</h3>
           {#if tenancy.tenants.length === 0}
-            <p class="text-sm text-muted-foreground">No tenants recorded for this tenancy.</p>
+            <p class="text-sm text-[hsl(var(--muted-foreground))]">
+              No tenants recorded for this tenancy.
+            </p>
           {:else}
             <ul class="space-y-2">
               {#each tenancy.tenants as tenant (tenant.id)}
-                <li class="flex items-center justify-between gap-3 rounded-md border p-3">
+                <li
+                  class="flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 shadow-sm"
+                >
                   <div class="min-w-0">
                     <p class="truncate text-sm font-medium">
                       {tenant.full_name}
@@ -247,7 +262,7 @@
                         <Badge variant="outline" class="ml-1">Primary</Badge>
                       {/if}
                     </p>
-                    <p class="truncate text-sm text-muted-foreground">
+                    <p class="truncate text-sm text-[hsl(var(--muted-foreground))]">
                       {tenant.email ?? "No email"} · {tenant.phone ?? "No phone"}
                     </p>
                   </div>
@@ -257,7 +272,7 @@
                 </li>
               {/each}
             </ul>
-            <p class="mt-2 text-xs text-muted-foreground">
+            <p class="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
               The tenant's email is how inbound messages are matched to this property — keep it
               current.
             </p>
@@ -268,7 +283,9 @@
   {:else}
     <Card>
       <CardContent class="pt-6">
-        <p class="text-sm text-muted-foreground">No tenancies recorded for this property.</p>
+        <p class="text-sm text-[hsl(var(--muted-foreground))]">
+          No tenancies recorded for this property.
+        </p>
       </CardContent>
     </Card>
   {/each}
@@ -281,34 +298,40 @@
     </CardHeader>
     <CardContent class="grid gap-6 sm:grid-cols-3">
       <div>
-        <h3 class="mb-2 text-sm font-medium">Drafts</h3>
+        <h3 class="mb-2 text-sm font-semibold text-[hsl(var(--foreground))]">Drafts</h3>
         {#if data.activity.drafts.length === 0}
-          <p class="text-sm text-muted-foreground">None yet.</p>
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">None yet.</p>
         {:else}
           <ul class="space-y-1.5">
             {#each data.activity.drafts as item (item.id)}
               <li>
-                <a href={`/queue/${item.id}`} class="block truncate text-sm hover:underline">
+                <a
+                  href={`/queue/${item.id}`}
+                  class="block truncate text-sm text-[hsl(var(--brand))] hover:underline"
+                >
                   {item.title}
                 </a>
-                <span class="text-xs text-muted-foreground">{relativeTime(item.when)}</span>
+                <span class="text-xs text-[hsl(var(--muted-foreground))]">{relativeTime(item.when)}</span>
               </li>
             {/each}
           </ul>
         {/if}
       </div>
       <div>
-        <h3 class="mb-2 text-sm font-medium">Maintenance</h3>
+        <h3 class="mb-2 text-sm font-semibold text-[hsl(var(--foreground))]">Maintenance</h3>
         {#if data.activity.jobs.length === 0}
-          <p class="text-sm text-muted-foreground">None yet.</p>
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">None yet.</p>
         {:else}
           <ul class="space-y-1.5">
             {#each data.activity.jobs as item (item.id)}
               <li>
-                <a href={`/maintenance/${item.id}`} class="block truncate text-sm hover:underline">
+                <a
+                  href={`/maintenance/${item.id}`}
+                  class="block truncate text-sm text-[hsl(var(--brand))] hover:underline"
+                >
                   {item.title}
                 </a>
-                <span class="text-xs text-muted-foreground">
+                <span class="text-xs text-[hsl(var(--muted-foreground))]">
                   {item.badge ? jobStateLabel(item.badge as MaintenanceJobState) : ""} ·
                   {relativeTime(item.when)}
                 </span>
@@ -318,17 +341,20 @@
         {/if}
       </div>
       <div>
-        <h3 class="mb-2 text-sm font-medium">Documents</h3>
+        <h3 class="mb-2 text-sm font-semibold text-[hsl(var(--foreground))]">Documents</h3>
         {#if data.activity.documents.length === 0}
-          <p class="text-sm text-muted-foreground">None yet.</p>
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">None yet.</p>
         {:else}
           <ul class="space-y-1.5">
             {#each data.activity.documents as item (item.id)}
               <li>
-                <a href={`/documents/${item.id}`} class="block truncate text-sm hover:underline">
+                <a
+                  href={`/documents/${item.id}`}
+                  class="block truncate text-sm text-[hsl(var(--brand))] hover:underline"
+                >
                   {item.title}
                 </a>
-                <span class="text-xs text-muted-foreground">{relativeTime(item.when)}</span>
+                <span class="text-xs text-[hsl(var(--muted-foreground))]">{relativeTime(item.when)}</span>
               </li>
             {/each}
           </ul>
@@ -398,7 +424,7 @@
             id="rent-frequency"
             name="rentFrequency"
             value={editingTenancy.rent_frequency ?? ""}
-            class="h-9 w-full rounded-md border bg-background px-2 text-sm"
+            class="h-9 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]"
           >
             <option value="">—</option>
             <option value="weekly">Weekly</option>
@@ -415,7 +441,7 @@
           <Input id="end-date" name="endDate" type="date" value={editingTenancy.end_date ?? ""} />
         </div>
       </div>
-      <p class="text-xs text-muted-foreground">
+      <p class="text-xs text-[hsl(var(--muted-foreground))]">
         The lease end date drives renewal reminders; leave it blank for a periodic tenancy.
       </p>
       <div class="flex justify-end gap-2 pt-2">
@@ -443,7 +469,9 @@
       <div class="space-y-1.5">
         <Label for="tenant-email">Email</Label>
         <Input id="tenant-email" name="email" type="email" value={editingTenant.email ?? ""} />
-        <p class="text-xs text-muted-foreground">Used to match inbound emails to this property.</p>
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">
+          Used to match inbound emails to this property.
+        </p>
       </div>
       <div class="space-y-1.5">
         <Label for="tenant-phone">Phone</Label>

@@ -21,6 +21,7 @@
     validateRow,
   } from "$lib/import-presets";
   import { env } from "$lib/public-env";
+  import BrandMark from "$lib/components/BrandMark.svelte";
   import type { SubmitFunction } from "@sveltejs/kit";
   import { CheckCircle2, Circle, Lock, Mail, ShieldCheck, Sparkles, Upload } from "lucide-svelte";
   import type { PageData } from "./$types";
@@ -167,43 +168,50 @@
 
 <svelte:head><title>Get started · PM Assistant</title></svelte:head>
 
-<div class="mx-auto max-w-2xl space-y-5 px-4 py-8">
-  <div>
-    <h1 class="text-2xl font-semibold tracking-tight">
-      {hasAgency ? `Welcome, ${data.agencyName}` : "Set up your agency"}
-    </h1>
-    <p class="text-sm text-muted-foreground">
-      Five quick steps — each one is skippable, and your progress is saved as you go.
-    </p>
-  </div>
+<div class="bg-auth min-h-screen px-4 py-10">
+  <div class="mx-auto max-w-2xl space-y-6">
+    <div class="flex justify-center">
+      <BrandMark size="md" wordmark />
+    </div>
 
-  <!-- Stepper -->
-  <ol class="flex flex-wrap gap-1.5">
-    {#each STEPS as step, i (step.id)}
-      <li>
-        <button
-          type="button"
-          class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors
-            {current === step.id
-            ? 'border-transparent bg-primary text-primary-foreground'
-            : 'text-muted-foreground hover:bg-accent'}"
-          disabled={!hasAgency && step.id !== "account"}
-          onclick={() => (current = step.id)}
-        >
-          {#if completed.has(step.id)}
-            <CheckCircle2 class="h-3.5 w-3.5" />
-          {:else}
-            <Circle class="h-3 w-3" />
-          {/if}
-          {i + 1}. {step.label}
-        </button>
-      </li>
-    {/each}
-  </ol>
+    <div class="space-y-1 text-center">
+      <h1 class="text-2xl font-semibold tracking-tight">
+        {hasAgency ? `Welcome, ${data.agencyName}` : "Set up your agency"}
+      </h1>
+      <p class="text-sm text-[hsl(var(--muted-foreground))]">
+        Five quick steps — each one is skippable, and your progress is saved as you go.
+      </p>
+    </div>
+
+    <!-- Stepper -->
+    <ol class="flex flex-wrap justify-center gap-1.5">
+      {#each STEPS as step, i (step.id)}
+        <li>
+          <button
+            type="button"
+            class="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors
+              {current === step.id
+              ? 'border-transparent bg-[hsl(var(--brand))] text-[hsl(var(--brand-foreground))]'
+              : completed.has(step.id)
+                ? 'border-[hsl(var(--brand)/0.25)] bg-[hsl(var(--brand)/0.1)] text-[hsl(var(--brand))] hover:bg-[hsl(var(--brand)/0.16)]'
+                : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))]'}"
+            disabled={!hasAgency && step.id !== "account"}
+            onclick={() => (current = step.id)}
+          >
+            {#if completed.has(step.id)}
+              <CheckCircle2 class="h-3.5 w-3.5" />
+            {:else}
+              <Circle class="h-3 w-3" />
+            {/if}
+            {i + 1}. {step.label}
+          </button>
+        </li>
+      {/each}
+    </ol>
 
   <!-- Step 1: Account -->
   {#if current === "account"}
-    <Card>
+    <Card class="rounded-2xl p-2">
       <CardHeader>
         <CardTitle class="text-base">Your agency</CardTitle>
         <CardDescription>
@@ -215,8 +223,8 @@
       <CardContent>
         {#if hasAgency}
           <div class="flex items-center justify-between">
-            <p class="text-sm">
-              <CheckCircle2 class="mr-1 inline h-4 w-4 text-green-600" />
+            <p class="flex items-center gap-1.5 text-sm">
+              <CheckCircle2 class="h-4 w-4 text-[hsl(var(--success))]" />
               {data.agencyName}
             </p>
             <Button size="sm" onclick={() => (current = "connect-email")}>Continue</Button>
@@ -237,7 +245,7 @@
                 <Input id="fullName" name="fullName" placeholder="Jess Bowman" />
               </div>
             </div>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" variant="brand" disabled={busy}>
               {busy ? "Creating…" : "Create my agency"}
             </Button>
           </form>
@@ -248,7 +256,7 @@
 
   <!-- Step 2: Connect email -->
   {#if current === "connect-email" && hasAgency}
-    <Card>
+    <Card class="rounded-2xl p-2">
       <CardHeader>
         <CardTitle class="flex items-center gap-2 text-base">
           <Mail class="h-4 w-4" /> Connect your rentals inbox
@@ -260,18 +268,19 @@
       </CardHeader>
       <CardContent class="space-y-3">
         {#if data.mailboxAddress}
-          <p class="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
-            <CheckCircle2 class="mr-1 inline h-4 w-4" />
-            Connected: <span class="font-medium">{data.mailboxAddress}</span> — inbound email now
-            flows into your queue.
+          <p class="flex items-start gap-2 rounded-lg border border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.08)] px-3 py-2 text-sm text-[hsl(var(--success))]">
+            <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Connected: <span class="font-medium">{data.mailboxAddress}</span> — inbound email
+            now flows into your queue.</span>
           </p>
         {:else}
-          <div class="rounded-md border p-3">
+          <div class="rounded-lg border border-[hsl(var(--border))] p-3">
             <p class="text-sm font-medium">Connect Gmail / Google Workspace</p>
-            <p class="mt-0.5 text-xs text-muted-foreground">
+            <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
               One click, sign in with the agency mailbox (e.g. rentals@youragency.com.au), done.
             </p>
             <Button
+              variant="brand"
               class="mt-2"
               onclick={() =>
                 (location.href = `${workerBase}/oauth/gmail/start?agency_id=${data.agencyId}`)}
@@ -280,12 +289,12 @@
             </Button>
           </div>
         {/if}
-        <div class="rounded-md border border-dashed p-3 opacity-70">
-          <p class="text-sm font-medium">
+        <div class="rounded-lg border border-dashed border-[hsl(var(--border))] p-3 opacity-70">
+          <p class="flex items-center text-sm font-medium">
             Forwarding address
             <Badge variant="outline" class="ml-1">Coming soon</Badge>
           </p>
-          <p class="mt-0.5 text-xs text-muted-foreground">
+          <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
             Auto-forward from any mail system (Outlook/Microsoft 365 included) to a dedicated
             ingest address — no account connection at all.
           </p>
@@ -307,7 +316,7 @@
 
   <!-- Step 3: Import portfolio -->
   {#if current === "import" && hasAgency}
-    <Card>
+    <Card class="rounded-2xl p-2">
       <CardHeader>
         <CardTitle class="flex items-center gap-2 text-base">
           <Upload class="h-4 w-4" /> Import your portfolio
@@ -319,7 +328,7 @@
       </CardHeader>
       <CardContent class="space-y-3">
         {#if data.propertyCount > 0}
-          <p class="text-sm text-muted-foreground">
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">
             {data.propertyCount} propert{data.propertyCount === 1 ? "y" : "ies"} already imported.
             You can add more below.
           </p>
@@ -328,7 +337,7 @@
 
         {#if csvHeaders.length > 0}
           {#if presetLabel}
-            <p class="text-xs text-muted-foreground">
+            <p class="text-xs text-[hsl(var(--muted-foreground))]">
               Looks like a <span class="font-medium">{presetLabel}</span> export — columns mapped
               automatically. Adjust below if anything's off.
             </p>
@@ -336,9 +345,9 @@
           <div class="grid gap-2 sm:grid-cols-2">
             {#each IMPORT_FIELDS as field (field)}
               <div class="flex items-center justify-between gap-2 text-sm">
-                <span class="text-muted-foreground">{FIELD_LABELS[field]}</span>
+                <span class="text-[hsl(var(--muted-foreground))]">{FIELD_LABELS[field]}</span>
                 <select
-                  class="h-8 max-w-[55%] rounded-md border bg-background px-2 text-xs"
+                  class="h-8 max-w-[55%] rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--card))] px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]"
                   value={mapping[field]?.toString() ?? ""}
                   onchange={(e) => setMapping(field, e)}
                   aria-label={`Column for ${FIELD_LABELS[field]}`}
@@ -352,7 +361,7 @@
             {/each}
           </div>
 
-          <div class="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+          <div class="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-3 py-2 text-sm">
             <span class="font-medium">{validRows.length}</span> row{validRows.length === 1
               ? ""
               : "s"} ready to import{errorCount > 0
@@ -364,12 +373,12 @@
             <div class="max-h-56 space-y-2 overflow-y-auto">
               {#each rowResults as result, i (i)}
                 {#if result.errors.length > 0}
-                  <div class="rounded-md border border-amber-300 bg-amber-50/60 p-2 text-xs">
+                  <div class="rounded-lg border border-[hsl(var(--warning)/0.35)] bg-[hsl(var(--warning)/0.08)] p-2 text-xs">
                     <p class="font-medium">Row {i + 2}: {result.errors.join("; ")}</p>
                     <div class="mt-1 grid gap-1 sm:grid-cols-2">
                       {#each fixableFields(i) as field (field)}
                         <label class="flex items-center gap-1">
-                          <span class="w-24 shrink-0 text-muted-foreground">{FIELD_LABELS[field]}</span>
+                          <span class="w-24 shrink-0 text-[hsl(var(--muted-foreground))]">{FIELD_LABELS[field]}</span>
                           <Input
                             class="h-7 text-xs"
                             value={csvRows[i]?.[mapping[field] ?? -1] ?? ""}
@@ -386,13 +395,13 @@
 
           <form method="POST" action="?/importRows" use:enhance={handleImport}>
             <input type="hidden" name="rows" value={JSON.stringify(validRows.map((r) => r.row))} />
-            <Button type="submit" disabled={busy || validRows.length === 0}>
+            <Button type="submit" variant="brand" disabled={busy || validRows.length === 0}>
               {busy ? "Importing…" : `Import ${validRows.length} propert${validRows.length === 1 ? "y" : "ies"}`}
             </Button>
           </form>
         {/if}
 
-        <div class="flex items-center justify-between border-t pt-3">
+        <div class="flex items-center justify-between border-t border-[hsl(var(--border))] pt-3">
           <form method="POST" action="?/sampleData" use:enhance={handle("Sample data added.")}>
             <Button type="submit" variant="outline" size="sm" disabled={busy}>
               <Sparkles class="mr-1 h-3.5 w-3.5" /> Start with sample data
@@ -409,7 +418,7 @@
 
   <!-- Step 4: Voice & guardrails -->
   {#if current === "voice" && hasAgency}
-    <Card>
+    <Card class="rounded-2xl p-2">
       <CardHeader>
         <CardTitle class="flex items-center gap-2 text-base">
           <ShieldCheck class="h-4 w-4" /> Voice & guardrails
@@ -419,10 +428,10 @@
       <CardContent>
         <form method="POST" action="?/saveVoice" class="space-y-3" use:enhance={handle("Saved.")}>
           <div
-            class="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50/60 px-3 py-2"
+            class="flex items-start gap-2 rounded-lg border border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.08)] px-3 py-2"
           >
-            <Lock class="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-            <p class="text-sm text-emerald-900">
+            <Lock class="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--success))]" />
+            <p class="text-sm text-[hsl(var(--foreground))]">
               <span class="font-semibold">Drafts only — nothing sends without your approval.</span>
               This is locked on. Auto-send is a future setting, not a toggle you can flip today.
             </p>
@@ -434,7 +443,7 @@
               id="tone"
               name="tone"
               value={data.voice?.tone ?? "professional, warm"}
-              class="h-9 w-full rounded-md border bg-background px-2 text-sm"
+              class="h-9 w-full rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--card))] px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]"
             >
               <option value="professional, warm">Professional, warm (recommended)</option>
               <option value="professional, formal">Professional, formal</option>
@@ -465,11 +474,11 @@
               />
             </div>
           </div>
-          <div class="rounded-md border p-3">
+          <div class="rounded-lg border border-[hsl(var(--border))] p-3">
             <p class="text-sm font-medium">
-              Nominated repairer <span class="text-destructive">*</span>
+              Nominated repairer <span class="text-[hsl(var(--destructive))]">*</span>
             </p>
-            <p class="mt-0.5 text-xs text-muted-foreground">
+            <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
               QLD requires a nominated repairer for emergency repairs — drafts reference them for
               after-hours emergencies. Required before your first draft.
             </p>
@@ -478,8 +487,8 @@
               <Input name="repairerPhone" placeholder="Phone" required={!data.repairerSet} />
             </div>
             {#if data.repairerSet}
-              <p class="mt-1 text-xs text-green-700">
-                <CheckCircle2 class="mr-0.5 inline h-3.5 w-3.5" /> Already set — leave blank to keep it.
+              <p class="mt-1.5 flex items-center gap-1 text-xs text-[hsl(var(--success))]">
+                <CheckCircle2 class="h-3.5 w-3.5" /> Already set — leave blank to keep it.
               </p>
             {/if}
           </div>
@@ -503,7 +512,7 @@
 
   <!-- Step 5: First draft -->
   {#if current === "first-draft" && hasAgency}
-    <Card>
+    <Card class="rounded-2xl p-2">
       <CardHeader>
         <CardTitle class="text-base">Your first AI draft</CardTitle>
         <CardDescription>
@@ -513,55 +522,56 @@
       </CardHeader>
       <CardContent class="space-y-3">
         {#if data.firstDraftId}
-          <p class="rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm text-green-800">
-            <CheckCircle2 class="mr-1 inline h-4 w-4" /> Your first draft is ready.
-            <a href={`/queue/${data.firstDraftId}`} class="font-medium underline">Open it →</a>
+          <p class="flex items-start gap-2 rounded-lg border border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.08)] px-3 py-2 text-sm text-[hsl(var(--success))]">
+            <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" />
+            <span>Your first draft is ready.
+            <a href={`/queue/${data.firstDraftId}`} class="font-medium text-[hsl(var(--brand))] hover:underline">Open it →</a></span>
           </p>
         {:else}
           <form method="POST" action="?/firstDraft" use:enhance={handle()}>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" variant="brand" disabled={busy}>
               {busy ? "Drafting… (about 15 seconds)" : "Create my first draft"}
             </Button>
           </form>
           {#if !data.repairerSet}
-            <p class="text-xs text-amber-700">
+            <p class="text-xs text-[hsl(var(--warning))]">
               Set your nominated repairer in step 4 first — drafting won't run without it.
             </p>
           {/if}
         {/if}
 
-        <div class="rounded-md border p-3">
+        <div class="rounded-lg border border-[hsl(var(--border))] p-3">
           <p class="mb-2 text-sm font-medium">Where you're up to</p>
           <ul class="space-y-1 text-sm">
             <li class="flex items-center gap-1.5">
-              <CheckCircle2 class="h-4 w-4 text-green-600" /> Agency created
+              <CheckCircle2 class="h-4 w-4 text-[hsl(var(--success))]" /> Agency created
             </li>
             <li class="flex items-center gap-1.5">
               {#if data.mailboxAddress}
-                <CheckCircle2 class="h-4 w-4 text-green-600" /> Mailbox connected ({data.mailboxAddress})
+                <CheckCircle2 class="h-4 w-4 text-[hsl(var(--success))]" /> Mailbox connected ({data.mailboxAddress})
               {:else}
-                <Circle class="h-3.5 w-3.5 text-muted-foreground" /> Mailbox not connected —
-                <button type="button" class="underline" onclick={() => (current = "connect-email")}>
+                <Circle class="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" /> Mailbox not connected —
+                <button type="button" class="text-[hsl(var(--brand))] hover:underline" onclick={() => (current = "connect-email")}>
                   connect Gmail
                 </button>
               {/if}
             </li>
             <li class="flex items-center gap-1.5">
               {#if data.propertyCount > 0}
-                <CheckCircle2 class="h-4 w-4 text-green-600" /> {data.propertyCount} properties imported
+                <CheckCircle2 class="h-4 w-4 text-[hsl(var(--success))]" /> {data.propertyCount} properties imported
               {:else}
-                <Circle class="h-3.5 w-3.5 text-muted-foreground" /> Portfolio not imported —
-                <button type="button" class="underline" onclick={() => (current = "import")}>
+                <Circle class="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" /> Portfolio not imported —
+                <button type="button" class="text-[hsl(var(--brand))] hover:underline" onclick={() => (current = "import")}>
                   import CSV
                 </button>
               {/if}
             </li>
             <li class="flex items-center gap-1.5">
               {#if data.repairerSet}
-                <CheckCircle2 class="h-4 w-4 text-green-600" /> Nominated repairer set
+                <CheckCircle2 class="h-4 w-4 text-[hsl(var(--success))]" /> Nominated repairer set
               {:else}
-                <Circle class="h-3.5 w-3.5 text-muted-foreground" /> Nominated repairer missing —
-                <button type="button" class="underline" onclick={() => (current = "voice")}>
+                <Circle class="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" /> Nominated repairer missing —
+                <button type="button" class="text-[hsl(var(--brand))] hover:underline" onclick={() => (current = "voice")}>
                   set it
                 </button>
               {/if}
@@ -572,7 +582,7 @@
         <div class="flex items-center justify-between">
           <a
             href="mailto:ryanmay065@gmail.com?subject=PM%20Assistant%20setup%20call"
-            class="text-sm text-primary underline"
+            class="text-sm text-[hsl(var(--brand))] hover:underline"
           >
             Book a 15-min setup call
           </a>
@@ -583,4 +593,5 @@
       </CardContent>
     </Card>
   {/if}
+  </div>
 </div>

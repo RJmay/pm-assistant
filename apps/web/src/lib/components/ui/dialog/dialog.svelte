@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { X } from "lucide-svelte";
+  import { fade, scale } from "svelte/transition";
   import { cn } from "$lib/utils";
 
   let {
@@ -33,19 +34,21 @@
 {#if open}
   <!-- Backdrop -->
   <div
-    class="fixed inset-0 z-50 bg-black/50"
+    class="fixed inset-0 z-50 bg-[hsl(222_47%_8%/0.55)] backdrop-blur-sm"
     role="presentation"
     onclick={close}
+    transition:fade={{ duration: 150 }}
   ></div>
   <!-- Panel -->
   <div
     class={cn(
-      "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-6 shadow-lg",
+      "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-6 shadow-xl",
       className,
     )}
     role="dialog"
     aria-modal="true"
     aria-label={title}
+    transition:scale={{ duration: 150, start: 0.96 }}
   >
     <div class="flex flex-col space-y-1.5 text-left">
       <h2 class="text-lg font-semibold leading-none tracking-tight">{title}</h2>

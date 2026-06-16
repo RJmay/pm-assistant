@@ -11,7 +11,14 @@ import type {
   TenancyStatus,
 } from "./types";
 
-type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+type BadgeVariant =
+  | "default"
+  | "secondary"
+  | "destructive"
+  | "outline"
+  | "brand"
+  | "success"
+  | "warning";
 
 /** Compact relative time, past or future: "just now", "5m ago", "in 3d". */
 export function relativeTime(iso: string | null, now: Date = new Date()): string {
@@ -113,7 +120,7 @@ const PRIORITY_LABELS: Record<DraftPriority, string> = {
 };
 const PRIORITY_VARIANTS: Record<DraftPriority, BadgeVariant> = {
   EMERGENCY_ALERT: "destructive",
-  PRIORITY: "default",
+  PRIORITY: "warning",
   STANDARD: "secondary",
 };
 
@@ -160,8 +167,8 @@ export function matchLabel(m: MatchConfidence): string {
   return MATCH_LABELS[m];
 }
 export function matchVariant(m: MatchConfidence): BadgeVariant {
-  if (m === "high") return "secondary";
-  if (m === "none") return "destructive";
+  if (m === "high") return "success";
+  if (m === "none") return "outline";
   return "outline";
 }
 
@@ -185,8 +192,9 @@ export function draftStatusLabel(s: DraftStatus): string {
   return DRAFT_STATUS_LABELS[s];
 }
 export function draftStatusVariant(s: DraftStatus): BadgeVariant {
-  if (s === "sent") return "secondary";
+  if (s === "sent") return "success";
   if (s === "do_not_send") return "destructive";
+  if (s === "edited") return "brand";
   return "outline";
 }
 
@@ -200,8 +208,8 @@ export function tenancyStatusLabel(s: TenancyStatus): string {
   return TENANCY_STATUS_LABELS[s];
 }
 export function tenancyStatusVariant(s: TenancyStatus): BadgeVariant {
-  if (s === "active") return "secondary";
-  if (s === "ending") return "default";
+  if (s === "active") return "success";
+  if (s === "ending") return "warning";
   return "outline";
 }
 

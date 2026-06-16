@@ -24,7 +24,8 @@
   import { resolveComplianceChips } from "$lib/compliance";
   import { getBrowserClient } from "$lib/supabase-browser";
   import { env } from "$lib/public-env";
-  import { ArrowLeft } from "lucide-svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
+  import { AlertTriangle, ArrowLeft, ShieldCheck } from "lucide-svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -148,132 +149,123 @@
 
 <svelte:head><title>{data.message?.subject ?? data.draft.draft_subject ?? "Draft"} · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <a href="/queue" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+<div class="space-y-6">
+  <a
+    href="/queue"
+    class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+  >
     <ArrowLeft class="h-4 w-4" /> Back to queue
   </a>
 
-  <div class="flex flex-wrap items-center gap-2">
-    <Badge variant={priorityVariant(data.draft.priority)}>{priorityLabel(data.draft.priority)}</Badge>
-    <Badge variant="outline">{categoryLabel(data.draft.category)}</Badge>
-    {#if data.draft.escalation_flag !== "NONE"}
-      <Badge variant={escalationVariant(data.draft.escalation_flag)}>
-        {escalationLabel(data.draft.escalation_flag)}
+  <PageHeader
+    title={data.draft.draft_subject || data.message?.subject || "Draft reply"}
+    description={isOutbound
+      ? "Proactive outbound message — review and send. Nothing sends automatically."
+      : "Review the inbound email and the AI draft. Nothing sends until you approve it."}
+  >
+    {#snippet actions()}
+      <Badge variant={draftStatusVariant(data.draft.status)}>
+        {draftStatusLabel(data.draft.status)}
       </Badge>
-    {/if}
-    {#if data.draft.safety_critical}<Badge variant="destructive">Safety critical</Badge>{/if}
-    {#if data.draft.emergency_landlord_alert}<Badge variant="destructive">Landlord alert</Badge>{/if}
-    {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
-    {#if isOutbound}<Badge variant="secondary">Outbound</Badge>{/if}
-    <Badge variant={draftStatusVariant(data.draft.status)}>
-      {draftStatusLabel(data.draft.status)}
-    </Badge>
-  </div>
+    {/snippet}
+  </PageHeader>
 
-  {#if data.demoScenario}
-    {@const chips = resolveComplianceChips(
-      data.demoScenario.compliance,
-      new Date().toISOString().slice(0, 10),
-    )}
-    {#if chips.length > 0}
-      <div class="rounded-lg border border-emerald-300 bg-emerald-50/60 p-3">
-        <p class="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-          Compliance — resolved from the QLD rules engine
-        </p>
-        <div class="mt-1.5 flex flex-wrap gap-1.5">
-          {#each chips as chip (chip.label)}
-            <span
-              class="inline-flex items-center rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-xs text-emerald-900"
-            >
-              {chip.label}{chip.detail ? ` — ${chip.detail}` : ""}
-            </span>
-          {/each}
-        </div>
-        <p class="mt-1.5 text-[11px] text-emerald-700">
-          Statutory values come from the versioned rules engine at render time — never from the AI.
-        </p>
-      </div>
-    {/if}
-  {/if}
-
-  <div class="grid gap-4 lg:grid-cols-2">
-    {#if isOutbound}
-      <!-- Outbound (sequence) context — no inbound email to show -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-base">Outbound message</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-3">
-          <div class="space-y-1 text-sm">
-            <p>
-              <span class="text-muted-foreground">To:</span>
-              {senderName(data.draft.recipient_name, data.draft.recipient_email ?? "(no recipient)")}
-            </p>
-            {#if data.outboundContext?.propertyAddress}
-              <p>
-                <span class="text-muted-foreground">Property:</span>
-                {data.outboundContext.propertyAddress}
-              </p>
-            {/if}
-          </div>
-          <hr class="border-border" />
-          <p class="text-sm leading-relaxed text-muted-foreground">
-            This is a proactive {categoryLabel(data.draft.category).toLowerCase()} message generated
-            by an outbound sequence — there's no inbound email to reply to. Review the draft on the
-            right and send it when you're happy. As always, nothing sends automatically.
-          </p>
-        </CardContent>
-      </Card>
-    {:else}
-      <!-- Inbound email -->
-      <Card>
-        <CardHeader>
-          <CardTitle class="text-base">Inbound email</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-3">
-          {#if data.message}
+  <div class="grid gap-6 lg:grid-cols-3">
+    <!-- Reading column: original email + editable draft -->
+    <div class="space-y-4 lg:col-span-2">
+      {#if isOutbound}
+        <!-- Outbound (sequence) context — no inbound email to show -->
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Outbound message</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-3">
             <div class="space-y-1 text-sm">
               <p>
-                <span class="text-muted-foreground">From:</span>
-                {senderName(data.message.from_name, data.message.from_address)}
+                <span class="text-[hsl(var(--muted-foreground))]">To:</span>
+                {senderName(data.draft.recipient_name, data.draft.recipient_email ?? "(no recipient)")}
               </p>
-              <p><span class="text-muted-foreground">Subject:</span> {data.message.subject ?? "(none)"}</p>
-              <p>
-                <span class="text-muted-foreground">Received:</span>
-                {relativeTime(data.message.received_at)}
-              </p>
+              {#if data.outboundContext?.propertyAddress}
+                <p>
+                  <span class="text-[hsl(var(--muted-foreground))]">Property:</span>
+                  {data.outboundContext.propertyAddress}
+                </p>
+              {/if}
             </div>
-            <hr class="border-border" />
-            {#if data.message.body_plain}
-              <p class="whitespace-pre-wrap text-sm leading-relaxed">{data.message.body_plain}</p>
+            <hr class="border-[hsl(var(--border))]" />
+            <p class="text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">
+              This is a proactive {categoryLabel(data.draft.category).toLowerCase()} message generated
+              by an outbound sequence — there's no inbound email to reply to. Review the draft below
+              and send it when you're happy. As always, nothing sends automatically.
+            </p>
+          </CardContent>
+        </Card>
+      {:else}
+        <!-- Inbound email -->
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Inbound email</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-3">
+            {#if data.message}
+              <div class="space-y-1 text-sm">
+                <p>
+                  <span class="text-[hsl(var(--muted-foreground))]">From:</span>
+                  {senderName(data.message.from_name, data.message.from_address)}
+                </p>
+                <p>
+                  <span class="text-[hsl(var(--muted-foreground))]">Subject:</span>
+                  {data.message.subject ?? "(none)"}
+                </p>
+                <p>
+                  <span class="text-[hsl(var(--muted-foreground))]">Received:</span>
+                  {relativeTime(data.message.received_at)}
+                </p>
+              </div>
+              {#if data.message.body_plain}
+                <p
+                  class="whitespace-pre-wrap rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] p-3 text-sm leading-relaxed"
+                >
+                  {data.message.body_plain}
+                </p>
+              {:else}
+                <p class="text-sm italic text-[hsl(var(--muted-foreground))]">
+                  This email has no plain-text body. Open it in Gmail to view the HTML content.
+                </p>
+              {/if}
             {:else}
-              <p class="text-sm italic text-muted-foreground">
-                This email has no plain-text body. Open it in Gmail to view the HTML content.
-              </p>
+              <p class="text-sm italic text-[hsl(var(--muted-foreground))]">Inbound email not found.</p>
             {/if}
-          {:else}
-            <p class="text-sm italic text-muted-foreground">Inbound email not found.</p>
-          {/if}
-        </CardContent>
-      </Card>
-    {/if}
+          </CardContent>
+        </Card>
+      {/if}
 
-    <!-- Draft editor -->
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">Draft reply</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-4">
+      <!-- Draft editor -->
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-base">Draft reply</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
         {#if data.draft.bounced_at}
-          <p class="rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
-            This reply <strong>bounced</strong> ({relativeTime(data.draft.bounced_at)}).
-            {data.draft.bounce_detail ?? "Delivery failed."} Check the recipient address before resending.
+          <p
+            class="flex items-start gap-2 rounded-lg border border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.08)] px-3 py-2 text-sm text-[hsl(var(--destructive))]"
+          >
+            <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              This reply <strong>bounced</strong> ({relativeTime(data.draft.bounced_at)}).
+              {data.draft.bounce_detail ?? "Delivery failed."} Check the recipient address before resending.
+            </span>
           </p>
         {/if}
         {#if data.draft.do_not_send}
-          <p class="rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
-            The AI flagged this as <strong>do not send</strong>. Review carefully — the body below
-            is the recommended approach, not a sendable draft.
+          <p
+            class="flex items-start gap-2 rounded-lg border border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.08)] px-3 py-2 text-sm text-[hsl(var(--destructive))]"
+          >
+            <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              The AI flagged this as <strong>do not send</strong>. Review carefully — the body below
+              is the recommended approach, not a sendable draft.
+            </span>
           </p>
         {/if}
 
@@ -307,7 +299,9 @@
             <Textarea id="body" name="body" bind:value={body} class="min-h-[220px]" />
           </div>
           {#if terminal}
-            <p class="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            <p
+              class="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] px-3 py-2 text-sm text-[hsl(var(--muted-foreground))]"
+            >
               This draft was {data.draft.status === "sent" ? "sent" : "discarded"} and can no
               longer be edited or sent.
             </p>
@@ -318,6 +312,7 @@
             </Button>
             <Button
               type="button"
+              variant="brand"
               onclick={approveAndSend}
               disabled={sending || data.draft.do_not_send || terminal}
               title={data.draft.do_not_send ? "Flagged do-not-send — edit the draft to clear the flag" : undefined}
@@ -339,8 +334,10 @@
         </form>
 
         {#if data.draft.pm_review_notes.length > 0}
-          <div class="rounded-md border bg-muted/40 p-3">
-            <p class="mb-1 text-xs font-semibold uppercase text-muted-foreground">PM review notes</p>
+          <div class="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.5)] p-3">
+            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+              PM review notes
+            </p>
             <ul class="list-inside list-disc space-y-1 text-sm">
               {#each data.draft.pm_review_notes as note (note)}
                 <li>{note}</li>
@@ -349,68 +346,135 @@
           </div>
         {/if}
 
-        <p class="text-xs text-muted-foreground">
+        <p class="text-xs text-[hsl(var(--muted-foreground))]">
           Draft confidence: {confidenceLabel(data.draft.draft_confidence)} · Model:
           {data.draft.model_used}
         </p>
-      </CardContent>
-    </Card>
-  </div>
+        </CardContent>
+      </Card>
 
-  <!-- Maintenance coordination (inbound MAINTENANCE drafts) -->
-  {#if data.maintenanceJob}
-    <Card>
-      <CardHeader><CardTitle class="text-base">Maintenance job</CardTitle></CardHeader>
-      <CardContent class="flex flex-wrap items-center gap-2 text-sm">
-        <Badge variant={data.maintenanceJob.classification === "emergency" ? "destructive" : "secondary"}>
-          {data.maintenanceJob.classification}
-        </Badge>
-        <Badge variant="outline">{data.maintenanceJob.state}</Badge>
-        <a class="text-primary hover:underline" href={`/maintenance/${data.maintenanceJob.id}`}>
-          View job →
-        </a>
-      </CardContent>
-    </Card>
-  {:else if canCreateJob}
-    <Card>
-      <CardHeader>
-        <CardTitle class="text-base">Maintenance coordination</CardTitle>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        <p class="text-sm text-muted-foreground">
-          Turn this request into a tracked job. It'll be triaged (emergency vs routine) and, if you
-          name a trade, we'll draft quote requests to your approved tradies for review.
-        </p>
-        <div class="flex flex-wrap items-end gap-2">
-          <div class="space-y-1.5">
-            <Label for="trade">Trade (optional)</Label>
-            <Input id="trade" bind:value={jobTrade} placeholder="e.g. plumbing" class="w-48" />
-          </div>
-          <Button type="button" onclick={createMaintenanceJob} disabled={creatingJob}>
-            {creatingJob ? "Creating…" : "Create maintenance job"}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  {/if}
+      <!-- Maintenance coordination (inbound MAINTENANCE drafts) -->
+      {#if data.maintenanceJob}
+        <Card>
+          <CardHeader><CardTitle class="text-base">Maintenance job</CardTitle></CardHeader>
+          <CardContent class="flex flex-wrap items-center gap-2 text-sm">
+            <Badge variant={data.maintenanceJob.classification === "emergency" ? "destructive" : "secondary"}>
+              {data.maintenanceJob.classification}
+            </Badge>
+            <Badge variant="outline">{data.maintenanceJob.state}</Badge>
+            <a
+              class="text-[hsl(var(--brand))] hover:underline"
+              href={`/maintenance/${data.maintenanceJob.id}`}
+            >
+              View job →
+            </a>
+          </CardContent>
+        </Card>
+      {:else if canCreateJob}
+        <Card>
+          <CardHeader>
+            <CardTitle class="text-base">Maintenance coordination</CardTitle>
+          </CardHeader>
+          <CardContent class="space-y-3">
+            <p class="text-sm text-[hsl(var(--muted-foreground))]">
+              Turn this request into a tracked job. It'll be triaged (emergency vs routine) and, if
+              you name a trade, we'll draft quote requests to your approved tradies for review.
+            </p>
+            <div class="flex flex-wrap items-end gap-2">
+              <div class="space-y-1.5">
+                <Label for="trade">Trade (optional)</Label>
+                <Input id="trade" bind:value={jobTrade} placeholder="e.g. plumbing" class="w-48" />
+              </div>
+              <Button type="button" onclick={createMaintenanceJob} disabled={creatingJob}>
+                {creatingJob ? "Creating…" : "Create maintenance job"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      {/if}
 
-  <!-- Edit history -->
-  {#if data.edits.length > 0}
-    <Card>
-      <CardHeader><CardTitle class="text-base">Edit history</CardTitle></CardHeader>
-      <CardContent class="space-y-2">
-        {#each data.edits as edit (edit.id)}
-          <div class="text-sm">
-            <span class="text-muted-foreground">{relativeTime(edit.edited_at)}</span>
-            {#if edit.previous_subject !== edit.new_subject}
-              <span> · subject changed</span>
+      <!-- Edit history -->
+      {#if data.edits.length > 0}
+        <Card>
+          <CardHeader><CardTitle class="text-base">Edit history</CardTitle></CardHeader>
+          <CardContent class="space-y-2">
+            {#each data.edits as edit (edit.id)}
+              <div class="text-sm">
+                <span class="text-[hsl(var(--muted-foreground))]">{relativeTime(edit.edited_at)}</span>
+                {#if edit.previous_subject !== edit.new_subject}
+                  <span> · subject changed</span>
+                {/if}
+                {#if edit.previous_body !== edit.new_body}<span> · body changed</span>{/if}
+              </div>
+            {/each}
+          </CardContent>
+        </Card>
+      {/if}
+    </div>
+
+    <!-- Side card: triage + compliance metadata -->
+    <aside class="space-y-4 lg:col-span-1">
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-base">Triage</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <Badge variant={priorityVariant(data.draft.priority)}>
+              {priorityLabel(data.draft.priority)}
+            </Badge>
+            <Badge variant="outline">{categoryLabel(data.draft.category)}</Badge>
+            {#if isOutbound}<Badge variant="secondary">Outbound</Badge>{/if}
+            {#if data.draft.escalation_flag !== "NONE"}
+              <Badge variant={escalationVariant(data.draft.escalation_flag)}>
+                {escalationLabel(data.draft.escalation_flag)}
+              </Badge>
             {/if}
-            {#if edit.previous_body !== edit.new_body}<span> · body changed</span>{/if}
+            {#if data.draft.safety_critical}<Badge variant="destructive">Safety critical</Badge>{/if}
+            {#if data.draft.emergency_landlord_alert}
+              <Badge variant="destructive">
+                <AlertTriangle class="mr-1 h-3 w-3" />Landlord alert
+              </Badge>
+            {/if}
+            {#if data.draft.bounced_at}<Badge variant="destructive">Bounced</Badge>{/if}
           </div>
-        {/each}
-      </CardContent>
-    </Card>
-  {/if}
+        </CardContent>
+      </Card>
+
+      {#if data.demoScenario}
+        {@const chips = resolveComplianceChips(
+          data.demoScenario.compliance,
+          new Date().toISOString().slice(0, 10),
+        )}
+        {#if chips.length > 0}
+          <Card>
+            <CardHeader>
+              <CardTitle class="flex items-center gap-1.5 text-base">
+                <ShieldCheck class="h-4 w-4 text-[hsl(var(--success))]" />
+                Compliance
+              </CardTitle>
+            </CardHeader>
+            <CardContent class="space-y-2">
+              <p class="text-xs text-[hsl(var(--muted-foreground))]">
+                Resolved from the QLD rules engine.
+              </p>
+              <div class="flex flex-wrap gap-1.5">
+                {#each chips as chip (chip.label)}
+                  <Badge variant="success">
+                    {chip.label}{chip.detail ? ` — ${chip.detail}` : ""}
+                  </Badge>
+                {/each}
+              </div>
+              <p class="text-[11px] text-[hsl(var(--muted-foreground))]">
+                Statutory values come from the versioned rules engine at render time — never from
+                the AI.
+              </p>
+            </CardContent>
+          </Card>
+        {/if}
+      {/if}
+    </aside>
+  </div>
 </div>
 
 <Dialog bind:open={discardOpen} title="Discard this draft?" description="It will be removed from the queue. This can't be undone from the dashboard.">

@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
-/* shadcn-svelte theme tokens (Tailwind v4 CSS-first config). Brand: deep teal
-   (#12504f) on a near-white canvas. Values are HSL channels consumed via
-   hsl(var(--token)), so editing :root reskins every component. */
+/* ── PM Assistant design system ──────────────────────────────────────────────
+   Refined-SaaS look: a dark navy/ink sidebar against a calm light content
+   canvas, with one bright blue accent reserved for emphasis (active nav, links,
+   focus rings, selected states). Tokens are HSL channels consumed via
+   hsl(var(--token)); editing :root reskins every shadcn primitive at once.
+   The brand and sidebar colours are exposed as Tailwind utilities through the
+   @theme map below (bg-brand, text-sidebar-foreground, …).            */
 
 @theme inline {
   --color-border: hsl(var(--border));
@@ -16,6 +20,10 @@
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
@@ -24,41 +32,70 @@
   --color-popover-foreground: hsl(var(--popover-foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
+  --color-brand: hsl(var(--brand));
+  --color-brand-foreground: hsl(var(--brand-foreground));
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-muted: hsl(var(--sidebar-muted));
+  --color-sidebar-border: hsl(var(--sidebar-border));
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 }
 
 :root {
-  /* Faint teal-white canvas; cards stay pure white so they lift off it. */
-  --background: 180 22% 99%;
-  --foreground: 200 24% 10%;
+  /* Content canvas: a cool near-white; cards stay pure white so they lift. */
+  --background: 210 25% 98%;
+  --foreground: 222 47% 11%;
   --card: 0 0% 100%;
-  --card-foreground: 200 24% 10%;
+  --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
-  --popover-foreground: 200 24% 10%;
-  /* Brand teal = #12504f */
-  --primary: 179 63% 19%;
-  --primary-foreground: 180 40% 98%;
-  /* Neutrals re-hued toward teal so the palette reads designed, not bolted-on */
-  --secondary: 180 25% 94%;
-  --secondary-foreground: 179 48% 16%;
-  --muted: 180 20% 95.5%;
-  --muted-foreground: 200 12% 42%;
-  --accent: 178 38% 90%;
-  --accent-foreground: 179 55% 15%;
-  /* Confident, slightly deeper red than stock — calmer next to teal */
-  --destructive: 0 72% 47%;
+  --popover-foreground: 222 47% 11%;
+
+  /* Primary = deep ink-navy. Drives solid buttons + the brand mark — reads as
+     premium, serious software (Vercel/Linear-style dark CTAs). */
+  --primary: 222 47% 16%;
+  --primary-foreground: 210 40% 98%;
+
+  /* The single bright accent: a confident blue for active nav, links, focus
+     rings and selected states. Used sparingly against the navy + neutrals. */
+  --brand: 214 90% 52%;
+  --brand-foreground: 0 0% 100%;
+
+  /* Cool neutrals, lightly blue-tinted so the palette reads designed. */
+  --secondary: 214 28% 95%;
+  --secondary-foreground: 222 32% 22%;
+  --muted: 214 24% 96%;
+  --muted-foreground: 215 16% 46%;
+  --accent: 214 36% 94%;
+  --accent-foreground: 222 38% 20%;
+
+  /* Status hues, tuned to sit calmly beside the navy. */
+  --destructive: 0 72% 48%;
   --destructive-foreground: 0 0% 100%;
-  --border: 185 22% 89%;
-  --input: 185 22% 89%;
-  --ring: 179 63% 19%;
-  --radius: 0.5rem;
+  --success: 158 64% 33%;
+  --success-foreground: 0 0% 100%;
+  --warning: 33 92% 45%;
+  --warning-foreground: 0 0% 100%;
+
+  --border: 214 24% 90%;
+  --input: 214 22% 87%;
+  --ring: 214 90% 52%;
+  --radius: 0.625rem;
+
+  /* Dark sidebar context (its own scale — these never appear on the canvas). */
+  --sidebar: 222 44% 11%;
+  --sidebar-foreground: 214 18% 72%;
+  --sidebar-muted: 215 14% 52%;
+  --sidebar-border: 215 28% 20%;
 }
 
 @layer base {
   * {
     border-color: hsl(var(--border));
+  }
+  html {
+    scroll-behavior: smooth;
   }
   body {
     background-color: hsl(var(--background));
@@ -66,12 +103,36 @@
     font-family:
       "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
       sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
-  /* Brand-tinted text selection. */
+  /* Headings: tight tracking for a crisp, modern read. */
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.018em;
+  }
+  /* Tabular numerals wherever numbers line up (tables, counts, money). */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
   ::selection {
-    background-color: hsl(var(--primary) / 0.15);
+    background-color: hsl(var(--brand) / 0.18);
+  }
+  /* Subtle, unobtrusive scrollbars on the light canvas. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+}
+
+@layer components {
+  /* Faint top-down brand wash for full-screen auth/onboarding pages. */
+  .bg-auth {
+    background-image:
+      radial-gradient(60rem 40rem at 50% -10%, hsl(var(--brand) / 0.08), transparent 70%),
+      linear-gradient(to bottom, hsl(var(--background)), hsl(214 36% 96%));
   }
 }

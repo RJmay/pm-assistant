@@ -1,22 +1,24 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
   import { env } from "$lib/public-env";
+  import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
   import { toast } from "$lib/components/ui/sonner";
   import { relativeTime } from "$lib/format";
   import { getBrowserClient } from "$lib/supabase-browser";
-  import { ArrowLeft } from "lucide-svelte";
+  import { ArrowLeft, ShieldCheck } from "lucide-svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
   let busyId = $state<string | null>(null);
 
-  function stateVariant(s: string): "default" | "secondary" | "outline" {
-    if (s === "approved") return "default";
+  function stateVariant(s: string): "success" | "warning" | "outline" {
+    if (s === "approved") return "success";
     if (s === "dismissed") return "outline";
-    return "secondary"; // open
+    return "warning"; // open
   }
 
   async function review(id: string, action: "approve" | "dismiss") {
@@ -56,30 +58,37 @@
 
 <svelte:head><title>Regulatory alerts · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <a href="/settings" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+<div class="space-y-6">
+  <a
+    href="/settings"
+    class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+  >
     <ArrowLeft class="h-4 w-4" /> Back to settings
   </a>
 
-  <div>
-    <h1 class="text-xl font-semibold">Regulatory alerts</h1>
-    <p class="text-sm text-muted-foreground">
-      Detected QLD regulatory-source changes for review. Approving records your sign-off; applying a
-      change to the rules engine is still a deliberate, versioned step.
-    </p>
-  </div>
+  <PageHeader
+    title="Regulatory alerts"
+    description="Detected QLD regulatory-source changes for review. Approving records your sign-off; applying a change to the rules engine is still a deliberate, versioned step."
+  />
 
   {#if data.alerts.length === 0}
-    <div class="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
-      No regulatory alerts yet. The monitoring scan raises one here when a source changes.
-    </div>
+    <EmptyState
+      icon={ShieldCheck}
+      title="No regulatory alerts yet"
+      description="The monitoring scan raises one here when a regulatory source changes."
+    />
   {:else}
     {#each data.alerts as alert (alert.id)}
       <Card>
         <CardHeader>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <CardTitle class="text-base">
-              <a href={alert.source_url} target="_blank" rel="noreferrer" class="hover:underline">
+              <a
+                href={alert.source_url}
+                target="_blank"
+                rel="noreferrer"
+                class="text-[hsl(var(--brand))] hover:underline"
+              >
                 {alert.source}
               </a>
             </CardTitle>
@@ -87,7 +96,9 @@
               <Badge variant={stateVariant(alert.operator_review_state)}>
                 {alert.operator_review_state}
               </Badge>
-              <span class="text-xs text-muted-foreground">{relativeTime(alert.detected_at)}</span>
+              <span class="text-xs tabular-nums text-[hsl(var(--muted-foreground))]">
+                {relativeTime(alert.detected_at)}
+              </span>
             </div>
           </div>
         </CardHeader>
@@ -104,8 +115,10 @@
           </div>
 
           {#if alert.proposed_changes.length > 0}
-            <div class="rounded-md border bg-muted/40 p-3">
-              <p class="mb-1 text-xs font-semibold uppercase text-muted-foreground">Proposed changes</p>
+            <div class="rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.4)] p-3">
+              <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+                Proposed changes
+              </p>
               <ul class="list-inside list-disc space-y-1">
                 {#each alert.proposed_changes as p, i (i)}
                   <li><span class="font-medium">{p.module}</span> — {p.description}</li>

@@ -14,6 +14,7 @@
     sortQueue,
   } from "$lib/queue-filters";
   import EmptyState from "$lib/components/EmptyState.svelte";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { getBrowserClient } from "$lib/supabase-browser";
   import type { DraftCategory, EscalationFlag } from "$lib/types";
   import { cn } from "$lib/utils";
@@ -90,20 +91,21 @@
 <svelte:head><title>Queue · PM Assistant</title></svelte:head>
 
 <div class="space-y-4">
-  <div class="flex items-start justify-between gap-3">
-    <div>
-      <h1 class="text-2xl font-semibold tracking-tight">Daily queue</h1>
-      <p class="text-sm text-muted-foreground">
-        Drafts awaiting review — nothing sends until you approve it.
-      </p>
-    </div>
-    <span class="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
-      {hasActiveFilter(filter) ? `${visible.length} of ${data.items.length}` : `${data.items.length} drafts`}
-    </span>
-  </div>
+  <PageHeader
+    title="Daily queue"
+    description="Drafts awaiting review — nothing sends until you approve it."
+  >
+    {#snippet actions()}
+      <span
+        class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold tabular-nums text-[hsl(var(--muted-foreground))]"
+      >
+        {hasActiveFilter(filter) ? `${visible.length} of ${data.items.length}` : `${data.items.length} drafts`}
+      </span>
+    {/snippet}
+  </PageHeader>
 
   <!-- Filter bar -->
-  <div class="space-y-2 rounded-lg border bg-card p-3">
+  <div class="space-y-2 rounded-xl border bg-card p-3 shadow-sm">
     <div class="flex flex-wrap gap-1.5">
       {#each CATEGORIES as c (c)}
         <button
@@ -113,8 +115,8 @@
           class={cn(
             "rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
             filter.categories.includes(c)
-              ? "border-transparent bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-accent",
+              ? "border-transparent bg-[hsl(var(--brand))] text-white shadow-sm"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
           )}
         >
           {categoryLabel(c)}

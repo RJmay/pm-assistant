@@ -1,6 +1,7 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
   import { invalidateAll } from "$app/navigation";
+  import PageHeader from "$lib/components/PageHeader.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
@@ -29,27 +30,34 @@
 
 <svelte:head><title>Prompt versions · PM Assistant</title></svelte:head>
 
-<div class="space-y-4">
-  <a href="/settings" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+<div class="space-y-6">
+  <a
+    href="/settings"
+    class="inline-flex items-center gap-1.5 text-sm text-[hsl(var(--muted-foreground))] transition-colors hover:text-[hsl(var(--foreground))]"
+  >
     <ArrowLeft class="h-4 w-4" /> Back to settings
   </a>
 
-  <div>
-    <h1 class="text-xl font-semibold">Prompt versions</h1>
-    <p class="text-sm text-muted-foreground">
-      The drafting prompt is versioned and append-only. Activating a version closes the current
-      one and records a new active row — nothing is edited in place.
-    </p>
-  </div>
-
-  {#if data.active}
-    <p class="text-sm">
-      Active: <span class="font-medium">{data.active.version}</span>
-      <span class="text-muted-foreground">· since {relativeTime(data.active.active_from)}</span>
-    </p>
-  {:else}
-    <p class="text-sm text-muted-foreground">No active prompt version for this agency.</p>
-  {/if}
+  <PageHeader
+    title="Prompt versions"
+    description="The drafting prompt is versioned and append-only. Activating a version closes the current one and records a new active row — nothing is edited in place."
+  >
+    {#snippet actions()}
+      {#if data.active}
+        <span
+          class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold text-[hsl(var(--muted-foreground))]"
+        >
+          Active: {data.active.version} · since {relativeTime(data.active.active_from)}
+        </span>
+      {:else}
+        <span
+          class="rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-1 text-xs font-semibold text-[hsl(var(--muted-foreground))]"
+        >
+          No active version
+        </span>
+      {/if}
+    {/snippet}
+  </PageHeader>
 
   <div class="grid gap-4 lg:grid-cols-[320px_1fr]">
     <!-- Version list -->
@@ -58,23 +66,30 @@
       <CardContent class="space-y-2">
         {#each data.versions as v (v.id)}
           <div
-            class="rounded-md border p-2.5 text-sm {v.id === selectedId ? 'border-foreground' : ''}"
+            class="rounded-xl border p-3 text-sm shadow-sm transition-colors {v.id === selectedId
+              ? 'border-[hsl(var(--brand)/0.5)] bg-[hsl(var(--brand)/0.04)]'
+              : 'border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[hsl(var(--brand)/0.3)]'}"
           >
             <div class="flex items-center justify-between gap-2">
-              <button type="button" class="font-medium hover:underline" onclick={() => (selectedId = v.id)}>
+              <button
+                type="button"
+                class="font-semibold text-[hsl(var(--foreground))] hover:text-[hsl(var(--brand))] hover:underline"
+                onclick={() => (selectedId = v.id)}
+              >
                 {v.version}
               </button>
               <div class="flex items-center gap-1.5">
-                {#if v.active_to === null}<Badge>Active</Badge>{/if}
+                {#if v.active_to === null}<Badge variant="success">Active</Badge>{/if}
                 {#if v.agency_id === null}<Badge variant="outline">Global</Badge>{/if}
               </div>
             </div>
-            <p class="mt-0.5 text-xs text-muted-foreground">
+            <p class="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
               {relativeTime(v.active_from)}{v.notes ? ` · ${v.notes}` : ""}
             </p>
             {#if v.active_to !== null}
               <Button
                 variant="outline"
+                size="sm"
                 class="mt-2 h-7 px-2 text-xs"
                 onclick={() => {
                   activateTarget = { id: v.id, version: v.version };
@@ -86,7 +101,7 @@
             {/if}
           </div>
         {:else}
-          <p class="text-sm text-muted-foreground">No versions found.</p>
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">No versions found.</p>
         {/each}
       </CardContent>
     </Card>
@@ -97,30 +112,30 @@
         <CardTitle class="text-base">
           {selected ? selected.version : "Select a version"}
           {#if selected && data.active && selected.id !== data.active.id}
-            <span class="ml-2 text-xs font-normal text-muted-foreground">
-              vs active · <span class="text-green-600">+{stats.added}</span>
-              <span class="text-red-600">-{stats.removed}</span>
+            <span class="ml-2 text-xs font-normal text-[hsl(var(--muted-foreground))]">
+              vs active · <span class="text-[hsl(var(--success))]">+{stats.added}</span>
+              <span class="text-[hsl(var(--destructive))]">-{stats.removed}</span>
             </span>
           {/if}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {#if !selected}
-          <p class="text-sm text-muted-foreground">Pick a version from the list.</p>
+          <p class="text-sm text-[hsl(var(--muted-foreground))]">Pick a version from the list.</p>
         {:else if data.active && selected.id !== data.active.id}
-          <div class="max-h-[60vh] overflow-auto rounded-md border bg-muted/30 p-3 font-mono text-xs leading-relaxed">
+          <div class="max-h-[60vh] overflow-auto rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-3 font-mono text-xs leading-relaxed">
             {#each diff as line, i (i)}
               <div
                 class={line.type === "add"
-                  ? "whitespace-pre-wrap bg-green-500/15"
+                  ? "whitespace-pre-wrap bg-[hsl(var(--success)/0.12)]"
                   : line.type === "del"
-                    ? "whitespace-pre-wrap bg-red-500/15"
+                    ? "whitespace-pre-wrap bg-[hsl(var(--destructive)/0.12)]"
                     : "whitespace-pre-wrap"}
               >{line.type === "add" ? "+ " : line.type === "del" ? "- " : "  "}{line.text}</div>
             {/each}
           </div>
         {:else}
-          <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md border bg-muted/30 p-3 font-mono text-xs leading-relaxed">{selected.content}</pre>
+          <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted)/0.3)] p-3 font-mono text-xs leading-relaxed">{selected.content}</pre>
         {/if}
       </CardContent>
     </Card>

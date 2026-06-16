@@ -27,7 +27,7 @@
     item.priority === "EMERGENCY_ALERT"
       ? "border-l-[hsl(var(--destructive))]"
       : item.priority === "PRIORITY"
-        ? "border-l-amber-500"
+        ? "border-l-[hsl(var(--warning))]"
         : "border-l-transparent",
   );
 </script>
@@ -35,9 +35,9 @@
 <a
   href={`/queue/${item.id}`}
   class={cn(
-    "group block rounded-lg border border-l-4 bg-card p-4 shadow-sm transition-all hover:border-foreground/20 hover:shadow-md",
+    "group block rounded-xl border border-l-[3px] border-[hsl(var(--border))] bg-[hsl(var(--card))] p-4 shadow-sm transition-all hover:-translate-y-px hover:border-[hsl(var(--brand)/0.4)] hover:shadow-md",
     accent,
-    needsAttention && "bg-destructive/5",
+    needsAttention && "border-[hsl(var(--destructive)/0.3)] bg-[hsl(var(--destructive)/0.04)]",
   )}
 >
   <div class="flex items-start justify-between gap-3">
