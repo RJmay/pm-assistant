@@ -6,8 +6,10 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { toast } from "$lib/components/ui/sonner";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import { relativeTime } from "$lib/format";
   import { env } from "$lib/public-env";
+  import { FileText } from "lucide-svelte";
   import { getBrowserClient } from "$lib/supabase-browser";
   import type { PageData } from "./$types";
 
@@ -283,7 +285,7 @@
       {#each data.documents as doc (doc.id)}
         <a
           href={`/documents/${doc.id}`}
-          class="flex items-center justify-between gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
+          class="flex items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm transition-all hover:border-foreground/20 hover:shadow-md"
         >
           <div class="min-w-0">
             <div class="flex items-center gap-2">
@@ -296,6 +298,12 @@
         </a>
       {/each}
     </div>
+  {:else if data.tenancies.length > 0}
+    <EmptyState
+      icon={FileText}
+      title="No documents generated yet"
+      description="Generated statutory documents (Forms 9/11/12/13, rent-increase notices) will appear here, ready to download."
+    />
   {/if}
 </div>
 

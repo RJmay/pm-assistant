@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* shadcn-svelte theme tokens (Tailwind v4 CSS-first config). Slate base,
-   light + dark. Values are HSL channels consumed via hsl(var(--token)). */
+/* shadcn-svelte theme tokens (Tailwind v4 CSS-first config). Brand: deep teal
+   (#12504f) on a near-white canvas. Values are HSL channels consumed via
+   hsl(var(--token)), so editing :root reskins every component. */
 
 @theme inline {
   --color-border: hsl(var(--border));
@@ -29,25 +30,29 @@
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  /* Faint teal-white canvas; cards stay pure white so they lift off it. */
+  --background: 180 22% 99%;
+  --foreground: 200 24% 10%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 200 24% 10%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
+  --popover-foreground: 200 24% 10%;
+  /* Brand teal = #12504f */
+  --primary: 179 63% 19%;
+  --primary-foreground: 180 40% 98%;
+  /* Neutrals re-hued toward teal so the palette reads designed, not bolted-on */
+  --secondary: 180 25% 94%;
+  --secondary-foreground: 179 48% 16%;
+  --muted: 180 20% 95.5%;
+  --muted-foreground: 200 12% 42%;
+  --accent: 178 38% 90%;
+  --accent-foreground: 179 55% 15%;
+  /* Confident, slightly deeper red than stock — calmer next to teal */
+  --destructive: 0 72% 47%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 185 22% 89%;
+  --input: 185 22% 89%;
+  --ring: 179 63% 19%;
   --radius: 0.5rem;
 }
 
@@ -59,6 +64,14 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family:
-      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  /* Brand-tinted text selection. */
+  ::selection {
+    background-color: hsl(var(--primary) / 0.15);
   }
 }

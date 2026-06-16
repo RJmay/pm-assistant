@@ -3,7 +3,6 @@
   import { page } from "$app/state";
   import { replaceState } from "$app/navigation";
   import DraftRow from "$lib/components/DraftRow.svelte";
-  import { Badge } from "$lib/components/ui/badge";
   import { categoryLabel, escalationLabel } from "$lib/format";
   import {
     applyFilters,
@@ -14,14 +13,17 @@
     type QueueSort,
     sortQueue,
   } from "$lib/queue-filters";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import { getBrowserClient } from "$lib/supabase-browser";
   import type { DraftCategory, EscalationFlag } from "$lib/types";
   import { cn } from "$lib/utils";
-  import { Inbox } from "lucide-svelte";
+  import { Inbox, X } from "lucide-svelte";
   import { onMount } from "svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
+  const selectCls =
+    "h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring)/0.4)]";
 
   const CATEGORIES: DraftCategory[] = [
     "MAINTENANCE",
@@ -88,9 +90,16 @@
 <svelte:head><title>Queue · PM Assistant</title></svelte:head>
 
 <div class="space-y-4">
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold tracking-tight">Daily queue</h1>
-    <span class="text-sm text-muted-foreground">{visible.length} of {data.items.length}</span>
+  <div class="flex items-start justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold tracking-tight">Daily queue</h1>
+      <p class="text-sm text-muted-foreground">
+        Drafts awaiting review — nothing sends until you approve it.
+      </p>
+    </div>
+    <span class="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
+      {hasActiveFilter(filter) ? `${visible.length} of ${data.items.length}` : `${data.items.length} drafts`}
+    </span>
   </div>
 
   <!-- Filter bar -->
@@ -129,12 +138,7 @@
         </button>
       {/each}
       <div class="ml-auto flex items-center gap-1.5">
-        <select
-          onchange={setSort}
-          value={filter.sort}
-          class="h-8 rounded-md border bg-background px-2 text-xs"
-          aria-label="Sort the queue"
-        >
+        <select onchange={setSort} value={filter.sort} class={selectCls} aria-label="Sort the queue">
           <option value="urgency">Highest urgency</option>
           <option value="recent">Most recent</option>
           <option value="oldest">Oldest first</option>
@@ -143,7 +147,7 @@
           <select
             onchange={setPm}
             value={filter.pmId ?? ""}
-            class="h-8 rounded-md border bg-background px-2 text-xs"
+            class={selectCls}
             aria-label="Filter by property manager"
           >
             <option value="">All PMs</option>
@@ -155,26 +159,39 @@
       </div>
     </div>
     {#if hasActiveFilter(filter)}
-      <button type="button" onclick={clearFilters} class="text-xs text-muted-foreground underline">
-        Clear filters
+      <button
+        type="button"
+        onclick={clearFilters}
+        class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <X class="h-3 w-3" /> Clear filters
       </button>
     {/if}
   </div>
 
   <!-- List -->
   {#if visible.length === 0}
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-16 text-center"
-    >
-      <Inbox class="h-8 w-8 text-muted-foreground" />
-      {#if data.items.length === 0}
-        <p class="font-medium">Queue is clear</p>
-        <p class="text-sm text-muted-foreground">New drafts appear here as email arrives.</p>
-      {:else}
-        <p class="font-medium">No drafts match your filters</p>
-        <Badge variant="outline">{data.items.length} hidden</Badge>
-      {/if}
-    </div>
+    {#if data.items.length === 0}
+      <EmptyState
+        icon={Inbox}
+        title="All caught up"
+        description={data.isDemo
+          ? "Open the Demo scenarios panel and inject one to watch a draft appear."
+          : "New drafts land here as email arrives — nothing sends without your review."}
+      />
+    {:else}
+      <EmptyState icon={Inbox} title="No drafts match your filters">
+        {#snippet action()}
+          <button
+            type="button"
+            onclick={clearFilters}
+            class="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            <X class="h-3.5 w-3.5" /> Clear filters
+          </button>
+        {/snippet}
+      </EmptyState>
+    {/if}
   {:else}
     <div class="space-y-2">
       {#each visible as item (item.id)}

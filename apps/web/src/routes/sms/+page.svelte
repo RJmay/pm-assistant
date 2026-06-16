@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from "$app/navigation";
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import { Badge } from "$lib/components/ui/badge";
   import { Button } from "$lib/components/ui/button";
   import { Card, CardContent } from "$lib/components/ui/card";
@@ -8,8 +9,14 @@
   import { escalationLabel, relativeTime } from "$lib/format";
   import { env } from "$lib/public-env";
   import { getBrowserClient } from "$lib/supabase-browser";
-  import { ShieldAlert } from "lucide-svelte";
+  import { MessageSquare, ShieldAlert } from "lucide-svelte";
   import type { PageData } from "./$types";
+
+  /** Title-case an SMS intent enum (status_query → Status query). */
+  function intentLabel(intent: string): string {
+    const s = intent.replaceAll("_", " ");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
 
   let { data }: { data: PageData } = $props();
 
@@ -79,14 +86,18 @@
   </div>
 
   {#if data.messages.length === 0}
-    <p class="rounded-lg border bg-card p-6 text-sm text-muted-foreground">No SMS to review.</p>
+    <EmptyState
+      icon={MessageSquare}
+      title="No texts to review"
+      description="Inbound tenant SMS will appear here, classified with a drafted reply for you to send."
+    />
   {:else}
     {#each data.messages as m (m.id)}
       <Card>
         <CardContent class="space-y-3 pt-6">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-medium">{sender(m)}</span>
-            {#if m.intent}<Badge variant="outline">{m.intent.replace("_", " ")}</Badge>{/if}
+            {#if m.intent}<Badge variant="outline">{intentLabel(m.intent)}</Badge>{/if}
             {#if m.escalation_flag !== "NONE"}
               <Badge variant="destructive">
                 <ShieldAlert class="mr-1 h-3.5 w-3.5" />{escalationLabel(m.escalation_flag)}

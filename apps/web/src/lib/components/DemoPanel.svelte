@@ -7,6 +7,7 @@
   import { resolveComplianceChips } from "$lib/compliance";
   import { env } from "$lib/public-env";
   import { getBrowserClient } from "$lib/supabase-browser";
+  import { cn } from "$lib/utils";
   import { CheckCircle2, FlaskConical, Loader2, RefreshCw, Sparkles, X } from "lucide-svelte";
   import type { DemoScenarioListItem } from "$lib/types";
 
@@ -88,19 +89,24 @@
 <!-- Floating demo control — demo tenants only (mounted from the layout). -->
 <div class="fixed bottom-16 right-3 z-40 sm:bottom-4 sm:right-4">
   {#if !open}
-    <Button onclick={() => (open = true)} class="shadow-lg">
-      <FlaskConical class="mr-1.5 h-4 w-4" /> Demo scenarios
+    <Button onclick={() => (open = true)} class="rounded-full pl-2 shadow-lg">
+      <span
+        class="mr-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[hsl(var(--primary-foreground)/0.2)]"
+      >
+        <FlaskConical class="h-3 w-3" />
+      </span>
+      Demo scenarios
     </Button>
   {:else}
     <div
-      class="flex max-h-[70vh] w-[min(94vw,380px)] flex-col rounded-lg border bg-background shadow-xl"
+      class="flex max-h-[72vh] w-[min(94vw,380px)] flex-col overflow-hidden rounded-xl border bg-background shadow-2xl"
     >
-      <div class="flex items-center justify-between border-b px-3 py-2">
+      <div class="flex items-center justify-between border-b bg-muted/50 px-3 py-2.5">
         <p class="flex items-center gap-1.5 text-sm font-semibold">
-          <FlaskConical class="h-4 w-4" /> Demo scenarios
+          <FlaskConical class="h-4 w-4 text-[hsl(var(--primary))]" /> Demo scenarios
         </p>
         <div class="flex items-center gap-1">
-          <Button variant="outline" size="sm" onclick={surpriseMe} disabled={injecting !== null}>
+          <Button variant="ghost" size="sm" onclick={surpriseMe} disabled={injecting !== null}>
             <Sparkles class="mr-1 h-3.5 w-3.5" /> Surprise me
           </Button>
           <button
@@ -117,13 +123,18 @@
       <div class="flex-1 space-y-2 overflow-y-auto p-3">
         {#each scenarios as s (s.id)}
           {@const chips = resolveComplianceChips(s.compliance, today)}
-          <div class="rounded-md border p-2.5">
+          <div
+            class={cn(
+              "rounded-lg border p-2.5 transition-colors hover:bg-accent/40",
+              s.used_at && "opacity-60",
+            )}
+          >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="flex items-center gap-1.5 text-sm font-medium">
                   {s.title}
                   {#if s.used_at}
-                    <CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <CheckCircle2 class="h-3.5 w-3.5 shrink-0 text-[hsl(var(--primary))]" />
                   {/if}
                 </p>
                 {#if s.description}
@@ -145,17 +156,20 @@
             </div>
             {#if chips.length > 0}
               <div class="mt-1.5 flex flex-wrap gap-1">
-                {#each chips as chip (chip.label)}
-                  <Badge variant="outline" class="text-[10px]" title={chip.detail ?? undefined}>
-                    {chip.label}{chip.detail ? ` — ${chip.detail}` : ""}
+                {#each chips.slice(0, 3) as chip (chip.label)}
+                  <Badge variant="outline" class="text-[11px]" title={chip.detail ?? undefined}>
+                    {chip.label}
                   </Badge>
                 {/each}
+                {#if chips.length > 3}
+                  <Badge variant="outline" class="text-[11px]">+{chips.length - 3}</Badge>
+                {/if}
               </div>
             {/if}
             {#if s.used_at && s.last_draft_id}
               <a
                 href={`/queue/${s.last_draft_id}`}
-                class="mt-1 inline-block text-xs text-primary hover:underline"
+                class="mt-1 inline-block text-xs text-[hsl(var(--primary))] hover:underline"
               >
                 View the draft →
               </a>
@@ -165,6 +179,11 @@
       </div>
 
       <div class="border-t p-2">
+        {#if unused.length === 0}
+          <p class="mb-1.5 text-center text-xs text-muted-foreground">
+            All scenarios used — reset to run the demo again.
+          </p>
+        {/if}
         <Button
           variant="outline"
           size="sm"

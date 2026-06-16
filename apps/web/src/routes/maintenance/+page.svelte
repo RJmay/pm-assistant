@@ -1,7 +1,8 @@
 <script lang="ts">
+  import EmptyState from "$lib/components/EmptyState.svelte";
   import { Badge } from "$lib/components/ui/badge";
-  import { Card, CardContent } from "$lib/components/ui/card";
   import { jobStateLabel, ownerApprovalLabel, relativeTime } from "$lib/format";
+  import { Wrench } from "lucide-svelte";
   import type { PageData } from "./$types";
 
   let { data }: { data: PageData } = $props();
@@ -19,10 +20,11 @@
   </div>
 
   {#if data.jobs.length === 0}
-    <p class="rounded-lg border bg-card p-6 text-sm text-muted-foreground">
-      No maintenance jobs yet. Open a maintenance request in the queue and choose “Create
-      maintenance job”.
-    </p>
+    <EmptyState
+      icon={Wrench}
+      title="No maintenance jobs yet"
+      description="Open a maintenance request in the queue and choose “Create maintenance job” to start one."
+    />
   {:else}
     <div class="space-y-2">
       {#each data.jobs as job (job.id)}

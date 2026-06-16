@@ -1,6 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import { page } from "$app/state";
+  import BrandMark from "$lib/components/BrandMark.svelte";
   import DemoPanel from "$lib/components/DemoPanel.svelte";
   import { Toaster } from "$lib/components/ui/sonner";
   import { cn } from "$lib/utils";
@@ -51,21 +52,26 @@
 {:else}
   <div class="flex min-h-screen flex-col">
     <!-- Top bar -->
-    <header class="sticky top-0 z-30 border-b bg-background">
+    <header
+      class="sticky top-0 z-30 border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/70"
+    >
       <div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <div class="flex items-center gap-6">
-          <a href="/queue" class="font-semibold">PM Assistant</a>
+        <div class="flex items-center gap-5">
+          <a href="/queue" class="shrink-0" aria-label="PM Assistant — home">
+            <BrandMark size="sm" wordmark class="hidden sm:inline-flex" />
+            <BrandMark size="sm" class="sm:hidden" />
+          </a>
           <!-- Desktop nav -->
-          <nav class="hidden items-center gap-1 sm:flex">
+          <nav class="hidden items-center gap-0.5 sm:flex">
             {#each navItems as item (item.href)}
               <a
                 href={item.href}
                 aria-current={isActive(item.href) ? "page" : undefined}
                 class={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
                   isActive(item.href)
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
+                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                 )}
               >
                 <item.icon class="h-4 w-4" />
@@ -74,9 +80,9 @@
             {/each}
           </nav>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-1.5">
           {#if data.agencyName}
-            <span class="hidden items-center gap-1.5 text-sm text-muted-foreground sm:inline-flex">
+            <span class="mr-1 hidden items-center gap-1.5 text-sm text-muted-foreground sm:inline-flex">
               {data.agencyName}
               {#if data.isDemo}
                 <span
@@ -86,10 +92,11 @@
                 </span>
               {/if}
             </span>
+            <span class="mr-1 hidden h-5 w-px bg-border sm:block"></span>
           {/if}
           <a
             href="/help"
-            class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
             aria-label="Help"
           >
             <HelpCircle class="h-4 w-4" />
@@ -98,7 +105,7 @@
           <form method="POST" action="/logout">
             <button
               type="submit"
-              class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
               aria-label="Sign out"
             >
               <LogOut class="h-4 w-4" />
@@ -118,21 +125,28 @@
       <DemoPanel scenarios={data.demoScenarios} />
     {/if}
 
-    <!-- Mobile bottom nav (grid-cols must equal navItems.length) -->
+    <!-- Mobile bottom nav: icon-only (8 labels won't fit at 390px), active tab
+         gets a teal pill. grid-cols must equal navItems.length. -->
     <nav
-      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 border-t bg-background sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 border-t bg-background/90 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
     >
       {#each navItems as item (item.href)}
         <a
           href={item.href}
           aria-current={isActive(item.href) ? "page" : undefined}
-          class={cn(
-            "flex flex-col items-center gap-1 py-2 text-xs",
-            isActive(item.href) ? "text-foreground" : "text-muted-foreground",
-          )}
+          aria-label={item.label}
+          class="flex flex-col items-center justify-center py-1.5"
         >
-          <item.icon class="h-5 w-5" />
-          {item.label}
+          <span
+            class={cn(
+              "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+              isActive(item.href)
+                ? "bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
+                : "text-muted-foreground",
+            )}
+          >
+            <item.icon class="h-5 w-5" />
+          </span>
         </a>
       {/each}
     </nav>
