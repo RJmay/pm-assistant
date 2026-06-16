@@ -27,3 +27,6 @@ coverage/
 
 # Office lock/owner temp files
 ~$*
+
+# transient e2e screenshots
+apps/web/e2e/_shots/
